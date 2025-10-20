@@ -75,6 +75,29 @@ export interface ProjectConfig {
   description?: string;
 }
 
+export interface Repository {
+  id: string;
+  name: string;
+  path: string;
+  type: RepositoryType;
+  gitUrl?: string;
+  branch?: string;
+  createdAt: Date;
+  lastUsed: Date;
+}
+
+export enum RepositoryType {
+  CLONED = 'cloned',
+  NEW = 'new',
+  EXISTING = 'existing'
+}
+
+export interface UserSession {
+  userId: number;
+  currentRepositoryId?: string;
+  repositories: Map<string, Repository>;
+}
+
 export interface AuditLogEntry {
   timestamp: Date;
   userId: number;

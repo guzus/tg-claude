@@ -5,6 +5,7 @@ import { logger } from './utils/logger';
 import { ClaudeExecutor } from './services/ClaudeExecutor';
 import { RateLimiter } from './services/RateLimiter';
 import { AuditLogger } from './services/AuditLogger';
+import { RepositoryManager } from './services/RepositoryManager';
 import { BotHandlers } from './handlers/BotHandlers';
 
 // Validate configuration
@@ -22,15 +23,17 @@ try {
 const executor = new ClaudeExecutor();
 const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
+const repositoryManager = new RepositoryManager();
 
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger);
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
 
 // Set bot commands in Telegram UI
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
+  { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'commit', description: 'Commit changes and push to git' },
   { command: 'read', description: 'Read and summarize documentation from URL' },
   { command: 'review', description: 'Review current code changes' },
@@ -47,6 +50,7 @@ bot.setMyCommands([
 // Register command handlers
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
+bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/commit (.+)/, (msg, match) => handlers.handleCommit(msg, match));
 bot.onText(/\/read (.+)/, (msg, match) => handlers.handleRead(msg, match));
 bot.onText(/\/review/, (msg) => handlers.handleReview(msg));
