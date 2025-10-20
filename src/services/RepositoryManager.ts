@@ -9,9 +9,51 @@ import { config } from '../config';
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
   private baseWorkspacePath: string;
+  private githubToken: string | undefined;
 
   constructor(baseWorkspacePath?: string) {
     this.baseWorkspacePath = baseWorkspacePath || config.workspacePath;
+    this.githubToken = process.env.GITHUB_TOKEN;
+
+    if (this.githubToken) {
+      logger.info('GitHub token found - will use for git operations');
+    } else {
+      logger.warn('GITHUB_TOKEN not set - git operations may require manual authentication');
+    }
+  }
+
+  /**
+   * Inject GitHub token into git URL for authentication
+   */
+  private injectTokenIntoUrl(gitUrl: string): string {
+    if (!this.githubToken) {
+      return gitUrl;
+    }
+
+    // Only modify GitHub URLs
+    if (!gitUrl.includes('github.com')) {
+      return gitUrl;
+    }
+
+    try {
+      // Convert SSH to HTTPS if needed
+      if (gitUrl.startsWith('git@github.com:')) {
+        gitUrl = gitUrl.replace('git@github.com:', 'https://github.com/');
+      }
+
+      // If it's already HTTPS, inject the token
+      if (gitUrl.startsWith('https://github.com/')) {
+        // Use the format: https://oauth2:TOKEN@github.com/...
+        return gitUrl.replace('https://github.com/', `https://oauth2:${this.githubToken}@github.com/`);
+      }
+
+      return gitUrl;
+    } catch (error) {
+      logger.error('Failed to inject token into URL', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return gitUrl;
+    }
   }
 
   /**
@@ -180,7 +222,18 @@ export class RepositoryManager {
     const repoId = uuidv4();
     const repoPath = path.join(this.baseWorkspacePath, `user_${userId}`, repoName);
 
-    logger.info('Cloning repository', { userId, gitUrl, repoPath });
+    // Store original URL for display purposes
+    const originalGitUrl = gitUrl;
+
+    // Inject token for authentication
+    const authenticatedUrl = this.injectTokenIntoUrl(gitUrl);
+
+    logger.info('Cloning repository', {
+      userId,
+      gitUrl: originalGitUrl, // Log original URL (without token)
+      repoPath,
+      usingToken: authenticatedUrl !== originalGitUrl
+    });
 
     try {
       // Create user directory if it doesn't exist
@@ -192,12 +245,24 @@ export class RepositoryManager {
         throw new Error(`Repository directory already exists: ${repoName}`);
       }
 
-      // Clone the repository
+      // Clone the repository with authenticated URL
       await this.executeGitCommand('clone', [
-        gitUrl,
+        authenticatedUrl,
         ...(branch ? ['-b', branch] : []),
         repoPath
       ]);
+
+      // Remove token from git config for security (replace with original URL)
+      if (authenticatedUrl !== originalGitUrl) {
+        try {
+          await this.executeGitCommand('remote', ['set-url', 'origin', originalGitUrl], repoPath);
+          logger.debug('Removed token from git config', { repoPath });
+        } catch (error) {
+          logger.warn('Failed to update git remote URL', {
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
 
       // Create repository record
       const repository: Repository = {
@@ -205,7 +270,7 @@ export class RepositoryManager {
         name: repoName,
         path: repoPath,
         type: RepositoryType.CLONED,
-        gitUrl,
+        gitUrl: originalGitUrl,
         branch,
         createdAt: new Date(),
         lastUsed: new Date()
@@ -436,8 +501,22 @@ export class RepositoryManager {
     cwd?: string
   ): Promise<string> {
     return new Promise((resolve, reject) => {
+      // Set up environment variables for git
+      const env = { ...process.env };
+
+      // Disable interactive prompts
+      env.GIT_TERMINAL_PROMPT = '0';
+
+      // Add GitHub token as environment variable if available
+      if (this.githubToken) {
+        env.GITHUB_TOKEN = this.githubToken;
+        // Some git operations may use GIT_ASKPASS
+        env.GIT_ASKPASS = '/bin/echo';
+      }
+
       const gitProcess = spawn('git', [command, ...args], {
-        cwd: cwd || this.baseWorkspacePath
+        cwd: cwd || this.baseWorkspacePath,
+        env
       });
 
       let stdout = '';
