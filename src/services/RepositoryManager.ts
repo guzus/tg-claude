@@ -16,7 +16,10 @@ export class RepositoryManager {
     this.githubToken = process.env.GITHUB_TOKEN;
 
     if (this.githubToken) {
-      logger.info('GitHub token found - will use for git operations');
+      logger.info('GitHub token found - will use for git operations', {
+        tokenLength: this.githubToken.length,
+        tokenPrefix: this.githubToken.substring(0, 4)
+      });
     } else {
       logger.warn('GITHUB_TOKEN not set - git operations may require manual authentication');
     }
@@ -27,11 +30,13 @@ export class RepositoryManager {
    */
   private injectTokenIntoUrl(gitUrl: string): string {
     if (!this.githubToken) {
+      logger.debug('No GitHub token available, using original URL');
       return gitUrl;
     }
 
     // Only modify GitHub URLs
     if (!gitUrl.includes('github.com')) {
+      logger.debug('Not a GitHub URL, skipping token injection', { gitUrl });
       return gitUrl;
     }
 
@@ -39,6 +44,7 @@ export class RepositoryManager {
       // Convert SSH to HTTPS if needed
       if (gitUrl.startsWith('git@github.com:')) {
         gitUrl = gitUrl.replace('git@github.com:', 'https://github.com/');
+        logger.debug('Converted SSH URL to HTTPS', { gitUrl });
       }
 
       // If it's already HTTPS, inject the token
@@ -46,9 +52,15 @@ export class RepositoryManager {
         // GitHub expects: https://x-access-token:TOKEN@github.com/...
         // Or simply: https://TOKEN@github.com/...
         // Using x-access-token format which is the recommended approach
-        return gitUrl.replace('https://github.com/', `https://x-access-token:${this.githubToken}@github.com/`);
+        const authenticatedUrl = gitUrl.replace('https://github.com/', `https://x-access-token:${this.githubToken}@github.com/`);
+        logger.debug('Injected token into URL', {
+          hasToken: authenticatedUrl.includes('@github.com'),
+          urlLength: authenticatedUrl.length
+        });
+        return authenticatedUrl;
       }
 
+      logger.warn('URL format not recognized for token injection', { gitUrl });
       return gitUrl;
     } catch (error) {
       logger.error('Failed to inject token into URL', {
