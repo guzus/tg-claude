@@ -62,7 +62,8 @@ export class ClaudeExecutor {
         taskId: task.id,
         command: 'claude',
         args: args.map(a => a.length > 50 ? a.substring(0, 50) + '...' : a),
-        cwd: workingDir
+        cwd: workingDir,
+        hasApiKey: !!config.claudeApiKey
       });
 
       // Build environment variables
@@ -75,7 +76,17 @@ export class ClaudeExecutor {
       // Spawn Claude Code process
       const claudeProcess = spawn('claude', args, {
         cwd: workingDir,
-        env
+        env,
+        shell: false
+      });
+
+      // Log process started
+      logger.info('Claude process spawned', {
+        taskId: task.id,
+        pid: claudeProcess.pid,
+        hasStdin: !!claudeProcess.stdin,
+        hasStdout: !!claudeProcess.stdout,
+        hasStderr: !!claudeProcess.stderr
       });
 
       // Track process

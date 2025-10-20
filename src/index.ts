@@ -34,6 +34,8 @@ bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
+  { command: 'check', description: 'Check Claude CLI installation and setup' },
+  { command: 'debug', description: 'Run a simple test task' },
   { command: 'commit', description: 'Commit changes and push to git' },
   { command: 'read', description: 'Read and summarize documentation from URL' },
   { command: 'review', description: 'Review current code changes' },
@@ -52,6 +54,8 @@ bot.setMyCommands([
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
+bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
+bot.onText(/\/debug/, (msg) => handlers.handleDebug(msg));
 bot.onText(/\/commit (.+)/, (msg, match) => handlers.handleCommit(msg, match));
 bot.onText(/\/read (.+)/, (msg, match) => handlers.handleRead(msg, match));
 bot.onText(/\/review/, (msg) => handlers.handleReview(msg));

@@ -448,6 +448,111 @@ export class BotHandlers {
   }
 
   /**
+   * /check command - Check Claude CLI installation and setup
+   */
+  async handleCheck(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    await this.bot.sendMessage(chatId, '🔍 Checking Claude CLI setup...');
+
+    try {
+      const { spawn } = require('child_process');
+
+      // Check if claude command exists
+      const whichClaude = spawn('which', ['claude']);
+      let claudePath = '';
+
+      whichClaude.stdout?.on('data', (data: Buffer) => {
+        claudePath += data.toString();
+      });
+
+      await new Promise((resolve) => {
+        whichClaude.on('close', async (code: number) => {
+          if (code !== 0 || !claudePath.trim()) {
+            await this.bot.sendMessage(
+              chatId,
+              '❌ *Claude CLI not found*\n\n' +
+              'Please install it first:\n' +
+              '```bash\n' +
+              'npm install -g @anthropic-ai/claude-code\n' +
+              '# or\n' +
+              'curl -fsSL https://claude.ai/install.sh | sh\n' +
+              '```\n\n' +
+              'Then authenticate:\n' +
+              '```bash\nclaude login\n```',
+              { parse_mode: 'Markdown' }
+            );
+          } else {
+            // Check version
+            const versionCheck = spawn('claude', ['--version']);
+            let version = '';
+
+            versionCheck.stdout?.on('data', (data: Buffer) => {
+              version += data.toString();
+            });
+
+            versionCheck.on('close', async () => {
+              const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+
+              await this.bot.sendMessage(
+                chatId,
+                '✅ *Claude CLI Status*\n\n' +
+                `📍 Path: \`${claudePath.trim()}\`\n` +
+                `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
+                `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
+                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
+                `🔐 API Key: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '⚠️ Using CLI auth'}\n\n` +
+                `To test, try:\n\`/task say hello\``,
+                { parse_mode: 'Markdown' }
+              );
+            });
+          }
+          resolve(null);
+        });
+      });
+    } catch (error) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Error checking setup: ' + (error instanceof Error ? error.message : String(error))
+      );
+    }
+  }
+
+  /**
+   * /debug command - Run a simple test to debug Claude CLI
+   */
+  async handleDebug(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        '⚠️ No active repository! Create one first:\n`/repo new test-debug`',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    await this.bot.sendMessage(
+      chatId,
+      '🐛 *Debug Mode - Running Test Task*\n\n' +
+      'Testing Claude CLI with a simple command...\n' +
+      `Working directory: \`${currentRepo.path}\``,
+      { parse_mode: 'Markdown' }
+    );
+
+    // Run a simple test command
+    await this.executeAndStream(msg, 'echo "Hello from Claude" > test.txt');
+  }
+
+  /**
    * /logs command - Get full output of a task
    */
   async handleLogs(msg: Message, match: RegExpExecArray | null): Promise<void> {
