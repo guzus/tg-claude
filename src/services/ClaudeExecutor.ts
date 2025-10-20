@@ -47,7 +47,7 @@ export class ClaudeExecutor {
       // Build command arguments
       const args = [
         prompt,
-        ...(dangerMode ? ['--dangerously-skip-permission'] : []),
+        ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
         ...additionalFlags
       ];
 

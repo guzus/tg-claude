@@ -27,6 +27,23 @@ const auditLogger = new AuditLogger();
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger);
 
+// Set bot commands in Telegram UI
+bot.setMyCommands([
+  { command: 'start', description: 'Welcome message and command list' },
+  { command: 'task', description: 'Execute a coding task with Claude AI' },
+  { command: 'commit', description: 'Commit changes and push to git' },
+  { command: 'read', description: 'Read and summarize documentation from URL' },
+  { command: 'review', description: 'Review current code changes' },
+  { command: 'test', description: 'Run all tests' },
+  { command: 'build', description: 'Build the project' },
+  { command: 'status', description: 'Check active tasks' },
+  { command: 'cancel', description: 'Cancel a running task' },
+  { command: 'limits', description: 'Check your rate limits' },
+  { command: 'help', description: 'Show help message' }
+]).catch((error) => {
+  logger.error('Failed to set bot commands', { error: error.message });
+});
+
 // Register command handlers
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
