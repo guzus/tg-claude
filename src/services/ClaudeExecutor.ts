@@ -3,10 +3,51 @@ import { ClaudeTask, ClaudeExecutionOptions, TaskStatus } from '../types';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 export class ClaudeExecutor {
   private activeTasks: Map<string, ChildProcess> = new Map();
   private taskHistory: Map<string, ClaudeTask> = new Map();
+
+  /**
+   * Authenticate with GitHub CLI using GITHUB_TOKEN environment variable
+   */
+  private async authenticateGitHub(): Promise<void> {
+    try {
+      const githubToken = process.env.GITHUB_TOKEN;
+
+      if (!githubToken) {
+        logger.warn('GITHUB_TOKEN not found in environment variables, skipping GitHub authentication');
+        return;
+      }
+
+      logger.info('Authenticating with GitHub CLI using GITHUB_TOKEN');
+
+      // Check if gh is installed
+      try {
+        await execAsync('which gh');
+      } catch (error) {
+        logger.warn('GitHub CLI (gh) not installed, skipping GitHub authentication');
+        return;
+      }
+
+      // Authenticate using the token
+      const authCommand = `echo "${githubToken}" | gh auth login --with-token`;
+      await execAsync(authCommand, {
+        timeout: 10000 // 10 second timeout
+      });
+
+      logger.info('Successfully authenticated with GitHub CLI');
+    } catch (error) {
+      // Log but don't fail the task - GitHub auth is optional
+      logger.error('Failed to authenticate with GitHub CLI', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
 
   /**
    * Execute a Claude Code command
@@ -45,6 +86,9 @@ export class ClaudeExecutor {
     });
 
     try {
+      // Authenticate with GitHub before executing
+      await this.authenticateGitHub();
+
       // Check if working directory exists
       const fs = require('fs');
       if (!fs.existsSync(workingDir)) {
