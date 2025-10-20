@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tree -I 'node_modules|dist' -L 3)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

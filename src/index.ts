@@ -1,0 +1,115 @@
+import TelegramBot from 'node-telegram-bot-api';
+import express from 'express';
+import { config, validateConfig } from './config';
+import { logger } from './utils/logger';
+import { ClaudeExecutor } from './services/ClaudeExecutor';
+import { RateLimiter } from './services/RateLimiter';
+import { AuditLogger } from './services/AuditLogger';
+import { BotHandlers } from './handlers/BotHandlers';
+
+// Validate configuration
+try {
+  validateConfig();
+  logger.info('Configuration validated successfully');
+} catch (error) {
+  logger.error('Configuration validation failed', {
+    error: error instanceof Error ? error.message : String(error)
+  });
+  process.exit(1);
+}
+
+// Initialize services
+const executor = new ClaudeExecutor();
+const rateLimiter = new RateLimiter();
+const auditLogger = new AuditLogger();
+
+// Initialize Telegram bot
+const bot = new TelegramBot(config.telegramToken, { polling: true });
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger);
+
+// Register command handlers
+bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
+bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
+bot.onText(/\/commit (.+)/, (msg, match) => handlers.handleCommit(msg, match));
+bot.onText(/\/read (.+)/, (msg, match) => handlers.handleRead(msg, match));
+bot.onText(/\/review/, (msg) => handlers.handleReview(msg));
+bot.onText(/\/test/, (msg) => handlers.handleTest(msg));
+bot.onText(/\/build/, (msg) => handlers.handleBuild(msg));
+bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
+bot.onText(/\/cancel (.+)/, (msg, match) => handlers.handleCancel(msg, match));
+bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
+bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
+
+// Handle polling errors
+bot.on('polling_error', (error) => {
+  logger.error('Telegram polling error', {
+    error: error.message
+  });
+});
+
+// Health check endpoint
+const app = express();
+const healthPort = process.env.HEALTH_PORT || 3000;
+
+app.get('/health', (req, res) => {
+  const stats = auditLogger.getStats();
+  const activeTaskCount = executor.getTaskCount();
+
+  res.json({
+    status: 'ok',
+    uptime: process.uptime(),
+    activeTasks: activeTaskCount,
+    stats,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/metrics', (req, res) => {
+  const stats = auditLogger.getStats();
+
+  res.json({
+    commands: stats,
+    activeTasks: executor.getTaskCount(),
+    uptime: process.uptime()
+  });
+});
+
+app.listen(healthPort, () => {
+  logger.info(`Health check endpoint listening on port ${healthPort}`);
+});
+
+// Cleanup old tasks periodically (every hour)
+setInterval(() => {
+  const cleanedTasks = executor.cleanupOldTasks();
+  const cleanedActivity = rateLimiter.cleanup();
+
+  if (cleanedTasks > 0 || cleanedActivity > 0) {
+    logger.info('Periodic cleanup completed', {
+      cleanedTasks,
+      cleanedActivity
+    });
+  }
+}, 60 * 60 * 1000);
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  bot.stopPolling();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  bot.stopPolling();
+  process.exit(0);
+});
+
+logger.info('🤖 Claude Code Telegram Bot started successfully', {
+  allowedUsers: config.allowedUserIds.length,
+  workspacePath: config.workspacePath,
+  maxConcurrentTasks: config.maxConcurrentTasks
+});
+
+console.log('🤖 Bot is running...');
+console.log(`📊 Health check: http://localhost:${healthPort}/health`);
+console.log(`📈 Metrics: http://localhost:${healthPort}/metrics`);
