@@ -171,11 +171,17 @@ export class BotHandlers {
             fullOutput = 'No output captured';
           }
 
+          // Get repository info for quick access
+          const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+          const repoLink = currentRepo?.gitUrl
+            ? `\n\n🔗 Repository: ${currentRepo.gitUrl.replace('.git', '')}`
+            : '';
+
           const finalMessage =
             `${statusEmoji} ${statusText}\n\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
             `Time: ${executionTime}s\n` +
-            `Total output: ${fullOutput.length} chars\n\n` +
+            `Total output: ${fullOutput.length} chars${repoLink}\n\n` +
             `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\``;
 
           try {
@@ -195,6 +201,11 @@ export class BotHandlers {
                 contentType: 'text/plain'
               }
             );
+
+            // Send repo link separately if available
+            if (repoLink) {
+              await this.bot.sendMessage(chatId, repoLink, { parse_mode: 'Markdown' });
+            }
           }
 
           // Log audit entry
@@ -248,7 +259,8 @@ export class BotHandlers {
         `🤖 *Claude Code Remote Control Bot*\n\n` +
         `Available commands:\n\n` +
         `📁 *Repository Management:*\n` +
-        `/repo - Manage repositories (clone/new/list/switch)\n\n` +
+        `/repo - Manage repositories (clone/new/list/switch)\n` +
+        `/link - Get repository URL link\n\n` +
         `🛠️ *Development:*\n` +
         `/task <description> - Execute a task\n` +
         `/commit <message> - Commit and push changes\n` +
@@ -264,7 +276,7 @@ export class BotHandlers {
         `💡 *Quick Start:*\n` +
         `1. Use \`/repo clone <url>\` to clone a repository\n` +
         `2. Use \`/task <description>\` to execute tasks\n` +
-        `3. Use \`/repo list\` to see your repositories`,
+        `3. Use \`/link\` to get your repository URL`,
       { parse_mode: 'Markdown' }
     );
   }
@@ -300,7 +312,21 @@ export class BotHandlers {
     }
 
     const taskDescription = match[1].trim();
-    await this.executeAndStream(msg, taskDescription);
+
+    // Augment prompt to instruct AI to commit and push changes
+    const augmentedPrompt = `${taskDescription}
+
+IMPORTANT: After completing the coding task:
+1. Use git commands to stage all changes (git add .)
+2. Create a commit with a descriptive message using: git commit -m "your message"
+3. Push changes to the remote repository using: git push
+4. If there's no remote repository set up, initialize one and push using gh CLI:
+   - gh repo create (if needed)
+   - git push -u origin main (or appropriate branch)
+
+Always commit and push your changes after completing the task unless explicitly told not to.`;
+
+    await this.executeAndStream(msg, augmentedPrompt);
   }
 
   /**
@@ -445,6 +471,51 @@ export class BotHandlers {
     if (!(await this.checkAccess(msg))) return;
 
     await this.handleStart(msg);
+  }
+
+  /**
+   * /link command - Get quick access to repository URL
+   */
+  async handleLink(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    const repo = this.repositoryManager.getCurrentRepository(userId);
+
+    if (!repo) {
+      await this.bot.sendMessage(
+        chatId,
+        `📁 No active repository.\n\n` +
+          `Use /repo to set up a repository first.`
+      );
+      return;
+    }
+
+    if (!repo.gitUrl) {
+      await this.bot.sendMessage(
+        chatId,
+        `⚠️ Current repository has no remote URL.\n\n` +
+          `📁 Repository: ${repo.name}\n` +
+          `📂 Local path: \`${repo.path}\`\n\n` +
+          `To add a remote, use git commands or /task to push to a new repo.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // Convert git URL to web URL
+    const webUrl = repo.gitUrl.replace('.git', '').replace('git@github.com:', 'https://github.com/');
+
+    await this.bot.sendMessage(
+      chatId,
+      `🔗 *${repo.name}*\n\n` +
+        `${webUrl}\n\n` +
+        `📂 Local: \`${repo.path}\`\n` +
+        `🌿 Branch: ${repo.branch || 'main'}`,
+      { parse_mode: 'Markdown' }
+    );
   }
 
   /**
@@ -986,6 +1057,12 @@ export class BotHandlers {
         ? '✨ New'
         : '📂 Existing';
 
+    // Convert git URL to web URL for display
+    let webUrl = '';
+    if (repo.gitUrl) {
+      webUrl = repo.gitUrl.replace('.git', '').replace('git@github.com:', 'https://github.com/');
+    }
+
     await this.bot.sendMessage(
       chatId,
       `▶️ *Current Repository*\n\n` +
@@ -993,9 +1070,10 @@ export class BotHandlers {
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
         `📂 Path: \`${repo.path}\`\n` +
         `📝 Type: ${typeEmoji}\n` +
-        `${repo.gitUrl ? `🔗 Remote: ${repo.gitUrl}\n` : ''}` +
+        `${webUrl ? `🔗 URL: ${webUrl}\n` : ''}` +
         `${repo.branch ? `🌿 Branch: ${repo.branch}\n` : ''}` +
-        `🕒 Last used: ${repo.lastUsed.toLocaleString()}`,
+        `🕒 Last used: ${repo.lastUsed.toLocaleString()}\n\n` +
+        `${webUrl ? `💡 Tip: Use /link to quickly get the repository URL` : '⚠️ No remote URL configured'}`,
       { parse_mode: 'Markdown' }
     );
   }
