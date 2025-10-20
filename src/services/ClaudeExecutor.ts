@@ -129,8 +129,24 @@ export class ClaudeExecutor {
         }
       }, timeout);
 
+      // Monitor for initial output within 5 seconds
+      let hasReceivedOutput = false;
+      const outputCheckTimer = setTimeout(() => {
+        if (!hasReceivedOutput) {
+          logger.warn('No output received from Claude after 5 seconds', {
+            taskId: task.id,
+            pid: claudeProcess.pid,
+            killed: claudeProcess.killed,
+            exitCode: claudeProcess.exitCode
+          });
+        }
+      }, 5000);
+
       // Handle stdout
       claudeProcess.stdout?.on('data', (data: Buffer) => {
+        hasReceivedOutput = true;
+        clearTimeout(outputCheckTimer);
+
         const chunk = data.toString();
         task.output += chunk;
 
@@ -139,15 +155,21 @@ export class ClaudeExecutor {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
 
-        logger.info('Task stdout', {
+        logger.info('Task stdout received', {
           taskId: task.id,
+          pid: claudeProcess.pid,
           chunkSize: chunk.length,
-          preview: chunk.substring(0, 200).replace(/\n/g, '\\n')
+          totalOutput: task.output.length,
+          preview: chunk.substring(0, 200).replace(/\n/g, '\\n'),
+          rawBytes: data.length
         });
       });
 
       // Handle stderr
       claudeProcess.stderr?.on('data', (data: Buffer) => {
+        hasReceivedOutput = true;
+        clearTimeout(outputCheckTimer);
+
         const chunk = data.toString();
         task.errorOutput += chunk;
 
@@ -156,10 +178,29 @@ export class ClaudeExecutor {
           task.errorOutput = task.errorOutput.slice(-config.maxOutputSize * 10);
         }
 
-        logger.info('Task stderr', {
+        logger.info('Task stderr received', {
           taskId: task.id,
+          pid: claudeProcess.pid,
           chunkSize: chunk.length,
-          preview: chunk.substring(0, 200).replace(/\n/g, '\\n')
+          totalError: task.errorOutput.length,
+          preview: chunk.substring(0, 200).replace(/\n/g, '\\n'),
+          rawBytes: data.length
+        });
+      });
+
+      // Monitor stdout end
+      claudeProcess.stdout?.on('end', () => {
+        logger.info('Claude stdout stream ended', {
+          taskId: task.id,
+          totalOutput: task.output.length
+        });
+      });
+
+      // Monitor stderr end
+      claudeProcess.stderr?.on('end', () => {
+        logger.info('Claude stderr stream ended', {
+          taskId: task.id,
+          totalError: task.errorOutput.length
         });
       });
 
