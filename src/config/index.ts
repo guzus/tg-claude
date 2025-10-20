@@ -26,8 +26,9 @@ export function validateConfig(): void {
     errors.push('TELEGRAM_BOT_TOKEN is required');
   }
 
+  // Claude API key is optional - Claude CLI can use its own authentication
   if (!config.claudeApiKey) {
-    errors.push('CLAUDE_API_KEY is required');
+    console.log('⚠️  CLAUDE_API_KEY not set - Claude CLI will use its own authentication');
   }
 
   if (config.allowedUserIds.length === 0) {

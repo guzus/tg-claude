@@ -45,11 +45,6 @@ export class ClaudeExecutor {
     });
 
     try {
-      // Validate Claude API key
-      if (!config.claudeApiKey || config.claudeApiKey.includes('your_claude_api_key_here')) {
-        throw new Error('Claude API key is not configured. Please set CLAUDE_API_KEY in .env file');
-      }
-
       // Check if working directory exists
       const fs = require('fs');
       if (!fs.existsSync(workingDir)) {
@@ -70,13 +65,17 @@ export class ClaudeExecutor {
         cwd: workingDir
       });
 
+      // Build environment variables
+      // Claude CLI will use its own authentication if ANTHROPIC_API_KEY is not set
+      const env = { ...process.env };
+      if (config.claudeApiKey && !config.claudeApiKey.includes('your_claude_api_key_here')) {
+        env.ANTHROPIC_API_KEY = config.claudeApiKey;
+      }
+
       // Spawn Claude Code process
       const claudeProcess = spawn('claude', args, {
         cwd: workingDir,
-        env: {
-          ...process.env,
-          ANTHROPIC_API_KEY: config.claudeApiKey
-        }
+        env
       });
 
       // Track process
