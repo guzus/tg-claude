@@ -542,14 +542,39 @@ export class BotHandlers {
 
     await this.bot.sendMessage(
       chatId,
-      '🐛 *Debug Mode - Running Test Task*\n\n' +
-      'Testing Claude CLI with a simple command...\n' +
-      `Working directory: \`${currentRepo.path}\``,
+      '🐛 *Debug Mode - Running Test*\n\n' +
+      'Testing Claude CLI directly...\n' +
+      `Working directory: \`${currentRepo.path}\`\n\n` +
+      'This will test if Claude CLI responds at all.',
       { parse_mode: 'Markdown' }
     );
 
-    // Run a simple test command
-    await this.executeAndStream(msg, 'echo "Hello from Claude" > test.txt');
+    // Try running claude with --version first to see if it responds
+    const { spawn } = require('child_process');
+    const versionTest = spawn('claude', ['--version'], { cwd: currentRepo.path });
+
+    let versionOutput = '';
+    versionTest.stdout?.on('data', (data: Buffer) => {
+      versionOutput += data.toString();
+    });
+
+    versionTest.on('close', async (code: number) => {
+      if (code === 0 && versionOutput) {
+        await this.bot.sendMessage(
+          chatId,
+          `✅ Claude CLI responds!\n\`\`\`\n${versionOutput}\n\`\`\`\n\nNow testing actual task execution...`,
+          { parse_mode: 'Markdown' }
+        );
+
+        // Now try a real task
+        await this.executeAndStream(msg, 'say hello');
+      } else {
+        await this.bot.sendMessage(
+          chatId,
+          `❌ Claude CLI not responding properly\n\nExit code: ${code}\nOutput: ${versionOutput || 'none'}\n\nCheck that Claude is installed and authenticated.`
+        );
+      }
+    });
   }
 
   /**

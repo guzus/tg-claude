@@ -73,20 +73,46 @@ export class ClaudeExecutor {
         env.ANTHROPIC_API_KEY = config.claudeApiKey;
       }
 
-      // Spawn Claude Code process
+      // Spawn Claude Code process with explicit stdio configuration
       const claudeProcess = spawn('claude', args, {
         cwd: workingDir,
         env,
-        shell: false
+        shell: false,
+        stdio: ['ignore', 'pipe', 'pipe'], // stdin=ignore, stdout=pipe, stderr=pipe
+        detached: false
       });
 
+      // Verify process spawned successfully
+      if (!claudeProcess.pid) {
+        throw new Error('Failed to spawn Claude process - no PID assigned');
+      }
+
       // Log process started
-      logger.info('Claude process spawned', {
+      logger.info('Claude process spawned successfully', {
         taskId: task.id,
         pid: claudeProcess.pid,
+        command: 'claude',
+        args: args.slice(0, 2),
+        cwd: workingDir,
         hasStdin: !!claudeProcess.stdin,
         hasStdout: !!claudeProcess.stdout,
         hasStderr: !!claudeProcess.stderr
+      });
+
+      // Check if process exits immediately (error case)
+      let processExitedImmediately = false;
+      const immediateExitCheck = setTimeout(() => {
+        if (processExitedImmediately) {
+          logger.error('Claude process exited immediately after spawn', {
+            taskId: task.id,
+            pid: claudeProcess.pid
+          });
+        }
+      }, 1000);
+
+      claudeProcess.on('exit', () => {
+        processExitedImmediately = true;
+        clearTimeout(immediateExitCheck);
       });
 
       // Track process
