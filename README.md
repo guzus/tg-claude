@@ -1,825 +1,461 @@
-# Telegram Bot + Claude Code SDK Integration
+# Claude Code Telegram Bot
 
-Complete guide for building a Telegram bot that controls Claude Code on a remote machine to perform automated tasks like git operations, documentation reading, code analysis, and more.
+Complete TypeScript implementation for controlling Claude Code remotely via Telegram with unlimited usage through your Claude subscription.
 
 ---
 
 ## Table of Contents
 
-1. [Overview](#overview)
-2. [Architecture](#architecture)
-3. [Prerequisites](#prerequisites)
-4. [Setup Instructions](#setup-instructions)
-5. [Implementation](#implementation)
-6. [Usage Examples](#usage-examples)
-7. [Security Considerations](#security-considerations)
-8. [Troubleshooting](#troubleshooting)
+1. [Quick Start](#quick-start)
+2. [Overview](#overview)
+3. [Features](#features)
+4. [Installation](#installation)
+5. [Configuration](#configuration)
+6. [Usage](#usage)
+7. [Architecture](#architecture)
+8. [Development](#development)
+9. [Deployment](#deployment)
+10. [Security](#security)
+11. [Troubleshooting](#troubleshooting)
+12. [API Reference](#api-reference)
+
+---
+
+## Quick Start
+
+Get up and running in 5 minutes.
+
+### Prerequisites
+
+- Node.js 18+
+- Claude Code CLI installed
+- Telegram account
+- Claude API key
+
+### Setup Steps
+
+```bash
+# 1. Install dependencies
+npm install
+
+# 2. Create configuration
+cp .env.example .env
+nano .env  # Add your credentials
+
+# 3. Build and run
+npm run build
+npm start
+```
+
+### Get Credentials
+
+**Telegram Bot Token:**
+- Message [@BotFather](https://t.me/botfather)
+- Send: `/newbot`
+- Copy token
+
+**Your Telegram User ID:**
+- Message [@userinfobot](https://t.me/userinfobot)
+- Copy your ID
+
+**Claude API Key:**
+- Visit [console.anthropic.com](https://console.anthropic.com/)
+- Create API key
+- Copy key
+
+### Configure .env
+
+```env
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+CLAUDE_API_KEY=your_claude_api_key_here
+ALLOWED_USER_IDS=123456789
+WORKSPACE_PATH=/path/to/your/projects
+```
+
+### Test
+
+1. Open Telegram
+2. Find your bot
+3. Send: `/start`
+4. Try: `/task Tell me about this directory`
 
 ---
 
 ## Overview
 
-This project enables remote control of Claude Code through Telegram, allowing you to:
+Control Claude Code through Telegram:
 
-- Execute coding tasks on a remote machine
-- Commit and push to git repositories
-- Read and analyze documentation
-- Perform code reviews and refactoring
-- Run tests and builds
-- All without manual permission prompts using `--dangerously-skip-permission`
+- Execute coding tasks remotely
+- Commit and push to git automatically
+- Read and implement from documentation
+- Review code, run tests, build projects
+- All via Telegram commands
+- Uses `--dangerously-skip-permission` for autonomous operation
 
-**Use Case**: Control your development machine from anywhere via Telegram chat.
+**Architecture:**
+
+```
+Telegram Client ↔ TypeScript Bot ↔ Claude Code CLI
+                        ↓
+                 Git Repo & Files
+```
+
+---
+
+## Features
+
+✅ **Claude Code Execution**
+- Spawn and manage Claude processes
+- Real-time output streaming to Telegram
+- Automatic timeout handling (10 min default)
+- Task cancellation support
+- Concurrent task management (3 per user)
+
+✅ **Telegram Commands**
+- `/start` - Welcome and help
+- `/task <description>` - Execute custom tasks
+- `/commit <message>` - Git commit and push
+- `/read <url>` - Read documentation
+- `/review` - Review code changes
+- `/test` - Run tests
+- `/build` - Build project
+- `/status` - Show active tasks
+- `/cancel <id>` - Cancel tasks
+- `/limits` - Check rate limits
+
+✅ **Security**
+- User authorization by Telegram ID
+- Rate limiting (20/hour, 100/day)
+- Input sanitization
+- Path validation
+- Audit logging
+
+✅ **Monitoring**
+- Health check endpoint (`:3000/health`)
+- Metrics endpoint (`:3000/metrics`)
+- Winston logging (file + console)
+- Task statistics
+
+✅ **Production Ready**
+- TypeScript with full type safety
+- Graceful shutdown handling
+- Automatic cleanup
+- Error handling and recovery
+- PM2/Docker deployment support
+
+---
+
+## Installation
+
+### System Requirements
+
+- Node.js 18+
+- npm or yarn
+- Git
+- Claude Code CLI
+
+### Install Claude Code CLI
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude --version
+claude login
+```
+
+### Install Project
+
+```bash
+cd tg-claude
+npm install
+npm run build
+```
+
+---
+
+## Configuration
+
+### Environment Variables
+
+Create `.env` file:
+
+```env
+# Required
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+CLAUDE_API_KEY=sk-ant-api03-xxxxx
+ALLOWED_USER_IDS=123456789,987654321
+WORKSPACE_PATH=/Users/yourname/projects
+
+# Optional
+MAX_CONCURRENT_TASKS=3
+TASK_TIMEOUT_MS=600000
+MAX_OUTPUT_SIZE=4096
+MAX_REQUESTS_PER_USER_PER_HOUR=20
+MAX_REQUESTS_PER_USER_PER_DAY=100
+LOG_LEVEL=info
+LOG_FILE=./logs/bot.log
+HEALTH_PORT=3000
+```
+
+The bot validates configuration on startup and exits with error if invalid.
+
+---
+
+## Usage
+
+### Starting the Bot
+
+```bash
+# Production mode
+npm start
+
+# Development with auto-reload
+npm run dev:watch
+
+# Development single run
+npm run dev
+```
+
+### Command Examples
+
+#### Execute Task
+
+```
+/task Fix the authentication bug in src/auth/login.ts
+
+Bot: 🤖 Task started...
+[Claude analyzes and fixes]
+Bot: ✅ Completed (12s)
+Fixed authentication bug in src/auth/login.ts:45
+```
+
+#### Commit and Push
+
+```
+/commit Add user profile caching feature
+
+Bot: ✅ Committed 3 files
+Pushed to origin/main successfully
+```
+
+#### Read Documentation
+
+```
+/read https://react.dev/learn/hooks
+
+Bot: ✅ Summary of React Hooks:
+- useState for state management
+- useEffect for side effects
+...
+```
+
+#### Review Code
+
+```
+/review
+
+Bot: ✅ Code Review:
+✅ Good separation of concerns
+⚠️  Consider error handling in UserService.ts:123
+💡 Suggestion: Extract validation logic
+```
+
+#### Check Status
+
+```
+/status
+
+Bot: 📊 Active Tasks (2):
+• abc12345 - Fix authentication bug... (15s)
+• def67890 - Run test suite... (3s)
+```
+
+#### Cancel Task
+
+```
+/cancel abc12345
+
+Bot: ✅ Task cancelled
+```
+
+#### Check Limits
+
+```
+/limits
+
+Bot: 📊 Your Rate Limits
+Remaining this hour: 18
+Remaining today: 95
+```
 
 ---
 
 ## Architecture
 
+### System Components
+
 ```
-┌─────────────┐         ┌──────────────────┐         ┌─────────────────┐
-│             │         │                  │         │                 │
-│  Telegram   │◄───────►│   Node.js Bot    │◄───────►│  Claude Code    │
-│   Client    │         │   (Your Server)  │         │   CLI Process   │
-│             │         │                  │         │                 │
-└─────────────┘         └──────────────────┘         └─────────────────┘
-                                │
-                                │
-                                ▼
-                        ┌──────────────────┐
-                        │                  │
-                        │  Local Git Repo  │
-                        │  & File System   │
-                        │                  │
-                        └──────────────────┘
-```
-
-**Flow**:
-1. User sends command via Telegram
-2. Bot receives message and validates user
-3. Bot spawns Claude Code process with `--dangerously-skip-permission`
-4. Claude Code executes task autonomously
-5. Bot streams output back to Telegram
-6. Task completes, results sent to user
-
----
-
-## Prerequisites
-
-### Required Software
-- **Node.js** v18+ or **Python** 3.9+
-- **Claude Code CLI** installed and authenticated
-- **Git** installed and configured
-- **Telegram Bot Token** from [@BotFather](https://t.me/botfather)
-- **Claude API Key** with active subscription
-
-### Required Accounts
-- Anthropic account with Claude subscription (Pro or Team)
-- Telegram account
-
----
-
-## Setup Instructions
-
-### 1. Install Claude Code CLI
-
-```bash
-# Install Claude Code globally
-npm install -g @anthropic-ai/claude-code
-
-# Or use the installer for your platform
-# Visit: https://github.com/anthropics/claude-code
+Telegram API
+    ↓
+Bot Application (index.ts)
+    ├─ Configuration
+    ├─ Logger
+    └─ Health Server (Express :3000)
+    ↓
+Security Middleware
+    ├─ Authorization
+    ├─ Rate Limiting
+    └─ Input Sanitization
+    ↓
+Bot Handlers
+    ↓
+    ├─ ClaudeExecutor Service
+    ├─ RateLimiter Service
+    └─ AuditLogger Service
+    ↓
+Claude Code CLI Process
+    ↓
+File System & Git
 ```
 
-### 2. Authenticate Claude Code
+### Core Services
 
-```bash
-# Login with your Anthropic account
-claude login
+**ClaudeExecutor** - Manages Claude processes
+- Spawns and tracks tasks
+- Handles output streaming
+- Implements timeouts
+- Provides cancellation
 
-# Verify authentication
-claude --version
+**RateLimiter** - Enforces usage limits
+- Tracks per-user requests
+- Hourly and daily limits
+- Auto-reset after periods
+
+**AuditLogger** - Logs all commands
+- Command history
+- Success/failure tracking
+- Execution times
+
+**BotHandlers** - Processes Telegram commands
+- Routes to appropriate handlers
+- Streams output to Telegram
+- Handles errors gracefully
+
+### Task States
+
+```
+PENDING → RUNNING → COMPLETED
+                  → FAILED
+                  → TIMEOUT
+                  → CANCELLED
 ```
 
-### 3. Create Telegram Bot
+### File Structure
 
-```bash
-# 1. Message @BotFather on Telegram
-# 2. Send: /newbot
-# 3. Follow prompts to get your BOT_TOKEN
-# 4. Save token securely
 ```
-
-### 4. Configure Environment
-
-Create `.env` file:
-
-```bash
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-CLAUDE_API_KEY=your_claude_api_key_here
-ALLOWED_USER_IDS=123456789,987654321  # Your Telegram user IDs
-WORKSPACE_PATH=/path/to/your/projects
-MAX_CONCURRENT_TASKS=3
+src/
+├── config/index.ts              # Configuration
+├── handlers/BotHandlers.ts      # Command handlers
+├── middleware/security.ts       # Security & validation
+├── services/
+│   ├── ClaudeExecutor.ts       # Process manager
+│   ├── RateLimiter.ts          # Rate limiting
+│   └── AuditLogger.ts          # Audit logging
+├── types/index.ts              # TypeScript types
+├── utils/logger.ts             # Winston logger
+└── index.ts                    # Entry point
 ```
 
 ---
 
-## Implementation
+## Development
 
-### Option 1: Node.js Implementation
+### Development Mode
 
-**Install Dependencies**:
 ```bash
-npm init -y
-npm install node-telegram-bot-api dotenv
+# Auto-reload on changes
+npm run dev:watch
+
+# Single run
+npm run dev
+
+# Watch compilation
+npm run watch
 ```
 
-**Create `bot.js`**:
+### Type Checking
 
-```javascript
-require('dotenv').config();
-const TelegramBot = require('node-telegram-bot-api');
-const { spawn } = require('child_process');
-const path = require('path');
+```bash
+npx tsc --noEmit
+```
 
-// Configuration
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
-const ALLOWED_USERS = process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id));
-const WORKSPACE_PATH = process.env.WORKSPACE_PATH;
+### Linting
 
-// Initialize bot
-const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+```bash
+npm run lint
+npm run lint:fix
+```
 
-// Active tasks tracker
-const activeTasks = new Map();
+### Building
 
-// Security: Check if user is authorized
-function isAuthorized(userId) {
-  return ALLOWED_USERS.includes(userId);
+```bash
+npm run clean
+npm run build
+```
+
+### Adding Commands
+
+1. Add handler in `src/handlers/BotHandlers.ts`:
+
+```typescript
+async handleMyCommand(msg: Message): Promise<void> {
+  if (!(await this.checkAccess(msg))) return;
+  await this.executeAndStream(msg, 'Your prompt');
 }
-
-// Execute Claude Code command
-async function executeClaude(chatId, prompt, options = {}) {
-  const {
-    workingDir = WORKSPACE_PATH,
-    dangerMode = true,
-    additionalFlags = []
-  } = options;
-
-  // Build command
-  const args = [
-    prompt,
-    ...(dangerMode ? ['--dangerously-skip-permission'] : []),
-    ...additionalFlags
-  ];
-
-  // Spawn Claude Code process
-  const claudeProcess = spawn('claude', args, {
-    cwd: workingDir,
-    env: {
-      ...process.env,
-      ANTHROPIC_API_KEY: process.env.CLAUDE_API_KEY
-    }
-  });
-
-  // Track task
-  const taskId = Date.now().toString();
-  activeTasks.set(taskId, claudeProcess);
-
-  let output = '';
-  let errorOutput = '';
-
-  // Send initial message
-  const statusMsg = await bot.sendMessage(chatId, '🤖 Task started...\n\n```\n' + prompt + '\n```', {
-    parse_mode: 'Markdown'
-  });
-
-  // Handle stdout
-  claudeProcess.stdout.on('data', (data) => {
-    const chunk = data.toString();
-    output += chunk;
-
-    // Send updates every 2KB or at newlines
-    if (output.length > 2048) {
-      bot.editMessageText(`🔄 Processing...\n\n\`\`\`\n${output.slice(-2000)}\n\`\`\``, {
-        chat_id: chatId,
-        message_id: statusMsg.message_id,
-        parse_mode: 'Markdown'
-      }).catch(() => {}); // Ignore edit errors
-    }
-  });
-
-  // Handle stderr
-  claudeProcess.stderr.on('data', (data) => {
-    errorOutput += data.toString();
-  });
-
-  // Handle completion
-  claudeProcess.on('close', (code) => {
-    activeTasks.delete(taskId);
-
-    const finalOutput = output || errorOutput || 'No output';
-    const status = code === 0 ? '✅ Completed' : '❌ Failed';
-
-    bot.editMessageText(
-      `${status}\n\nExit code: ${code}\n\n\`\`\`\n${finalOutput.slice(-3000)}\n\`\`\``,
-      {
-        chat_id: chatId,
-        message_id: statusMsg.message_id,
-        parse_mode: 'Markdown'
-      }
-    ).catch(() => {
-      // If message is too long, send as file
-      bot.sendDocument(chatId, Buffer.from(finalOutput), {}, {
-        filename: 'output.txt',
-        contentType: 'text/plain'
-      });
-    });
-  });
-
-  // Handle errors
-  claudeProcess.on('error', (err) => {
-    bot.sendMessage(chatId, `❌ Error: ${err.message}`);
-    activeTasks.delete(taskId);
-  });
-
-  return taskId;
-}
-
-// Command: /start
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized access');
-    return;
-  }
-
-  bot.sendMessage(chatId, `
-🤖 *Claude Code Remote Control Bot*
-
-Available commands:
-
-/task <description> - Execute a task
-/commit <message> - Commit and push changes
-/read <url> - Read documentation
-/review - Review code changes
-/test - Run tests
-/build - Build project
-/status - Check active tasks
-/cancel <taskId> - Cancel a task
-
-Example:
-\`/task Fix the login bug in auth.js\`
-  `, { parse_mode: 'Markdown' });
-});
-
-// Command: /task
-bot.onText(/\/task (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const taskDescription = match[1];
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  await executeClaude(chatId, taskDescription);
-});
-
-// Command: /commit
-bot.onText(/\/commit (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const commitMessage = match[1];
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const prompt = `Create a git commit with message: "${commitMessage}" and push to remote`;
-  await executeClaude(chatId, prompt);
-});
-
-// Command: /read
-bot.onText(/\/read (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const docUrl = match[1];
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const prompt = `Read and summarize the documentation at ${docUrl}`;
-  await executeClaude(chatId, prompt);
-});
-
-// Command: /review
-bot.onText(/\/review/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const prompt = `Review the current code changes and provide feedback`;
-  await executeClaude(chatId, prompt);
-});
-
-// Command: /test
-bot.onText(/\/test/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const prompt = `Run all tests and report results`;
-  await executeClaude(chatId, prompt);
-});
-
-// Command: /build
-bot.onText(/\/build/, async (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const prompt = `Build the project and fix any errors`;
-  await executeClaude(chatId, prompt);
-});
-
-// Command: /status
-bot.onText(/\/status/, (msg) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  if (activeTasks.size === 0) {
-    bot.sendMessage(chatId, 'No active tasks');
-    return;
-  }
-
-  const taskList = Array.from(activeTasks.keys()).join('\n');
-  bot.sendMessage(chatId, `Active tasks:\n${taskList}`);
-});
-
-// Command: /cancel
-bot.onText(/\/cancel (.+)/, (msg, match) => {
-  const chatId = msg.chat.id;
-  const userId = msg.from.id;
-  const taskId = match[1];
-
-  if (!isAuthorized(userId)) {
-    bot.sendMessage(chatId, '🚫 Unauthorized');
-    return;
-  }
-
-  const task = activeTasks.get(taskId);
-  if (!task) {
-    bot.sendMessage(chatId, '❌ Task not found');
-    return;
-  }
-
-  task.kill();
-  activeTasks.delete(taskId);
-  bot.sendMessage(chatId, '✅ Task cancelled');
-});
-
-// Error handling
-bot.on('polling_error', (error) => {
-  console.error('Polling error:', error);
-});
-
-console.log('🤖 Bot started successfully');
 ```
 
-**Run the bot**:
+2. Register in `src/index.ts`:
+
+```typescript
+bot.onText(/\/mycommand/, (msg) => handlers.handleMyCommand(msg));
+```
+
+3. Build and test:
+
 ```bash
-node bot.js
-```
-
----
-
-### Option 2: Python Implementation
-
-**Install Dependencies**:
-```bash
-pip install python-telegram-bot python-dotenv
-```
-
-**Create `bot.py`**:
-
-```python
-import os
-import subprocess
-import asyncio
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
-from dotenv import load_dotenv
-
-load_dotenv()
-
-# Configuration
-BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-ALLOWED_USERS = list(map(int, os.getenv('ALLOWED_USER_IDS').split(',')))
-WORKSPACE_PATH = os.getenv('WORKSPACE_PATH')
-
-# Active tasks
-active_tasks = {}
-
-def is_authorized(user_id: int) -> bool:
-    return user_id in ALLOWED_USERS
-
-async def execute_claude(update: Update, prompt: str, working_dir: str = WORKSPACE_PATH):
-    """Execute Claude Code command"""
-    chat_id = update.effective_chat.id
-
-    # Send initial message
-    status_msg = await update.message.reply_text(
-        f"🤖 Task started...\n\n```\n{prompt}\n```",
-        parse_mode='Markdown'
-    )
-
-    # Build command
-    cmd = ['claude', prompt, '--dangerously-skip-permission']
-
-    try:
-        # Execute process
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            cwd=working_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, 'ANTHROPIC_API_KEY': os.getenv('CLAUDE_API_KEY')}
-        )
-
-        # Wait for completion
-        stdout, stderr = await process.communicate()
-
-        output = stdout.decode() if stdout else stderr.decode()
-        status = '✅ Completed' if process.returncode == 0 else '❌ Failed'
-
-        # Send result
-        result_text = f"{status}\n\nExit code: {process.returncode}\n\n```\n{output[-3000:]}\n```"
-        await status_msg.edit_text(result_text, parse_mode='Markdown')
-
-    except Exception as e:
-        await status_msg.edit_text(f"❌ Error: {str(e)}")
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Start command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized access')
-        return
-
-    await update.message.reply_text(
-        "🤖 *Claude Code Remote Control Bot*\n\n"
-        "Available commands:\n\n"
-        "/task <description> - Execute a task\n"
-        "/commit <message> - Commit and push changes\n"
-        "/read <url> - Read documentation\n"
-        "/review - Review code changes\n"
-        "/test - Run tests\n"
-        "/build - Build project\n\n"
-        "Example:\n"
-        "`/task Fix the login bug in auth.js`",
-        parse_mode='Markdown'
-    )
-
-async def task(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Execute task command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    if not context.args:
-        await update.message.reply_text('Usage: /task <description>')
-        return
-
-    prompt = ' '.join(context.args)
-    await execute_claude(update, prompt)
-
-async def commit(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Commit and push command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    if not context.args:
-        await update.message.reply_text('Usage: /commit <message>')
-        return
-
-    commit_msg = ' '.join(context.args)
-    prompt = f'Create a git commit with message: "{commit_msg}" and push to remote'
-    await execute_claude(update, prompt)
-
-async def read_docs(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Read documentation command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    if not context.args:
-        await update.message.reply_text('Usage: /read <url>')
-        return
-
-    url = context.args[0]
-    prompt = f'Read and summarize the documentation at {url}'
-    await execute_claude(update, prompt)
-
-async def review(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Review code command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    prompt = 'Review the current code changes and provide feedback'
-    await execute_claude(update, prompt)
-
-async def test(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Run tests command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    prompt = 'Run all tests and report results'
-    await execute_claude(update, prompt)
-
-async def build(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Build project command"""
-    user_id = update.effective_user.id
-
-    if not is_authorized(user_id):
-        await update.message.reply_text('🚫 Unauthorized')
-        return
-
-    prompt = 'Build the project and fix any errors'
-    await execute_claude(update, prompt)
-
-def main():
-    """Start the bot"""
-    app = Application.builder().token(BOT_TOKEN).build()
-
-    # Add handlers
-    app.add_handler(CommandHandler('start', start))
-    app.add_handler(CommandHandler('task', task))
-    app.add_handler(CommandHandler('commit', commit))
-    app.add_handler(CommandHandler('read', read_docs))
-    app.add_handler(CommandHandler('review', review))
-    app.add_handler(CommandHandler('test', test))
-    app.add_handler(CommandHandler('build', build))
-
-    print('🤖 Bot started successfully')
-    app.run_polling()
-
-if __name__ == '__main__':
-    main()
-```
-
-**Run the bot**:
-```bash
-python bot.py
-```
-
----
-
-## Usage Examples
-
-### Example 1: Fix a Bug
-```
-You: /task Fix the authentication bug in src/auth/login.js
-
-Bot: 🤖 Task started...
-
-[Claude Code analyzes the code, identifies issue, fixes it]
-
-Bot: ✅ Completed
-Fixed authentication bug in src/auth/login.js:45
-Issue: Missing null check for user object
-Changes committed to feature/fix-auth-bug branch
-```
-
-### Example 2: Commit and Push
-```
-You: /commit Add user profile caching feature
-
-Bot: 🤖 Task started...
-
-[Claude Code stages changes, creates commit, pushes]
-
-Bot: ✅ Completed
-Committed 3 files with message: "Add user profile caching feature"
-Pushed to origin/main successfully
-```
-
-### Example 3: Read Documentation
-```
-You: /read https://react.dev/learn/hooks
-
-Bot: 🤖 Task started...
-
-[Claude Code fetches and analyzes documentation]
-
-Bot: ✅ Completed
-Summary: React Hooks documentation covers:
-- useState for state management
-- useEffect for side effects
-- Custom hooks for reusable logic
-Key concepts saved to docs/react-hooks-summary.md
-```
-
-### Example 4: Complex Task
-```
-You: /task Create a new API endpoint for user settings, add tests, and update the documentation
-
-Bot: 🤖 Task started...
-
-[Claude Code performs multiple operations]
-
-Bot: ✅ Completed
-Created:
-- src/api/settings.js - New endpoint
-- tests/api/settings.test.js - Unit tests (12 passed)
-- docs/api.md - Updated documentation
-All tests passing, ready for review
-```
-
----
-
-## Security Considerations
-
-### 🔒 Critical Security Measures
-
-1. **User Authorization**
-   ```javascript
-   // Always validate user IDs
-   const ALLOWED_USERS = [YOUR_USER_ID_ONLY];
-   ```
-
-2. **Environment Variables**
-   ```bash
-   # Never commit these!
-   TELEGRAM_BOT_TOKEN=secret
-   CLAUDE_API_KEY=secret
-   ```
-
-3. **Rate Limiting**
-   ```javascript
-   // Implement rate limiting per user
-   const userLimits = new Map();
-   const MAX_REQUESTS_PER_HOUR = 10;
-   ```
-
-4. **Command Validation**
-   ```javascript
-   // Sanitize inputs
-   function sanitizeCommand(input) {
-     return input.replace(/[;&|`$()]/g, '');
-   }
-   ```
-
-5. **Working Directory Restrictions**
-   ```javascript
-   // Never allow navigation outside workspace
-   const workingDir = path.resolve(WORKSPACE_PATH);
-   if (!targetPath.startsWith(workingDir)) {
-     throw new Error('Access denied');
-   }
-   ```
-
-6. **Audit Logging**
-   ```javascript
-   // Log all commands
-   fs.appendFileSync('audit.log',
-     `${new Date().toISOString()} - User ${userId}: ${command}\n`
-   );
-   ```
-
-### 🚨 Risks of `--dangerously-skip-permission`
-
-This flag bypasses all safety prompts. Claude Code will:
-- Execute ANY command without confirmation
-- Make ANY file changes
-- Commit and push to git automatically
-- Install packages without asking
-- Delete files if instructed
-
-**Mitigation**:
-- Use separate git branches for bot operations
-- Enable git hooks for validation
-- Set up branch protection rules
-- Regular backups of workspace
-- Monitor for unusual activity
-
-### Best Practices
-
-1. **Use a dedicated machine** - Don't run on your primary development machine
-2. **Separate git branches** - Bot operations on `bot/*` branches only
-3. **Webhook validation** - Verify Telegram webhook signatures
-4. **Token rotation** - Rotate bot tokens regularly
-5. **Network isolation** - Run bot in isolated network if possible
-6. **Resource limits** - Set CPU/memory limits on Claude processes
-7. **Timeout handling** - Kill processes that run too long
-8. **Error notifications** - Alert on failures or suspicious activity
-
----
-
-## Advanced Features
-
-### 1. Multi-Project Support
-
-```javascript
-// Project configuration
-const PROJECTS = {
-  'webapp': '/path/to/webapp',
-  'api': '/path/to/api',
-  'mobile': '/path/to/mobile'
-};
-
-// Usage: /task webapp Fix login bug
-bot.onText(/\/task (\w+) (.+)/, async (msg, match) => {
-  const project = match[1];
-  const task = match[2];
-  const workingDir = PROJECTS[project];
-
-  if (!workingDir) {
-    return bot.sendMessage(msg.chat.id, 'Unknown project');
-  }
-
-  await executeClaude(msg.chat.id, task, { workingDir });
-});
-```
-
-### 2. Scheduled Tasks
-
-```javascript
-const cron = require('node-cron');
-
-// Daily build at 9 AM
-cron.schedule('0 9 * * *', async () => {
-  const chatId = ADMIN_CHAT_ID;
-  await executeClaude(chatId, 'Run all tests and create daily build report');
-});
-```
-
-### 3. Interactive Workflows
-
-```javascript
-// Multi-step workflows
-const workflows = new Map();
-
-bot.onText(/\/workflow (.+)/, async (msg, match) => {
-  const workflowName = match[1];
-  const steps = WORKFLOWS[workflowName];
-
-  for (const step of steps) {
-    await executeClaude(msg.chat.id, step);
-  }
-});
-```
-
-### 4. Output Streaming
-
-```javascript
-// Real-time output streaming
-claudeProcess.stdout.on('data', (data) => {
-  const chunk = data.toString();
-  bot.sendMessage(chatId, `📝 ${chunk.slice(0, 500)}`);
-});
+npm run build && npm start
 ```
 
 ---
 
 ## Deployment
 
-### Option 1: systemd Service (Linux)
+### Production Build
+
+```bash
+npm run build
+npm start
+```
+
+### Option 1: PM2
+
+```bash
+# Install PM2
+npm install -g pm2
+
+# Start bot
+npm run build
+pm2 start dist/index.js --name claude-bot
+
+# Auto-start on reboot
+pm2 startup
+pm2 save
+
+# Monitor
+pm2 logs claude-bot
+pm2 monit
+```
+
+### Option 2: systemd
 
 Create `/etc/systemd/system/claude-bot.service`:
 
@@ -831,8 +467,8 @@ After=network.target
 [Service]
 Type=simple
 User=youruser
-WorkingDirectory=/path/to/bot
-ExecStart=/usr/bin/node bot.js
+WorkingDirectory=/path/to/tg-claude
+ExecStart=/usr/bin/node dist/index.js
 Restart=always
 RestartSec=10
 Environment=NODE_ENV=production
@@ -841,260 +477,459 @@ Environment=NODE_ENV=production
 WantedBy=multi-user.target
 ```
 
-Enable and start:
+Enable:
+
 ```bash
+sudo systemctl daemon-reload
 sudo systemctl enable claude-bot
 sudo systemctl start claude-bot
 sudo systemctl status claude-bot
 ```
 
-### Option 2: PM2 (Node.js)
-
-```bash
-npm install -g pm2
-
-# Start bot
-pm2 start bot.js --name claude-bot
-
-# Auto-restart on reboot
-pm2 startup
-pm2 save
-
-# Monitor
-pm2 logs claude-bot
-pm2 monit
-```
-
 ### Option 3: Docker
 
-Create `Dockerfile`:
+**Dockerfile:**
 
 ```dockerfile
 FROM node:18-alpine
 
-WORKDIR /app
-
-# Install Claude Code
 RUN npm install -g @anthropic-ai/claude-code
 
-# Copy application
-COPY package*.json ./
-RUN npm install
-COPY . .
+WORKDIR /app
 
-CMD ["node", "bot.js"]
+COPY package*.json tsconfig.json ./
+RUN npm ci --only=production
+
+COPY src ./src
+RUN npm run build
+
+RUN mkdir -p logs
+
+EXPOSE 3000
+
+CMD ["node", "dist/index.js"]
 ```
 
-Build and run:
+**Build and run:**
+
 ```bash
 docker build -t claude-bot .
-docker run -d --name claude-bot \
+docker run -d \
+  --name claude-bot \
   --env-file .env \
-  -v /path/to/workspace:/workspace \
+  -v $(pwd)/workspace:/workspace \
+  -v $(pwd)/logs:/app/logs \
+  -p 3000:3000 \
   --restart unless-stopped \
   claude-bot
 ```
 
 ---
 
-## Monitoring & Maintenance
+## Security
 
-### Health Checks
+### ⚠️ Important Warning
 
-```javascript
-// Health check endpoint
-const express = require('express');
-const app = express();
+This bot uses `--dangerously-skip-permission` which bypasses all Claude Code safety prompts.
 
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    activeTasks: activeTasks.size,
-    uptime: process.uptime()
-  });
-});
+### Security Layers
 
-app.listen(3000);
+1. **User Authorization** - Only whitelisted Telegram IDs
+2. **Rate Limiting** - 20/hour, 100/day per user
+3. **Input Sanitization** - Removes dangerous characters
+4. **Path Validation** - Restricts to workspace directory
+5. **Timeout Protection** - Auto-kills after 10 minutes
+6. **Audit Logging** - All commands tracked
+
+### Best Practices
+
+**Minimal User Access:**
+```env
+# Only trusted users
+ALLOWED_USER_IDS=123456789
 ```
 
-### Logging
+**Dedicated Machine:**
+- Use separate VM or container
+- Isolate network if possible
+- Regular backups
 
-```javascript
-const winston = require('winston');
-
-const logger = winston.createLogger({
-  level: 'info',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' })
-  ]
-});
-
-// Log all commands
-logger.info('Command executed', {
-  userId: msg.from.id,
-  command: msg.text,
-  timestamp: new Date()
-});
+**Separate Git Branches:**
+```bash
+cd $WORKSPACE_PATH
+git checkout -b bot/automated-changes
 ```
 
-### Metrics
-
-```javascript
-// Track usage metrics
-const metrics = {
-  totalCommands: 0,
-  successfulTasks: 0,
-  failedTasks: 0,
-  averageExecutionTime: 0
-};
-
-// Send daily reports
-cron.schedule('0 0 * * *', () => {
-  bot.sendMessage(ADMIN_CHAT_ID,
-    `📊 Daily Report\n` +
-    `Commands: ${metrics.totalCommands}\n` +
-    `Success: ${metrics.successfulTasks}\n` +
-    `Failed: ${metrics.failedTasks}`
-  );
-});
+**Protect .env:**
+```bash
+chmod 600 .env
+echo ".env" >> .gitignore
 ```
+
+**Monitor Logs:**
+```bash
+tail -f logs/audit.log | jq
+```
+
+**Resource Limits:**
+```bash
+# In systemd
+[Service]
+MemoryLimit=1G
+CPUQuota=50%
+```
+
+### Security Incident Response
+
+If unauthorized access detected:
+
+1. Stop bot immediately:
+   ```bash
+   pm2 stop claude-bot
+   ```
+
+2. Rotate credentials:
+   - Generate new Claude API key
+   - Generate new Telegram bot token
+
+3. Review logs:
+   ```bash
+   cat logs/audit.log | jq
+   cd $WORKSPACE_PATH && git log --all -20
+   ```
+
+4. Restore from backup if needed
 
 ---
 
 ## Troubleshooting
 
+### Bot Not Starting
+
+```bash
+# Check configuration
+cat .env
+
+# Verify Claude CLI
+claude --version
+
+# Check Node version
+node --version  # Should be 18+
+
+# View errors
+tail -50 logs/bot-error.log
+
+# Verbose logging
+LOG_LEVEL=debug npm start
+```
+
+### "Unauthorized Access"
+
+Your Telegram ID not in `ALLOWED_USER_IDS`:
+
+```bash
+# Get your ID from @userinfobot
+# Add to .env
+ALLOWED_USER_IDS=YOUR_USER_ID
+
+# Restart
+pm2 restart claude-bot
+```
+
+### "Configuration errors"
+
+```bash
+# Create .env from template
+cp .env.example .env
+nano .env
+
+# Add required values
+npm start
+```
+
+### "claude: command not found"
+
+```bash
+# Install Claude CLI
+npm install -g @anthropic-ai/claude-code
+claude login
+
+# Restart bot
+pm2 restart claude-bot
+```
+
+### Rate Limit Exceeded
+
+```bash
+# Wait for reset (hourly/daily)
+# Or increase limits in .env:
+MAX_REQUESTS_PER_USER_PER_HOUR=50
+MAX_REQUESTS_PER_USER_PER_DAY=200
+
+# Restart
+pm2 restart claude-bot
+```
+
+### Task Timeout
+
+```bash
+# Increase timeout in .env
+TASK_TIMEOUT_MS=1800000  # 30 minutes
+
+# Restart
+pm2 restart claude-bot
+```
+
 ### Bot Not Responding
 
 ```bash
-# Check if bot is running
-ps aux | grep node
+# Check if running
+pm2 status
 
 # Check logs
-tail -f combined.log
+pm2 logs claude-bot
 
-# Test bot token
-curl https://api.telegram.org/bot<TOKEN>/getMe
+# Check health
+curl http://localhost:3000/health
+
+# Restart
+pm2 restart claude-bot
 ```
 
-### Claude Code Authentication Issues
+### Memory Issues
 
 ```bash
-# Re-authenticate
-claude logout
-claude login
+# Monitor memory
+pm2 monit
 
-# Check API key
-echo $ANTHROPIC_API_KEY
+# Increase limit
+pm2 delete claude-bot
+pm2 start dist/index.js --name claude-bot --max-memory-restart 1G
 
-# Test Claude manually
-claude "test message" --dangerously-skip-permission
+# Reduce output size in .env
+MAX_OUTPUT_SIZE=2048
 ```
 
-### Permission Denied Errors
+### Permission Denied
 
 ```bash
-# Fix file permissions
-chmod -R 755 /path/to/workspace
+# Fix workspace permissions
+chmod -R 755 $WORKSPACE_PATH
+chown -R $USER:$USER $WORKSPACE_PATH
 
-# Fix git permissions
-chown -R youruser:youruser /path/to/repo
+# Fix logs
+mkdir -p logs
+chmod 755 logs
 ```
 
-### Out of API Credits
+### Debugging Tips
 
-Monitor your usage:
-```javascript
-// Check API usage
-const checkCredits = async () => {
-  // Implement credit checking logic
-  // Send alert if low
-};
+**Enable debug logging:**
+```bash
+LOG_LEVEL=debug npm start
 ```
 
-### Process Hanging
+**Watch logs:**
+```bash
+tail -f logs/bot.log
+tail -f logs/bot-error.log | grep ERROR
+```
 
-```javascript
-// Add timeout to all Claude processes
-const timeout = setTimeout(() => {
-  claudeProcess.kill('SIGTERM');
-  bot.sendMessage(chatId, '⚠️ Task timeout - killed after 10 minutes');
-}, 10 * 60 * 1000);
+**Test bot token:**
+```bash
+curl "https://api.telegram.org/bot<TOKEN>/getMe"
+```
 
-claudeProcess.on('close', () => {
-  clearTimeout(timeout);
-});
+**Test health:**
+```bash
+curl http://localhost:3000/health | jq
+watch -n 5 'curl -s http://localhost:3000/health | jq'
 ```
 
 ---
 
-## Cost Management
+## API Reference
 
-### Estimate Costs
+### Health Endpoint
 
-- Claude Pro: $20/month (unlimited usage)
-- Claude API: Pay-per-token
-  - Sonnet: ~$3 per million tokens
-  - Opus: ~$15 per million tokens
+**GET** `http://localhost:3000/health`
 
-### Optimization Tips
+Response:
+```json
+{
+  "status": "ok",
+  "uptime": 12345,
+  "activeTasks": 2,
+  "stats": {
+    "totalCommands": 100,
+    "successfulCommands": 95,
+    "failedCommands": 5,
+    "uniqueUsers": 3
+  },
+  "timestamp": "2025-01-20T10:30:00.000Z"
+}
+```
 
-1. **Set token limits**
-   ```javascript
-   const args = [
-     prompt,
-     '--dangerously-skip-permission',
-     '--max-tokens', '4096'
-   ];
-   ```
+### Metrics Endpoint
 
-2. **Cache frequently accessed docs**
-3. **Use smaller model for simple tasks**
-4. **Implement daily usage caps**
-5. **Queue non-urgent tasks**
+**GET** `http://localhost:3000/metrics`
+
+Response:
+```json
+{
+  "commands": {
+    "totalCommands": 100,
+    "successfulCommands": 95,
+    "failedCommands": 5,
+    "uniqueUsers": 3
+  },
+  "activeTasks": 2,
+  "uptime": 12345
+}
+```
+
+### Bot Commands
+
+All via Telegram:
+
+- `/start` - Show welcome and help
+- `/task <description>` - Execute task
+- `/commit <message>` - Git commit and push
+- `/read <url>` - Read documentation
+- `/review` - Review code changes
+- `/test` - Run tests
+- `/build` - Build project
+- `/status` - Show active tasks
+- `/cancel <id>` - Cancel task
+- `/limits` - Check rate limits
+- `/help` - Show help
+
+### Error Responses
+
+- `🚫 Unauthorized access` - User not in whitelist
+- `⏱️ Rate limit exceeded` - Too many requests
+- `❌ Usage: /command <args>` - Invalid usage
+- `❌ Task not found` - Invalid task ID
 
 ---
 
-## FAQ
+## Additional Information
 
-**Q: Can I use this with Claude API instead of Claude Code CLI?**
-A: Yes, but you'd need to implement the full agent logic yourself. Claude Code CLI handles the agent orchestration.
+### Project Structure
 
-**Q: Is this secure enough for production?**
-A: Only if you implement ALL security measures and understand the risks. Consider it a power tool that requires careful handling.
+```
+tg-claude/
+├── src/                 # TypeScript source
+├── dist/                # Compiled JavaScript
+├── logs/                # Log files
+├── .env                 # Configuration (create this)
+├── package.json         # Dependencies
+├── tsconfig.json        # TypeScript config
+└── readme.md           # This file
+```
 
-**Q: Can multiple users use the same bot?**
-A: Yes, add multiple user IDs to ALLOWED_USER_IDS, but be cautious about concurrent operations.
+### Dependencies
 
-**Q: What if I run out of API credits?**
-A: The bot will stop working until you add more credits or your subscription renews.
+**Production:**
+- node-telegram-bot-api - Telegram bot framework
+- dotenv - Environment variables
+- winston - Logging
+- express - Health check server
+- uuid - Unique IDs
 
-**Q: Can I run this on Windows?**
-A: Yes, but you'll need to adjust file paths and possibly use WSL for better compatibility.
+**Development:**
+- typescript - TypeScript compiler
+- ts-node - TypeScript execution
+- @types/* - Type definitions
+- eslint - Code linting
+- nodemon - Auto-reload
 
----
+### NPM Scripts
 
-## Resources
+```bash
+npm run build        # Compile TypeScript
+npm start           # Run compiled code
+npm run dev         # Run with ts-node
+npm run dev:watch   # Auto-reload on changes
+npm run watch       # Watch compilation
+npm run lint        # Check code quality
+npm run lint:fix    # Fix issues
+npm run clean       # Remove dist/
+```
 
-- [Claude Code Documentation](https://docs.claude.com/claude-code)
-- [Telegram Bot API](https://core.telegram.org/bots/api)
-- [Node Telegram Bot API](https://github.com/yagop/node-telegram-bot-api)
-- [Python Telegram Bot](https://python-telegram-bot.org/)
-- [Anthropic API Reference](https://docs.anthropic.com/api)
+### Performance
 
----
+- Memory: ~50-100MB base + task overhead
+- Startup: < 2 seconds
+- Concurrent tasks: 3 per user
+- Task timeout: 10 minutes
+- Rate limits: 20/hour, 100/day
+- Output buffer: 4KB per message
 
-## License
+### Cost
+
+**Claude Pro ($20/month):**
+- Unlimited usage (fair use)
+- Best for personal/team
+
+**Claude API (pay-as-you-go):**
+- ~$0.03-$0.15 per task
+- Depends on complexity
+
+### Limitations
+
+- Single workspace (no multi-project)
+- No interactive prompts
+- No file upload/download
+- Polling mode (not webhooks)
+- In-memory storage (not persistent)
+
+### Future Enhancements
+
+- [ ] Multi-project support
+- [ ] Scheduled tasks
+- [ ] File uploads
+- [ ] Webhook mode
+- [ ] Web dashboard
+- [ ] Database persistence
+- [ ] Redis rate limiting
+- [ ] Prometheus metrics
+
+### Support
+
+For help:
+
+1. Check logs: `tail -f logs/bot.log`
+2. Review this documentation
+3. Verbose logging: `LOG_LEVEL=debug npm start`
+4. Check config: `cat .env`
+5. Health check: `curl localhost:3000/health`
+
+### License
 
 MIT License - Use at your own risk
 
----
+### Disclaimer
 
-## Contributing
-
-Feel free to submit issues and enhancement requests!
+⚠️ **WARNING**: Uses `--dangerously-skip-permission` which bypasses all safety prompts. Can execute arbitrary code. Use only in controlled environments with trusted users. Authors not responsible for damages or security breaches.
 
 ---
 
-**⚠️ DISCLAIMER**: This is a powerful tool that can execute arbitrary code on your machine. Use with extreme caution and only in controlled environments. The authors are not responsible for any damages or security breaches resulting from misuse of this system.
+**Quick Reference:**
+
+```bash
+# Setup
+npm install && npm run build && npm start
+
+# Development
+npm run dev:watch
+
+# Production
+pm2 start dist/index.js --name claude-bot
+
+# Monitor
+tail -f logs/bot.log
+curl localhost:3000/health
+```
+
+Enjoy using Claude Code remotely! 🤖

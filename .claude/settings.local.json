@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree -I 'node_modules|dist' -L 3)"
+      "Bash(tree -I 'node_modules|dist' -L 3)",
+      "Bash(cat requirements.txt)"
     ],
     "deny": [],
     "ask": []
