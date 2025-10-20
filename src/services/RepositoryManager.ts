@@ -43,8 +43,10 @@ export class RepositoryManager {
 
       // If it's already HTTPS, inject the token
       if (gitUrl.startsWith('https://github.com/')) {
-        // Use the format: https://oauth2:TOKEN@github.com/...
-        return gitUrl.replace('https://github.com/', `https://oauth2:${this.githubToken}@github.com/`);
+        // GitHub expects: https://x-access-token:TOKEN@github.com/...
+        // Or simply: https://TOKEN@github.com/...
+        // Using x-access-token format which is the recommended approach
+        return gitUrl.replace('https://github.com/', `https://x-access-token:${this.githubToken}@github.com/`);
       }
 
       return gitUrl;
