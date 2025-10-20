@@ -40,3 +40,5 @@ Thumbs.db
 credentials.json
 config.json
 secrets/
+
+dist/

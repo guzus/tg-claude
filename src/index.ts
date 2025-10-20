@@ -51,7 +51,7 @@ bot.on('polling_error', (error) => {
 const app = express();
 const healthPort = process.env.HEALTH_PORT || 3000;
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   const stats = auditLogger.getStats();
   const activeTaskCount = executor.getTaskCount();
 
@@ -64,7 +64,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.get('/metrics', (req, res) => {
+app.get('/metrics', (_req, res) => {
   const stats = auditLogger.getStats();
 
   res.json({

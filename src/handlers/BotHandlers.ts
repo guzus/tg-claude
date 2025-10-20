@@ -3,7 +3,7 @@ import { ClaudeExecutor } from '../services/ClaudeExecutor';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
 import { TaskStatus } from '../types';
-import { isAuthorized, extractCommandContext } from '../middleware/security';
+import { isAuthorized } from '../middleware/security';
 import { logger } from '../utils/logger';
 
 export class BotHandlers {

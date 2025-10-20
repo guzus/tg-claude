@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(tree -I 'node_modules|dist' -L 3)",
-      "Bash(cat requirements.txt)"
+      "Bash(cat requirements.txt)",
+      "Bash(npm install)",
+      "Bash(pnpm install)",
+      "Bash(pnpm run build)",
+      "Bash(node dist/index.js)",
+      "Bash(pkill -f \"node dist/index.js\")"
     ],
     "deny": [],
     "ask": []
