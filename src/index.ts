@@ -40,6 +40,7 @@ bot.setMyCommands([
   { command: 'test', description: 'Run all tests' },
   { command: 'build', description: 'Build the project' },
   { command: 'status', description: 'Check active tasks' },
+  { command: 'logs', description: 'View full task logs' },
   { command: 'cancel', description: 'Cancel a running task' },
   { command: 'limits', description: 'Check your rate limits' },
   { command: 'help', description: 'Show help message' }
@@ -57,6 +58,7 @@ bot.onText(/\/review/, (msg) => handlers.handleReview(msg));
 bot.onText(/\/test/, (msg) => handlers.handleTest(msg));
 bot.onText(/\/build/, (msg) => handlers.handleBuild(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
+bot.onText(/\/logs (.+)/, (msg, match) => handlers.handleLogs(msg, match));
 bot.onText(/\/cancel (.+)/, (msg, match) => handlers.handleCancel(msg, match));
 bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));

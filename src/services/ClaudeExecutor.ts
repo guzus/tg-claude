@@ -40,16 +40,35 @@ export class ClaudeExecutor {
     logger.info('Starting Claude task', {
       taskId: task.id,
       userId,
-      prompt: prompt.substring(0, 100)
+      prompt: prompt.substring(0, 100),
+      workingDir
     });
 
     try {
+      // Validate Claude API key
+      if (!config.claudeApiKey || config.claudeApiKey.includes('your_claude_api_key_here')) {
+        throw new Error('Claude API key is not configured. Please set CLAUDE_API_KEY in .env file');
+      }
+
+      // Check if working directory exists
+      const fs = require('fs');
+      if (!fs.existsSync(workingDir)) {
+        throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
+      }
+
       // Build command arguments
       const args = [
         prompt,
         ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
         ...additionalFlags
       ];
+
+      logger.info('Spawning Claude process', {
+        taskId: task.id,
+        command: 'claude',
+        args: args.map(a => a.length > 50 ? a.substring(0, 50) + '...' : a),
+        cwd: workingDir
+      });
 
       // Spawn Claude Code process
       const claudeProcess = spawn('claude', args, {
@@ -84,9 +103,10 @@ export class ClaudeExecutor {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
 
-        logger.debug('Task output chunk', {
+        logger.info('Task stdout', {
           taskId: task.id,
-          chunkSize: chunk.length
+          chunkSize: chunk.length,
+          preview: chunk.substring(0, 200).replace(/\n/g, '\\n')
         });
       });
 
@@ -100,9 +120,10 @@ export class ClaudeExecutor {
           task.errorOutput = task.errorOutput.slice(-config.maxOutputSize * 10);
         }
 
-        logger.debug('Task error output chunk', {
+        logger.info('Task stderr', {
           taskId: task.id,
-          chunkSize: chunk.length
+          chunkSize: chunk.length,
+          preview: chunk.substring(0, 200).replace(/\n/g, '\\n')
         });
       });
 
@@ -134,12 +155,23 @@ export class ClaudeExecutor {
         this.activeTasks.delete(task.id);
 
         task.status = TaskStatus.FAILED;
-        task.errorOutput += `\nProcess error: ${error.message}`;
+
+        // Provide helpful error messages
+        if (error.message.includes('ENOENT') || error.message.includes('not found')) {
+          task.errorOutput += `\n❌ Claude Code CLI not found!\n\n`;
+          task.errorOutput += `Please install Claude Code first:\n`;
+          task.errorOutput += `npm install -g @anthropic-ai/claude-code\n\n`;
+          task.errorOutput += `Original error: ${error.message}`;
+        } else {
+          task.errorOutput += `\nProcess error: ${error.message}`;
+        }
+
         task.endTime = new Date();
 
         logger.error('Task process error', {
           taskId: task.id,
-          error: error.message
+          error: error.message,
+          errorCode: (error as any).code
         });
       });
 

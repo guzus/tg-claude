@@ -87,6 +87,10 @@ export class BotHandlers {
 
       task.messageId = statusMsg.message_id;
 
+      // Track last update to avoid hitting rate limits
+      let lastUpdateText = '';
+      let updateCount = 0;
+
       // Poll for updates
       const updateInterval = setInterval(async () => {
         const currentTask = this.executor.getTask(task.id);
@@ -97,26 +101,57 @@ export class BotHandlers {
 
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
-          const output = this.executor.getTaskOutput(task.id);
-          const preview = output.slice(-1500);
+          updateCount++;
+          const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
 
-          try {
-            await this.bot.editMessageText(
-              `🔄 Processing...\n\n\`\`\`\n${preview}\n\`\`\``,
-              {
+          // Get both stdout and stderr
+          const output = this.executor.getTaskOutput(task.id);
+          const errorOutput = currentTask.errorOutput || '';
+
+          // Combine outputs
+          let combinedOutput = '';
+          if (output) {
+            combinedOutput += output;
+          }
+          if (errorOutput) {
+            combinedOutput += (combinedOutput ? '\n---STDERR---\n' : '') + errorOutput;
+          }
+
+          // If no output yet, show waiting message
+          if (!combinedOutput.trim()) {
+            combinedOutput = `⏳ Waiting for Claude to respond...\n\nElapsed: ${elapsed}s\nThis may take a few moments as Claude analyzes your request.`;
+          }
+
+          const preview = combinedOutput.slice(-1500);
+          const newUpdateText =
+            `🔄 Processing... (${elapsed}s)\n\n` +
+            `Updates: ${updateCount}\n` +
+            `Output size: ${combinedOutput.length} chars\n\n` +
+            `\`\`\`\n${preview}\n\`\`\``;
+
+          // Only update if text has changed (avoid rate limit errors)
+          if (newUpdateText !== lastUpdateText) {
+            try {
+              await this.bot.editMessageText(newUpdateText, {
                 chat_id: chatId,
                 message_id: statusMsg.message_id,
                 parse_mode: 'Markdown'
-              }
-            );
-          } catch (error) {
-            // Ignore edit errors (message not modified, etc.)
+              });
+              lastUpdateText = newUpdateText;
+            } catch (error) {
+              // Ignore edit errors (message not modified, rate limit, etc.)
+              logger.debug('Failed to update message', {
+                taskId: task.id,
+                error: error instanceof Error ? error.message : String(error)
+              });
+            }
           }
         } else {
           // Task completed
           clearInterval(updateInterval);
 
           const output = this.executor.getTaskOutput(task.id);
+          const errorOutput = currentTask.errorOutput || '';
           const statusEmoji = currentTask.status === TaskStatus.COMPLETED ? '✅' : '❌';
           const statusText = currentTask.status === TaskStatus.COMPLETED ? 'Completed' : 'Failed';
 
@@ -124,11 +159,24 @@ export class BotHandlers {
             ? Math.round((currentTask.endTime.getTime() - currentTask.startTime.getTime()) / 1000)
             : 0;
 
+          // Combine outputs for final display
+          let fullOutput = '';
+          if (output) {
+            fullOutput += output;
+          }
+          if (errorOutput) {
+            fullOutput += (fullOutput ? '\n\n---STDERR---\n' : '') + errorOutput;
+          }
+          if (!fullOutput.trim()) {
+            fullOutput = 'No output captured';
+          }
+
           const finalMessage =
             `${statusEmoji} ${statusText}\n\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
-            `Time: ${executionTime}s\n\n` +
-            `\`\`\`\n${output.slice(-2500)}\n\`\`\``;
+            `Time: ${executionTime}s\n` +
+            `Total output: ${fullOutput.length} chars\n\n` +
+            `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\``;
 
           try {
             await this.bot.editMessageText(finalMessage, {
@@ -140,10 +188,10 @@ export class BotHandlers {
             // If message is too long, send as document
             await this.bot.sendDocument(
               chatId,
-              Buffer.from(output),
+              Buffer.from(fullOutput),
               {},
               {
-                filename: 'output.txt',
+                filename: 'task-output.txt',
                 contentType: 'text/plain'
               }
             );
@@ -160,7 +208,7 @@ export class BotHandlers {
             error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined
           });
         }
-      }, 3000); // Update every 3 seconds
+      }, 2000); // Update every 2 seconds
 
     } catch (error) {
       const executionTime = Date.now() - startTime;
@@ -227,8 +275,27 @@ export class BotHandlers {
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
 
+    const userId = msg.from!.id;
+    const chatId = msg.chat.id;
+
     if (!match || !match[1]) {
-      await this.bot.sendMessage(msg.chat.id, '❌ Usage: /task <description>');
+      await this.bot.sendMessage(chatId, '❌ Usage: /task <description>');
+      return;
+    }
+
+    // Check if user has a repository set up
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        `⚠️ No active repository!\n\n` +
+          `Please set up a repository first:\n` +
+          `• /repo clone <url> - Clone a repository\n` +
+          `• /repo new <name> - Create a new repository\n` +
+          `• /repo add <path> - Add existing repository\n\n` +
+          `Example: \`/repo new my-calculator-app\``,
+        { parse_mode: 'Markdown' }
+      );
       return;
     }
 
@@ -378,6 +445,68 @@ export class BotHandlers {
     if (!(await this.checkAccess(msg))) return;
 
     await this.handleStart(msg);
+  }
+
+  /**
+   * /logs command - Get full output of a task
+   */
+  async handleLogs(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+
+    if (!match || !match[1]) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Usage: /logs <taskId>\n\nGet the task ID from /status command.'
+      );
+      return;
+    }
+
+    const taskId = match[1].trim();
+    const task = this.executor.getTask(taskId);
+
+    if (!task) {
+      await this.bot.sendMessage(chatId, '❌ Task not found');
+      return;
+    }
+
+    const fullOutput = task.output || '';
+    const errorOutput = task.errorOutput || '';
+    let combinedOutput = '';
+
+    if (fullOutput) {
+      combinedOutput += '=== STDOUT ===\n' + fullOutput;
+    }
+    if (errorOutput) {
+      combinedOutput += '\n\n=== STDERR ===\n' + errorOutput;
+    }
+    if (!combinedOutput.trim()) {
+      combinedOutput = 'No output captured yet.';
+    }
+
+    // Send as document if too large
+    if (combinedOutput.length > 3000) {
+      await this.bot.sendDocument(
+        chatId,
+        Buffer.from(combinedOutput),
+        {},
+        {
+          filename: `task-${taskId.substring(0, 8)}-logs.txt`,
+          contentType: 'text/plain'
+        }
+      );
+    } else {
+      await this.bot.sendMessage(
+        chatId,
+        `📋 *Task Logs*\n\n` +
+          `Task ID: \`${taskId.substring(0, 8)}\`\n` +
+          `Status: ${task.status}\n` +
+          `Prompt: ${task.prompt.substring(0, 100)}...\n\n` +
+          `\`\`\`\n${combinedOutput}\n\`\`\``,
+        { parse_mode: 'Markdown' }
+      );
+    }
   }
 
   /**
