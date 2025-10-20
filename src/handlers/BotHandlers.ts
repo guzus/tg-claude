@@ -615,6 +615,35 @@ export class BotHandlers {
   }
 
   /**
+   * /scan command - Rescan for repositories
+   */
+  async handleScan(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+
+    await this.bot.sendMessage(chatId, '🔍 Scanning for repositories...');
+
+    try {
+      const result = await this.repositoryManager.rescan();
+
+      await this.bot.sendMessage(
+        chatId,
+        `✅ *Repository Scan Complete*\n\n` +
+          `👥 Users: ${result.usersFound}\n` +
+          `📁 New repositories found: ${result.reposFound}\n\n` +
+          `Use \`/repo list\` to see all repositories.`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (error) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Scan failed: ' + (error instanceof Error ? error.message : String(error))
+      );
+    }
+  }
+
+  /**
    * /repo command - Repository management
    */
   async handleRepo(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -636,6 +665,7 @@ export class BotHandlers {
           `/repo switch <id> - Switch to repository\n` +
           `/repo current - Show current repository\n` +
           `/repo delete <id> - Delete repository\n\n` +
+          `💡 Tip: Use \`/scan\` to discover existing repos\n\n` +
           `Examples:\n` +
           `\`/repo clone https://github.com/user/repo.git\`\n` +
           `\`/repo new my-project\`\n` +

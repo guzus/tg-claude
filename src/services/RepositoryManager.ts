@@ -15,6 +15,143 @@ export class RepositoryManager {
   }
 
   /**
+   * Initialize and discover existing repositories
+   */
+  async initialize(): Promise<void> {
+    logger.info('Initializing RepositoryManager', { baseWorkspacePath: this.baseWorkspacePath });
+
+    try {
+      // Create base workspace if it doesn't exist
+      const fs = require('fs').promises;
+      await fs.mkdir(this.baseWorkspacePath, { recursive: true });
+
+      // Scan for existing repositories
+      await this.discoverRepositories();
+
+      logger.info('RepositoryManager initialized', {
+        totalUsers: this.userSessions.size,
+        totalRepos: this.getTotalRepositoryCount()
+      });
+    } catch (error) {
+      logger.error('Failed to initialize RepositoryManager', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Discover existing repositories in workspace
+   */
+  private async discoverRepositories(): Promise<void> {
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+
+      // Read base workspace directory
+      const entries = await fs.readdir(this.baseWorkspacePath, { withFileTypes: true });
+
+      for (const entry of entries) {
+        // Look for user directories (format: user_<userId>)
+        if (entry.isDirectory() && entry.name.startsWith('user_')) {
+          const userId = parseInt(entry.name.replace('user_', ''));
+          if (isNaN(userId)) continue;
+
+          const userDir = path.join(this.baseWorkspacePath, entry.name);
+          await this.discoverUserRepositories(userId, userDir);
+        }
+      }
+
+      logger.info('Repository discovery complete', {
+        usersFound: this.userSessions.size,
+        totalRepos: this.getTotalRepositoryCount()
+      });
+    } catch (error) {
+      logger.warn('Error during repository discovery', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Discover repositories for a specific user
+   */
+  private async discoverUserRepositories(userId: number, userDir: string): Promise<void> {
+    try {
+      const fs = require('fs').promises;
+      const path = require('path');
+
+      const entries = await fs.readdir(userDir, { withFileTypes: true });
+      let reposFound = 0;
+
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue;
+
+        const repoPath = path.join(userDir, entry.name);
+
+        // Check if it's a git repository
+        const gitPath = path.join(repoPath, '.git');
+        try {
+          await fs.access(gitPath);
+
+          // It's a git repo, add it
+          const repoId = uuidv4();
+          const session = this.getUserSession(userId);
+
+          // Get git remote URL if available
+          let gitUrl: string | undefined;
+          try {
+            const url = await this.getGitRemoteUrl(repoPath);
+            gitUrl = url || undefined;
+          } catch {
+            // No remote URL
+            gitUrl = undefined;
+          }
+
+          const repository: Repository = {
+            id: repoId,
+            name: entry.name,
+            path: repoPath,
+            type: RepositoryType.EXISTING,
+            gitUrl,
+            createdAt: new Date(),
+            lastUsed: new Date()
+          };
+
+          session.repositories.set(repoId, repository);
+
+          // Set as current if it's the only one
+          if (!session.currentRepositoryId) {
+            session.currentRepositoryId = repoId;
+          }
+
+          reposFound++;
+
+          logger.debug('Discovered repository', {
+            userId,
+            repoName: entry.name,
+            repoPath,
+            hasRemote: !!gitUrl
+          });
+        } catch {
+          // Not a git repository, skip
+        }
+      }
+
+      if (reposFound > 0) {
+        logger.info('User repositories discovered', {
+          userId,
+          reposFound
+        });
+      }
+    } catch (error) {
+      logger.warn('Error discovering user repositories', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
    * Get or create user session
    */
   private getUserSession(userId: number): UserSession {
@@ -338,6 +475,41 @@ export class RepositoryManager {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Re-scan for new repositories (manual refresh)
+   */
+  async rescan(): Promise<{ usersFound: number; reposFound: number }> {
+    logger.info('Manual repository rescan initiated');
+
+    const beforeCount = this.getTotalRepositoryCount();
+    await this.discoverRepositories();
+    const afterCount = this.getTotalRepositoryCount();
+
+    const newRepos = afterCount - beforeCount;
+
+    logger.info('Manual rescan complete', {
+      reposBefore: beforeCount,
+      reposAfter: afterCount,
+      newReposFound: newRepos
+    });
+
+    return {
+      usersFound: this.userSessions.size,
+      reposFound: newRepos
+    };
+  }
+
+  /**
+   * Get total repository count across all users
+   */
+  private getTotalRepositoryCount(): number {
+    let count = 0;
+    for (const session of this.userSessions.values()) {
+      count += session.repositories.size;
+    }
+    return count;
   }
 
   /**

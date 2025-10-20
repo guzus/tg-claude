@@ -25,6 +25,20 @@ const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
 const repositoryManager = new RepositoryManager();
 
+// Initialize repository manager (discover existing repos)
+(async () => {
+  await repositoryManager.initialize();
+
+  const stats = repositoryManager.getStats();
+  if (stats.totalRepositories > 0) {
+    logger.info('Discovered existing repositories', {
+      totalUsers: stats.totalUsers,
+      totalRepositories: stats.totalRepositories,
+      byType: stats.repositoriesByType
+    });
+  }
+})();
+
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
@@ -34,6 +48,7 @@ bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
+  { command: 'scan', description: 'Scan workspace for existing repositories' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'debug', description: 'Run a simple test task' },
   { command: 'commit', description: 'Commit changes and push to git' },
@@ -54,6 +69,7 @@ bot.setMyCommands([
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
+bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/debug/, (msg) => handlers.handleDebug(msg));
 bot.onText(/\/commit (.+)/, (msg, match) => handlers.handleCommit(msg, match));
