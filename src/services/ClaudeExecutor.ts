@@ -552,6 +552,66 @@ export class ClaudeExecutor {
   }
 
   /**
+   * Check if there are unpushed commits in the working directory
+   */
+  async hasUnpushedCommits(workingDir: string): Promise<boolean> {
+    try {
+      // Check if there's a remote configured
+      const hasRemote = await this.hasRemoteRepository(workingDir);
+      if (!hasRemote) {
+        // If no remote, check if there are any commits at all
+        try {
+          await execAsync('git log -1', {
+            cwd: workingDir,
+            timeout: 5000
+          });
+          // There are commits but no remote
+          return true;
+        } catch {
+          // No commits at all
+          return false;
+        }
+      }
+
+      // Check if current branch has upstream
+      try {
+        const { stdout: statusOutput } = await execAsync('git status -sb', {
+          cwd: workingDir,
+          timeout: 5000
+        });
+
+        // If status shows "ahead", there are unpushed commits
+        if (statusOutput.includes('ahead')) {
+          return true;
+        }
+
+        // If no upstream branch is set, check if there are local commits
+        if (statusOutput.includes('no upstream')) {
+          const { stdout: logOutput } = await execAsync('git log -1', {
+            cwd: workingDir,
+            timeout: 5000
+          });
+          return logOutput.trim().length > 0;
+        }
+
+        return false;
+      } catch (error) {
+        logger.warn('Failed to check for unpushed commits', {
+          workingDir,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        return false;
+      }
+    } catch (error) {
+      logger.warn('Failed to check for unpushed commits', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
    * Auto-commit changes in the working directory
    * Returns commit hash if successful, null otherwise
    */

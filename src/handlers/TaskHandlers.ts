@@ -120,8 +120,11 @@ export class TaskHandlers extends BaseHandler {
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
               const commitHash = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
+              let shouldPush = false;
+
               if (commitHash) {
                 commitInfo = '\n💾 Changes auto-committed';
+                shouldPush = true;
 
                 // Get repository info to build commit URL
                 const currentRepo = this.repositoryManager.getCurrentRepository(userId);
@@ -132,7 +135,26 @@ export class TaskHandlers extends BaseHandler {
                     logger.info('Built commit URL', { commitUrl, commitHash });
                   }
                 }
+              } else {
+                // No uncommitted changes, but check if there are unpushed commits
+                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(actualWorkingDir);
+                if (hasUnpushedCommits) {
+                  logger.info('Found unpushed commits', {
+                    taskId: task.id,
+                    workingDir: actualWorkingDir
+                  });
+                  shouldPush = true;
+                  commitInfo = '\n💾 Commits ready to push';
+                } else {
+                  logger.info('No changes to commit or push', {
+                    taskId: task.id,
+                    workingDir: actualWorkingDir
+                  });
+                }
+              }
 
+              // Attempt push if there are commits to push
+              if (shouldPush) {
                 logger.info('Starting auto-push', {
                   taskId: task.id,
                   workingDir: actualWorkingDir
@@ -160,11 +182,6 @@ export class TaskHandlers extends BaseHandler {
                   commitInfo += '\n⚠️ Push failed - check logs for details\n';
                   pushError = 'Push operation failed. This may be due to authentication or network issues.';
                 }
-              } else {
-                logger.info('No changes to commit', {
-                  taskId: task.id,
-                  workingDir: actualWorkingDir
-                });
               }
             } catch (error) {
               logger.error('Auto-commit/push failed', {
