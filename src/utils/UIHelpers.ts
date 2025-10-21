@@ -147,35 +147,39 @@ export class UIHelpers {
   }
 
   /**
-   * Converts git URL to web URL
+   * Converts git URL to web URL (removes authentication tokens)
    */
   static convertGitUrlToWeb(gitUrl: string | undefined): string | null {
     if (!gitUrl) return null;
 
+    // Remove any authentication tokens from HTTPS URLs
+    // Pattern: https://token@github.com or https://user:token@github.com
+    let cleanUrl = gitUrl.replace(/https:\/\/[^@]+@/, 'https://');
+
     // Handle github.com URLs
-    if (gitUrl.includes('github.com')) {
-      return gitUrl
+    if (cleanUrl.includes('github.com')) {
+      return cleanUrl
         .replace('git@github.com:', 'https://github.com/')
         .replace('.git', '');
     }
 
     // Handle gitlab.com URLs
-    if (gitUrl.includes('gitlab.com')) {
-      return gitUrl
+    if (cleanUrl.includes('gitlab.com')) {
+      return cleanUrl
         .replace('git@gitlab.com:', 'https://gitlab.com/')
         .replace('.git', '');
     }
 
     // Handle bitbucket.org URLs
-    if (gitUrl.includes('bitbucket.org')) {
-      return gitUrl
+    if (cleanUrl.includes('bitbucket.org')) {
+      return cleanUrl
         .replace('git@bitbucket.org:', 'https://bitbucket.org/')
         .replace('.git', '');
     }
 
     // If already HTTPS, just remove .git
-    if (gitUrl.startsWith('https://')) {
-      return gitUrl.replace('.git', '');
+    if (cleanUrl.startsWith('https://')) {
+      return cleanUrl.replace('.git', '');
     }
 
     return null;
