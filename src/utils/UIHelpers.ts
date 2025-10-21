@@ -217,6 +217,26 @@ export class UIHelpers {
   }
 
   /**
+   * Formats duration in seconds to a human-readable format with minutes
+   * @param seconds - Duration in seconds
+   * @returns Formatted string like "5m 30s" or "45s"
+   */
+  static formatDuration(seconds: number): string {
+    if (seconds < 60) {
+      return `${seconds}s`;
+    }
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+
+    if (remainingSeconds === 0) {
+      return `${minutes}m`;
+    }
+
+    return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  /**
    * Truncates long text to fit Telegram's message limit
    */
   static truncateMessage(text: string, maxLength: number = 4096): string {

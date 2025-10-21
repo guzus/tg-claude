@@ -72,12 +72,12 @@ export class TaskHandlers extends BaseHandler {
 
           // If no output yet, show waiting message
           if (!combinedOutput.trim()) {
-            combinedOutput = `⏳ Waiting for Claude to respond...\n\nElapsed: ${elapsed}s\nThis may take a few moments as Claude analyzes your request.`;
+            combinedOutput = `⏳ Waiting for Claude to respond...\n\nElapsed: ${UIHelpers.formatDuration(elapsed)}\nThis may take a few moments as Claude analyzes your request.`;
           }
 
           const preview = combinedOutput.slice(-1500);
           const newUpdateText =
-            `🔄 Processing... (${elapsed}s)\n\n` +
+            `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n\n` +
             `Updates: ${updateCount}\n` +
             `Output size: ${combinedOutput.length} chars\n\n` +
             `\`\`\`\n${preview}\n\`\`\``;
@@ -131,7 +131,7 @@ export class TaskHandlers extends BaseHandler {
           const finalMessage =
             `${statusEmoji} ${statusText}\n\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
-            `Time: ${executionTime}s\n` +
+            `Time: ${UIHelpers.formatDuration(executionTime)}\n` +
             `Total output: ${fullOutput.length} chars\n\n` +
             `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\`` +
             repoFooter;
