@@ -6,6 +6,7 @@ import { ClaudeExecutor } from './services/ClaudeExecutor';
 import { RateLimiter } from './services/RateLimiter';
 import { AuditLogger } from './services/AuditLogger';
 import { RepositoryManager } from './services/RepositoryManager';
+import { ConversationManager } from './services/ConversationManager';
 import { BotHandlers } from './handlers/BotHandlers';
 
 // Validate configuration
@@ -24,6 +25,7 @@ const executor = new ClaudeExecutor();
 const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
 const repositoryManager = new RepositoryManager();
+const conversationManager = new ConversationManager();
 
 // Initialize repository manager (discover existing repos)
 (async () => {
@@ -41,12 +43,13 @@ const repositoryManager = new RepositoryManager();
 
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
 
 // Set bot commands in Telegram UI
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
+  { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'link', description: 'Get repository URL link' },
   { command: 'scan', description: 'Scan workspace for existing repositories' },
@@ -69,6 +72,7 @@ bot.setMyCommands([
 // Register command handlers
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
+bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/link/, (msg) => handlers.handleLink(msg));
 bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
@@ -87,6 +91,15 @@ bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
 // Handle callback queries from inline keyboards
 bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
+
+// Handle plain text messages (treat as task commands)
+bot.on('message', (msg) => {
+  // Skip if it's a command or has no text
+  if (!msg.text || msg.text.startsWith('/')) return;
+
+  // Treat plain messages as task commands
+  handlers.handlePlainMessage(msg);
+});
 
 // Handle polling errors
 bot.on('polling_error', (error) => {
@@ -130,11 +143,13 @@ app.listen(healthPort, () => {
 setInterval(() => {
   const cleanedTasks = executor.cleanupOldTasks();
   const cleanedActivity = rateLimiter.cleanup();
+  const cleanedConversations = conversationManager.cleanup();
 
-  if (cleanedTasks > 0 || cleanedActivity > 0) {
+  if (cleanedTasks > 0 || cleanedActivity > 0 || cleanedConversations > 0) {
     logger.info('Periodic cleanup completed', {
       cleanedTasks,
-      cleanedActivity
+      cleanedActivity,
+      cleanedConversations
     });
   }
 }, 60 * 60 * 1000);

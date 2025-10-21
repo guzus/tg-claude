@@ -3,6 +3,7 @@ import { ClaudeExecutor } from '../services/ClaudeExecutor';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
+import { ConversationManager } from '../services/ConversationManager';
 import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
@@ -24,10 +25,11 @@ export class BotHandlers {
     executor: ClaudeExecutor,
     rateLimiter: RateLimiter,
     auditLogger: AuditLogger,
-    repositoryManager: RepositoryManager
+    repositoryManager: RepositoryManager,
+    conversationManager: ConversationManager
   ) {
     // Initialize all handler modules
-    this.taskHandlers = new TaskHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.taskHandlers = new TaskHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
     this.repositoryHandlers = new RepositoryHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.statusHandlers = new StatusHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.utilityHandlers = new UtilityHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
@@ -64,6 +66,11 @@ export class BotHandlers {
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.taskHandlers.handleTask(msg, match);
+  }
+
+  async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    const prompt = match?.[1] || '';
+    return this.taskHandlers.executeBeastMode(msg, prompt);
   }
 
   async handleCommit(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -114,6 +121,12 @@ export class BotHandlers {
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
     return this.callbackQueryHandler.handleCallbackQuery(query);
+  }
+
+  // ==================== Plain Messages ====================
+
+  async handlePlainMessage(msg: Message): Promise<void> {
+    return this.taskHandlers.handlePlainMessage(msg);
   }
 }
 

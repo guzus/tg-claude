@@ -3,6 +3,7 @@ import { BaseHandler } from './BaseHandler';
 import { TaskStatus } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
+import { PromptBuilder } from '../utils/PromptBuilder';
 
 /**
  * Handlers for task execution commands
@@ -254,14 +255,55 @@ Always commit and push your changes after completing the task unless explicitly 
   async handleCommit(msg: Message, match: RegExpExecArray | null): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
 
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
     if (!match || !match[1]) {
-      await this.bot.sendMessage(msg.chat.id, '❌ Usage: /commit <message>');
+      await this.bot.sendMessage(chatId, '❌ Usage: /commit <message>');
+      return;
+    }
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.bot.sendMessage(chatId, '❌ No repository selected');
       return;
     }
 
     const commitMessage = match[1].trim();
-    const prompt = `Create a git commit with message: "${commitMessage}" and push to remote`;
+    const prompt = PromptBuilder.buildCommitPrompt(currentRepo) + `\n\nCommit message: "${commitMessage}"`;
+
+    // Execute the commit
     await this.executeAndStream(msg, prompt);
+
+    // After execution, try to get commit hash and show button
+    // This will be handled in the task completion callback
+    const repoWebUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
+    if (repoWebUrl) {
+      // Try to get the latest commit hash
+      try {
+        const commitHash = await this.executor.executeTask(userId, chatId, 'git rev-parse HEAD', {
+          workingDir: currentRepo.path
+        });
+
+        if (commitHash) {
+          const commitUrl = `${repoWebUrl}/commit/${commitHash}`;
+
+          await this.bot.sendMessage(chatId, '✅ *Commit Created*', {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '🔗 View Commit on GitHub', url: commitUrl }]
+              ]
+            }
+          });
+        }
+      } catch (error) {
+        // Silently fail - commit message was already sent
+        logger.debug('Could not fetch commit hash', {
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   }
 
   /**
@@ -308,6 +350,83 @@ Always commit and push your changes after completing the task unless explicitly 
 
     const prompt = 'Build the project and fix any errors';
     await this.executeAndStream(msg, prompt);
+  }
+
+  /**
+   * Handle plain text messages (no /task prefix needed)
+   */
+  async handlePlainMessage(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const userMessage = msg.text || '';
+
+    // Get current repository
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        '📁 *No repository selected*\n\n' +
+        'Please set up a repository first:\n' +
+        '• /repo clone <url> - Clone a repository\n' +
+        '• /repo new <name> - Create new repository\n' +
+        '• /scan - Scan for existing repositories',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    // Add user message to conversation history
+    this.conversationManager?.addUserMessage(userId, userMessage, currentRepo.id);
+
+    // Get conversation context
+    const context = this.conversationManager?.getContext(userId);
+
+    // Build enhanced prompt with context
+    const enhancedPrompt = PromptBuilder.buildEnhancedPrompt(
+      userMessage,
+      currentRepo,
+      context,
+      false // Not beast mode for plain messages
+    );
+
+    // Execute with enhanced prompt
+    await this.executeAndStream(msg, enhancedPrompt);
+  }
+
+  /**
+   * Execute task in beast mode (autonomous execution)
+   */
+  async executeBeastMode(msg: Message, userRequest: string): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const userId = msg.from!.id;
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        msg.chat.id,
+        '❌ Beast mode requires an active repository'
+      );
+      return;
+    }
+
+    // Add to conversation
+    this.conversationManager?.addUserMessage(userId, `[BEAST MODE] ${userRequest}`, currentRepo.id);
+
+    const context = this.conversationManager?.getContext(userId);
+
+    // Build beast mode prompt
+    const beastPrompt = PromptBuilder.buildEnhancedPrompt(
+      userRequest,
+      currentRepo,
+      context,
+      true // Beast mode ON
+    );
+
+    await this.executeAndStream(msg, beastPrompt);
   }
 }
 

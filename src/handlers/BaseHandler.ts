@@ -3,6 +3,7 @@ import { ClaudeExecutor } from '../services/ClaudeExecutor';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
+import { ConversationManager } from '../services/ConversationManager';
 import { isAuthorized } from '../middleware/security';
 import { logger } from '../utils/logger';
 
@@ -15,7 +16,8 @@ export abstract class BaseHandler {
     protected executor: ClaudeExecutor,
     protected rateLimiter: RateLimiter,
     protected auditLogger: AuditLogger,
-    protected repositoryManager: RepositoryManager
+    protected repositoryManager: RepositoryManager,
+    protected conversationManager?: ConversationManager
   ) { }
 
   /**
