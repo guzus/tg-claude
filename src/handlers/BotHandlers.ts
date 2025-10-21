@@ -122,6 +122,16 @@ export class BotHandlers {
   // ==================== Plain Messages ====================
 
   async handlePlainMessage(msg: Message): Promise<void> {
+    const userId = msg.from?.id;
+    const chatId = msg.chat.id;
+    const text = msg.text?.trim();
+
+    // Check if user has a pending repository creation waiting for a name
+    if (userId && text && CallbackQueryHandler.hasPendingRepoCreation(userId)) {
+      return this.callbackQueryHandler.handleRepoNameResponse(userId, chatId, text);
+    }
+
+    // Otherwise treat as task command
     return this.taskHandlers.handlePlainMessage(msg);
   }
 }

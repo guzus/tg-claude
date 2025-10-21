@@ -921,13 +921,16 @@ Example format: "feat: Add user authentication system"`;
 
   /**
    * Create GitHub repository using gh CLI
-   * @returns 'success' if created, 'already_exists' if repo exists and remote was added, 'error' otherwise
+   * @param workingDir - Working directory path
+   * @param isPrivate - Whether repository should be private
+   * @param customRepoName - Optional custom repository name (defaults to directory basename)
+   * @returns 'success' if created, 'already_exists' if repo exists, 'error' otherwise
    */
-  async createGitHubRepository(workingDir: string, isPrivate: boolean = false): Promise<'success' | 'already_exists' | 'error'> {
+  async createGitHubRepository(workingDir: string, isPrivate: boolean = false, customRepoName?: string): Promise<'success' | 'already_exists' | 'error'> {
     try {
-      // Get repository name from working directory
+      // Get repository name from working directory or use custom name
       const path = require('path');
-      const repoName = path.basename(workingDir);
+      const repoName = customRepoName || path.basename(workingDir);
 
       // Create repository using gh CLI
       const visibility = isPrivate ? '--private' : '--public';
@@ -948,65 +951,13 @@ Example format: "feat: Add user authentication system"`;
 
       // Check if repository already exists
       if (errorMessage.includes('Name already exists on this account')) {
-        logger.info('Repository already exists, attempting to add remote', {
+        logger.info('Repository name already exists on GitHub', {
           workingDir,
-          repoName: require('path').basename(workingDir)
+          attemptedName: customRepoName || require('path').basename(workingDir)
         });
 
-        try {
-          // Get current GitHub username
-          const { stdout: username } = await execAsync('gh api user -q .login', {
-            timeout: 5000
-          });
-
-          const repoName = require('path').basename(workingDir);
-          const remoteUrl = `https://github.com/${username.trim()}/${repoName}.git`;
-
-          // Check if origin remote exists
-          try {
-            await execAsync('git remote get-url origin', {
-              cwd: workingDir,
-              timeout: 5000
-            });
-
-            // Origin exists, update it
-            await execAsync(`git remote set-url origin ${remoteUrl}`, {
-              cwd: workingDir,
-              timeout: 5000
-            });
-
-            logger.info('Updated existing origin remote', { workingDir, remoteUrl });
-          } catch {
-            // Origin doesn't exist, add it
-            await execAsync(`git remote add origin ${remoteUrl}`, {
-              cwd: workingDir,
-              timeout: 5000
-            });
-
-            logger.info('Added origin remote to existing repository', { workingDir, remoteUrl });
-          }
-
-          // Push to remote
-          const { stdout: currentBranch } = await execAsync('git branch --show-current', {
-            cwd: workingDir,
-            timeout: 5000
-          });
-
-          await execAsync(`git push -u origin ${currentBranch.trim()}`, {
-            cwd: workingDir,
-            timeout: 30000
-          });
-
-          logger.info('Pushed to existing GitHub repository', { workingDir });
-
-          return 'already_exists';
-        } catch (linkError) {
-          logger.error('Failed to link existing repository', {
-            workingDir,
-            error: linkError instanceof Error ? linkError.message : String(linkError)
-          });
-          return 'error';
-        }
+        // Return 'already_exists' so the caller can prompt for a new name
+        return 'already_exists';
       }
 
       logger.error('Failed to create GitHub repository', {

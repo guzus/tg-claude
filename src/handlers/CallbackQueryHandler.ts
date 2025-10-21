@@ -4,9 +4,22 @@ import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
 
 /**
+ * Pending repository creation state
+ */
+interface PendingRepoCreation {
+  workingDir: string;
+  isPrivate: boolean;
+  userId: number;
+  chatId: number;
+  originalName: string;
+}
+
+/**
  * Handles callback queries from inline keyboard buttons
  */
 export class CallbackQueryHandler extends BaseHandler {
+  // Static map to track pending repository creation requests
+  private static pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
     const chatId = query.message?.chat.id;
     const userId = query.from.id;
@@ -568,16 +581,20 @@ export class CallbackQueryHandler extends BaseHandler {
     );
 
     try {
+      // Get original repository name
+      const path = require('path');
+      const originalName = path.basename(workingDir);
+
       // Create repository
       const result = await this.executor.createGitHubRepository(workingDir, isPrivate);
 
-      // Refresh repository info
-      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-      if (currentRepo) {
-        await this.repositoryManager.refreshRepository(userId, currentRepo.id);
-      }
-
       if (result === 'success') {
+        // Refresh repository info
+        const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+        if (currentRepo) {
+          await this.repositoryManager.refreshRepository(userId, currentRepo.id);
+        }
+
         await this.bot.editMessageText(
           `✅ *GitHub Repository Created!*\n\n` +
           `Your changes have been pushed to GitHub.\n` +
@@ -594,20 +611,23 @@ export class CallbackQueryHandler extends BaseHandler {
           }
         );
       } else if (result === 'already_exists') {
+        // Repository name already exists, prompt user for new name
+        CallbackQueryHandler.setPendingRepoCreation(userId, {
+          workingDir,
+          isPrivate,
+          userId,
+          chatId,
+          originalName
+        });
+
         await this.bot.editMessageText(
-          `✅ *Linked to Existing Repository!*\n\n` +
-          `The repository already exists on GitHub.\n` +
-          `Your local changes have been pushed successfully.\n\n` +
-          `💡 Remote was configured automatically.`,
+          `⚠️ *Repository Name Already Exists*\n\n` +
+          `A repository named \`${originalName}\` already exists on your GitHub account.\n\n` +
+          `Please reply with a different repository name you'd like to use:`,
           {
             chat_id: chatId,
             message_id: messageId,
-            parse_mode: 'Markdown',
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: '📂 View Repository', callback_data: 'repo_current' }]
-              ]
-            }
+            parse_mode: 'Markdown'
           }
         );
       } else {
@@ -643,5 +663,142 @@ export class CallbackQueryHandler extends BaseHandler {
         }
       );
     }
+  }
+
+  /**
+   * Handle repository name response from user
+   */
+  async handleRepoNameResponse(userId: number, chatId: number, newRepoName: string): Promise<void> {
+    const pending = CallbackQueryHandler.getPendingRepoCreation(userId);
+    if (!pending) {
+      return;
+    }
+
+    // Clear pending state
+    CallbackQueryHandler.clearPendingRepoCreation(userId);
+
+    // Validate repository name
+    const validNameRegex = /^[a-zA-Z0-9_-]+$/;
+    if (!validNameRegex.test(newRepoName)) {
+      await this.bot.sendMessage(
+        chatId,
+        `❌ Invalid repository name: \`${newRepoName}\`\n\n` +
+        `Repository names can only contain:\n` +
+        `• Letters (a-z, A-Z)\n` +
+        `• Numbers (0-9)\n` +
+        `• Hyphens (-)\n` +
+        `• Underscores (_)\n\n` +
+        `Please use /repo to try again.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const statusMsg = await this.bot.sendMessage(
+      chatId,
+      `⏳ Creating GitHub repository: \`${newRepoName}\`...`,
+      { parse_mode: 'Markdown' }
+    );
+
+    try {
+      // Create repository with custom name
+      const result = await this.executor.createGitHubRepository(
+        pending.workingDir,
+        pending.isPrivate,
+        newRepoName
+      );
+
+      if (result === 'success') {
+        // Refresh repository info
+        const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+        if (currentRepo) {
+          await this.repositoryManager.refreshRepository(userId, currentRepo.id);
+        }
+
+        await this.bot.editMessageText(
+          `✅ *GitHub Repository Created!*\n\n` +
+          `Repository name: \`${newRepoName}\`\n` +
+          `Your changes have been pushed to GitHub.\n` +
+          `Visibility: ${pending.isPrivate ? '🔒 Private' : '✅ Public'}`,
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '📂 View Repository', callback_data: 'repo_current' }]
+              ]
+            }
+          }
+        );
+      } else if (result === 'already_exists') {
+        await this.bot.editMessageText(
+          `⚠️ Repository \`${newRepoName}\` also already exists!\n\n` +
+          `Please choose a different name and use /repo to try again.`,
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      } else {
+        await this.bot.editMessageText(
+          '❌ *Failed to Create Repository*\n\n' +
+          'Please make sure:\n' +
+          '• GitHub CLI (gh) is installed\n' +
+          '• You are authenticated with GitHub\n' +
+          '• You have internet connection',
+          {
+            chat_id: chatId,
+            message_id: statusMsg.message_id,
+            parse_mode: 'Markdown'
+          }
+        );
+      }
+    } catch (error) {
+      logger.error('Error creating GitHub repository with custom name', {
+        error: error instanceof Error ? error.message : String(error),
+        newRepoName,
+        workingDir: pending.workingDir
+      });
+
+      await this.bot.editMessageText(
+        '❌ *Error Creating Repository*\n\n' +
+        `${error instanceof Error ? error.message : String(error)}`,
+        {
+          chat_id: chatId,
+          message_id: statusMsg.message_id,
+          parse_mode: 'Markdown'
+        }
+      );
+    }
+  }
+
+  /**
+   * Check if user has a pending repository creation
+   */
+  static hasPendingRepoCreation(userId: number): boolean {
+    return CallbackQueryHandler.pendingRepoCreations.has(userId);
+  }
+
+  /**
+   * Get pending repository creation for user
+   */
+  static getPendingRepoCreation(userId: number): PendingRepoCreation | undefined {
+    return CallbackQueryHandler.pendingRepoCreations.get(userId);
+  }
+
+  /**
+   * Set pending repository creation for user
+   */
+  static setPendingRepoCreation(userId: number, data: PendingRepoCreation): void {
+    CallbackQueryHandler.pendingRepoCreations.set(userId, data);
+  }
+
+  /**
+   * Clear pending repository creation for user
+   */
+  static clearPendingRepoCreation(userId: number): void {
+    CallbackQueryHandler.pendingRepoCreations.delete(userId);
   }
 }
