@@ -2,6 +2,7 @@ import { CallbackQuery } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
+import { RepositoryType } from '../types';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 
@@ -161,6 +162,11 @@ export class CallbackQueryHandler extends BaseHandler {
         if (subAction.startsWith('select_')) {
           const repoIdPrefix = subAction.replace('select_', '');
           await this.selectRepository(chatId, messageId, userId, repoIdPrefix);
+        }
+        // Handle repo deletion (format: repo_delete_<repoId>)
+        else if (subAction.startsWith('delete_')) {
+          const repoIdPrefix = subAction.replace('delete_', '');
+          await this.deleteRepository(chatId, messageId, userId, repoIdPrefix);
         }
     }
   }
@@ -363,6 +369,63 @@ export class CallbackQueryHandler extends BaseHandler {
         reply_markup: keyboard
       }
     );
+  }
+
+  /**
+   * Delete a repository
+   */
+  private async deleteRepository(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    repoIdPrefix: string
+  ): Promise<void> {
+    const repositories = this.repositoryManager.listRepositories(userId);
+    const repoToDelete = repositories.find((r: any) => r.id.startsWith(repoIdPrefix));
+
+    if (!repoToDelete) {
+      await this.bot.answerCallbackQuery(userId.toString(), {
+        text: '❌ Repository not found',
+        show_alert: true
+      });
+      return;
+    }
+
+    try {
+      // Delete the repository
+      await this.repositoryManager.deleteRepository(userId, repoToDelete.id);
+
+      // Update pinned message if the deleted repo was current
+      await this.updatePinnedRepositoryInfo(chatId, userId);
+
+      // Show success message and refresh the list
+      await this.bot.editMessageText(
+        `✅ Repository deleted: *${UIHelpers.escapeMarkdown(repoToDelete.name)}*\n\n` +
+        `${repoToDelete.type !== RepositoryType.EXISTING ? 'Directory removed from disk.' : 'Reference removed (directory kept).'}`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📋 View Repositories', callback_data: 'repo_list' }],
+              [{ text: '🔙 Back to Main Menu', callback_data: 'main_menu' }]
+            ]
+          }
+        }
+      );
+    } catch (error) {
+      logger.error('Error deleting repository', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        repoIdPrefix
+      });
+
+      await this.bot.answerCallbackQuery(userId.toString(), {
+        text: '❌ Failed to delete repository',
+        show_alert: true
+      });
+    }
   }
 
   /**

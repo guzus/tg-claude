@@ -85,6 +85,10 @@ export class UIHelpers {
         {
           text: `${prefix}${typeEmoji} ${repo.name}`,
           callback_data: `repo_select_${repo.id.substring(0, 8)}`
+        },
+        {
+          text: '🗑️',
+          callback_data: `repo_delete_${repo.id.substring(0, 8)}`
         }
       ]);
     });
