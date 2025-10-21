@@ -72,10 +72,13 @@ export class TaskHandlers extends BaseHandler {
 
           // Build status message
           let newUpdateText;
-          if (!combinedOutput.trim()) {
+          const preview = combinedOutput.slice(-1500).trim();
+
+          if (!preview) {
+            // No output yet - just show waiting message
             newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
           } else {
-            const preview = combinedOutput.slice(-1500);
+            // Has output - show it
             newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n\n\`\`\`\n${preview}\n\`\`\``;
           }
 
