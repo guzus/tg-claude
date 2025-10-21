@@ -569,19 +569,36 @@ export class CallbackQueryHandler extends BaseHandler {
 
     try {
       // Create repository
-      const success = await this.executor.createGitHubRepository(workingDir, isPrivate);
+      const result = await this.executor.createGitHubRepository(workingDir, isPrivate);
 
-      if (success) {
-        // Refresh repository info
-        const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-        if (currentRepo) {
-          await this.repositoryManager.refreshRepository(userId, currentRepo.id);
-        }
+      // Refresh repository info
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      if (currentRepo) {
+        await this.repositoryManager.refreshRepository(userId, currentRepo.id);
+      }
 
+      if (result === 'success') {
         await this.bot.editMessageText(
           `✅ *GitHub Repository Created!*\n\n` +
           `Your changes have been pushed to GitHub.\n` +
           `Visibility: ${isPrivate ? '🔒 Private' : '✅ Public'}`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '📂 View Repository', callback_data: 'repo_current' }]
+              ]
+            }
+          }
+        );
+      } else if (result === 'already_exists') {
+        await this.bot.editMessageText(
+          `✅ *Linked to Existing Repository!*\n\n` +
+          `The repository already exists on GitHub.\n` +
+          `Your local changes have been pushed successfully.\n\n` +
+          `💡 Remote was configured automatically.`,
           {
             chat_id: chatId,
             message_id: messageId,

@@ -921,8 +921,9 @@ Example format: "feat: Add user authentication system"`;
 
   /**
    * Create GitHub repository using gh CLI
+   * @returns 'success' if created, 'already_exists' if repo exists and remote was added, 'error' otherwise
    */
-  async createGitHubRepository(workingDir: string, isPrivate: boolean = false): Promise<boolean> {
+  async createGitHubRepository(workingDir: string, isPrivate: boolean = false): Promise<'success' | 'already_exists' | 'error'> {
     try {
       // Get repository name from working directory
       const path = require('path');
@@ -941,13 +942,78 @@ Example format: "feat: Add user authentication system"`;
         visibility
       });
 
-      return true;
+      return 'success';
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Check if repository already exists
+      if (errorMessage.includes('Name already exists on this account')) {
+        logger.info('Repository already exists, attempting to add remote', {
+          workingDir,
+          repoName: require('path').basename(workingDir)
+        });
+
+        try {
+          // Get current GitHub username
+          const { stdout: username } = await execAsync('gh api user -q .login', {
+            timeout: 5000
+          });
+
+          const repoName = require('path').basename(workingDir);
+          const remoteUrl = `https://github.com/${username.trim()}/${repoName}.git`;
+
+          // Check if origin remote exists
+          try {
+            await execAsync('git remote get-url origin', {
+              cwd: workingDir,
+              timeout: 5000
+            });
+
+            // Origin exists, update it
+            await execAsync(`git remote set-url origin ${remoteUrl}`, {
+              cwd: workingDir,
+              timeout: 5000
+            });
+
+            logger.info('Updated existing origin remote', { workingDir, remoteUrl });
+          } catch {
+            // Origin doesn't exist, add it
+            await execAsync(`git remote add origin ${remoteUrl}`, {
+              cwd: workingDir,
+              timeout: 5000
+            });
+
+            logger.info('Added origin remote to existing repository', { workingDir, remoteUrl });
+          }
+
+          // Push to remote
+          const { stdout: currentBranch } = await execAsync('git branch --show-current', {
+            cwd: workingDir,
+            timeout: 5000
+          });
+
+          await execAsync(`git push -u origin ${currentBranch.trim()}`, {
+            cwd: workingDir,
+            timeout: 30000
+          });
+
+          logger.info('Pushed to existing GitHub repository', { workingDir });
+
+          return 'already_exists';
+        } catch (linkError) {
+          logger.error('Failed to link existing repository', {
+            workingDir,
+            error: linkError instanceof Error ? linkError.message : String(linkError)
+          });
+          return 'error';
+        }
+      }
+
       logger.error('Failed to create GitHub repository', {
         workingDir,
-        error: error instanceof Error ? error.message : String(error)
+        error: errorMessage
       });
-      return false;
+      return 'error';
     }
   }
 
