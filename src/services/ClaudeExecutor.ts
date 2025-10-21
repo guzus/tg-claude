@@ -570,11 +570,12 @@ export class ClaudeExecutor {
         timeout: 10000
       });
 
-      // Create commit message based on task prompt
-      const commitMessage = `Auto-commit: ${taskPrompt.substring(0, 100)}${taskPrompt.length > 100 ? '...' : ''}`;
+      // Generate appropriate commit message using Claude
+      const commitMessage = await this.generateCommitMessage(taskPrompt, workingDir);
 
-      // Commit changes
-      await execAsync(`git commit -m "${commitMessage}"`, {
+      // Commit changes (escape double quotes in message)
+      const escapedMessage = commitMessage.replace(/"/g, '\\"');
+      await execAsync(`git commit -m "${escapedMessage}"`, {
         cwd: workingDir,
         timeout: 10000
       });
@@ -600,6 +601,80 @@ export class ClaudeExecutor {
         error: error instanceof Error ? error.message : String(error)
       });
       return null;
+    }
+  }
+
+  /**
+   * Generate an appropriate commit message using Claude CLI
+   */
+  private async generateCommitMessage(taskPrompt: string, workingDir: string): Promise<string> {
+    try {
+      // Get the git diff of staged changes
+      const { stdout: gitDiff } = await execAsync('git diff --cached', {
+        cwd: workingDir,
+        timeout: 10000
+      });
+
+      // Get file statistics
+      const { stdout: gitStatus } = await execAsync('git status --short', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      // If diff is too large, truncate it
+      const maxDiffSize = 8000;
+      const diff = gitDiff.length > maxDiffSize
+        ? gitDiff.substring(0, maxDiffSize) + '\n\n... (diff truncated)'
+        : gitDiff;
+
+      // Create prompt for Claude
+      const prompt = `You are a helpful assistant that generates conventional commit messages.
+
+Task that was executed: ${taskPrompt}
+
+Files changed:
+${gitStatus}
+
+Git diff:
+${diff}
+
+Generate a concise, professional commit message following conventional commits format (type: description).
+- Use one of these types: feat, fix, docs, style, refactor, test, chore
+- Keep the description under 72 characters
+- Be specific about what changed
+- Do not add any markdown formatting or extra explanation
+- Return ONLY the commit message, nothing else
+
+Example format: "feat: Add user authentication system"`;
+
+      // Use Claude CLI to generate commit message
+      const { stdout: claudeResponse } = await execAsync(
+        `claude "${prompt.replace(/"/g, '\\"')}"`,
+        {
+          cwd: workingDir,
+          timeout: 30000,
+          env: {
+            ...process.env,
+            ANTHROPIC_API_KEY: config.claudeApiKey || process.env.ANTHROPIC_API_KEY
+          }
+        }
+      );
+
+      const commitMessage = claudeResponse.trim().split('\n')[0] || `chore: ${taskPrompt.substring(0, 72)}`;
+
+      logger.info('Generated commit message with Claude CLI', {
+        commitMessage,
+        taskPrompt: taskPrompt.substring(0, 50)
+      });
+
+      return commitMessage;
+    } catch (error) {
+      logger.error('Failed to generate commit message with Claude CLI, using fallback', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+
+      // Fallback to simple message if Claude fails
+      return `chore: ${taskPrompt.substring(0, 72)}`;
     }
   }
 
