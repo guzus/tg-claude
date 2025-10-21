@@ -2,6 +2,7 @@ import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { TaskStatus } from '../types';
 import { logger } from '../utils/logger';
+import { UIHelpers } from '../utils/UIHelpers';
 
 /**
  * Handlers for task execution commands
@@ -124,16 +125,15 @@ export class TaskHandlers extends BaseHandler {
 
           // Get repository info for quick access
           const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-          const repoLink = currentRepo?.gitUrl
-            ? `\n\n🔗 Repository: ${currentRepo.gitUrl.replace('.git', '')}`
-            : '';
+          const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
 
           const finalMessage =
             `${statusEmoji} ${statusText}\n\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
             `Time: ${executionTime}s\n` +
-            `Total output: ${fullOutput.length} chars${repoLink}\n\n` +
-            `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\``;
+            `Total output: ${fullOutput.length} chars\n\n` +
+            `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\`` +
+            repoFooter;
 
           try {
             await this.bot.editMessageText(finalMessage, {
@@ -153,9 +153,14 @@ export class TaskHandlers extends BaseHandler {
               }
             );
 
-            // Send repo link separately if available
-            if (repoLink) {
-              await this.bot.sendMessage(chatId, repoLink, { parse_mode: 'Markdown' });
+            // Send repo dashboard separately
+            if (currentRepo) {
+              const { message: repoMessage, keyboard: repoKeyboard } =
+                UIHelpers.createRepositoryDashboard(currentRepo);
+              await this.bot.sendMessage(chatId, repoMessage, {
+                parse_mode: 'Markdown',
+                reply_markup: repoKeyboard
+              });
             }
           }
 

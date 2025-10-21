@@ -2,6 +2,7 @@ import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { RepositoryType } from '../types';
 import { logger } from '../utils/logger';
+import { UIHelpers } from '../utils/UIHelpers';
 
 /**
  * Handlers for repository management commands
@@ -18,6 +19,8 @@ export class RepositoryHandlers extends BaseHandler {
     const subcommand = args[0];
 
     if (!subcommand) {
+      const repoMenuKeyboard = UIHelpers.createRepoActionMenu();
+
       await this.bot.sendMessage(
         chatId,
         `📁 *Repository Management*\n\n` +
@@ -35,7 +38,10 @@ export class RepositoryHandlers extends BaseHandler {
         `\`/repo clone https://github.com/user/repo.git\`\n` +
         `\`/repo new my-project\`\n` +
         `\`/repo list\``,
-        { parse_mode: 'Markdown' }
+        {
+          parse_mode: 'Markdown',
+          reply_markup: repoMenuKeyboard
+        }
       );
       return;
     }
@@ -241,16 +247,21 @@ export class RepositoryHandlers extends BaseHandler {
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
     if (repositories.length === 0) {
+      const keyboard = UIHelpers.createRepoActionMenu();
+
       await this.bot.sendMessage(
         chatId,
         `📁 No repositories yet.\n\n` +
         `Use:\n` +
         `• /repo clone <url> to clone a repository\n` +
         `• /repo new <name> to create a new one\n` +
-        `• /repo add <path> to add an existing one`
+        `• /repo add <path> to add an existing one`,
+        { reply_markup: keyboard }
       );
       return;
     }
+
+    const keyboard = UIHelpers.createRepositoryListKeyboard(repositories, currentRepo?.id || null);
 
     let message = `📁 *Your Repositories (${repositories.length})*\n\n`;
 
@@ -275,9 +286,12 @@ export class RepositoryHandlers extends BaseHandler {
       message += `\n`;
     }
 
-    message += `Use \`/repo switch <id>\` to switch repositories.`;
+    message += `Tap a repository below to switch to it:`;
 
-    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: keyboard
+    });
   }
 
   /**
@@ -331,16 +345,13 @@ export class RepositoryHandlers extends BaseHandler {
     const userId = msg.from!.id;
 
     const repo = this.repositoryManager.getCurrentRepository(userId);
+    const { message, keyboard } = UIHelpers.createRepositoryDashboard(repo || null);
 
     if (!repo) {
-      await this.bot.sendMessage(
-        chatId,
-        `📁 No active repository.\n\n` +
-        `Use:\n` +
-        `• /repo clone <url> to clone a repository\n` +
-        `• /repo new <name> to create a new one\n` +
-        `• /repo list to see all repositories`
-      );
+      await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      });
       return;
     }
 
@@ -352,10 +363,7 @@ export class RepositoryHandlers extends BaseHandler {
           : '📂 Existing';
 
     // Convert git URL to web URL for display
-    let webUrl = '';
-    if (repo.gitUrl) {
-      webUrl = repo.gitUrl.replace('.git', '').replace('git@github.com:', 'https://github.com/');
-    }
+    const webUrl = UIHelpers.convertGitUrlToWeb(repo.gitUrl);
 
     await this.bot.sendMessage(
       chatId,
@@ -368,7 +376,10 @@ export class RepositoryHandlers extends BaseHandler {
       `${repo.branch ? `🌿 Branch: ${repo.branch}\n` : ''}` +
       `🕒 Last used: ${repo.lastUsed.toLocaleString()}\n\n` +
       `${webUrl ? `💡 Tip: Use /link to quickly get the repository URL` : '⚠️ No remote URL configured'}`,
-      { parse_mode: 'Markdown' }
+      {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      }
     );
   }
 

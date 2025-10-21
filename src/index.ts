@@ -85,6 +85,9 @@ bot.onText(/\/cancel (.+)/, (msg, match) => handlers.handleCancel(msg, match));
 bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
+// Handle callback queries from inline keyboards
+bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
+
 // Handle polling errors
 bot.on('polling_error', (error) => {
   logger.error('Telegram polling error', {

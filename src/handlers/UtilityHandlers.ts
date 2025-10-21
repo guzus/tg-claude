@@ -1,5 +1,6 @@
 import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
+import { UIHelpers } from '../utils/UIHelpers';
 
 /**
  * Handlers for utility and diagnostic commands
@@ -12,10 +13,14 @@ export class UtilityHandlers extends BaseHandler {
     if (!(await this.checkAccess(msg))) return;
 
     const chatId = msg.chat.id;
+    const userId = msg.from!.id;
     const username = msg.from?.first_name || 'there';
 
-    await this.bot.sendMessage(
-      chatId,
+    // Get current repository
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+
+    // Send welcome message with main menu
+    const welcomeMessage =
       `👋 Hello ${username}!\n\n` +
       `🤖 *Claude Code Remote Control Bot*\n\n` +
       `Available commands:\n\n` +
@@ -37,9 +42,22 @@ export class UtilityHandlers extends BaseHandler {
       `💡 *Quick Start:*\n` +
       `1. Use \`/repo clone owner/repo\` to clone a repository\n` +
       `2. Use \`/task <description>\` to execute tasks\n` +
-      `3. Use \`/link\` to get your repository URL`,
-      { parse_mode: 'Markdown' }
-    );
+      `3. Use \`/link\` to get your repository URL`;
+
+    const mainMenuKeyboard = UIHelpers.createMainMenuKeyboard(currentRepo !== null);
+
+    await this.bot.sendMessage(chatId, welcomeMessage, {
+      parse_mode: 'Markdown',
+      reply_markup: mainMenuKeyboard
+    });
+
+    // Send repository dashboard as a separate message
+    const { message: repoMessage, keyboard: repoKeyboard } = UIHelpers.createRepositoryDashboard(currentRepo || null);
+
+    await this.bot.sendMessage(chatId, repoMessage, {
+      parse_mode: 'Markdown',
+      reply_markup: repoKeyboard
+    });
   }
 
   /**

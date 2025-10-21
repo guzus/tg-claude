@@ -1,4 +1,4 @@
-import TelegramBot, { Message } from 'node-telegram-bot-api';
+import TelegramBot, { Message, CallbackQuery } from 'node-telegram-bot-api';
 import { ClaudeExecutor } from '../services/ClaudeExecutor';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
@@ -7,6 +7,7 @@ import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
 import { UtilityHandlers } from './UtilityHandlers';
+import { CallbackQueryHandler } from './CallbackQueryHandler';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -16,6 +17,7 @@ export class BotHandlers {
   private repositoryHandlers: RepositoryHandlers;
   private statusHandlers: StatusHandlers;
   private utilityHandlers: UtilityHandlers;
+  private callbackQueryHandler: CallbackQueryHandler;
 
   constructor(
     bot: TelegramBot,
@@ -29,6 +31,7 @@ export class BotHandlers {
     this.repositoryHandlers = new RepositoryHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.statusHandlers = new StatusHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.utilityHandlers = new UtilityHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
   }
 
   // ==================== Utility Commands ====================
@@ -105,6 +108,12 @@ export class BotHandlers {
 
   async handleLogs(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.statusHandlers.handleLogs(msg, match);
+  }
+
+  // ==================== Callback Queries ====================
+
+  async handleCallbackQuery(query: CallbackQuery): Promise<void> {
+    return this.callbackQueryHandler.handleCallbackQuery(query);
   }
 }
 
