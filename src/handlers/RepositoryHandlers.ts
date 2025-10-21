@@ -1,6 +1,6 @@
 import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { RepositoryType } from '../types';
+import { RepositoryType, Repository } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 
@@ -462,6 +462,274 @@ export class RepositoryHandlers extends BaseHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.bot.sendMessage(chatId, `❌ Failed to delete repository:\n${errorMessage}`);
+    }
+  }
+
+  /**
+   * /remote command - Manage git remote
+   */
+  async handleRemote(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const args = match?.[1]?.trim().split(/\s+/) || [];
+    const subcommand = args[0];
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ No repository selected.\n\nUse /repo to select or create a repository first.'
+      );
+      return;
+    }
+
+    if (!subcommand) {
+      await this.bot.sendMessage(
+        chatId,
+        `🔗 *Remote Management*\n\n` +
+        `Commands:\n` +
+        `/remote show - Show current remote configuration\n` +
+        `/remote set <url> - Set remote URL\n` +
+        `/remote test - Test remote connection\n` +
+        `/remote remove - Remove remote\n\n` +
+        `Current repository: \`${currentRepo.name}\``,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    try {
+      switch (subcommand.toLowerCase()) {
+        case 'show':
+          await this.handleRemoteShow(msg, currentRepo);
+          break;
+        case 'set':
+          await this.handleRemoteSet(msg, currentRepo, args.slice(1));
+          break;
+        case 'test':
+          await this.handleRemoteTest(msg, currentRepo);
+          break;
+        case 'remove':
+          await this.handleRemoteRemove(msg, currentRepo);
+          break;
+        default:
+          await this.bot.sendMessage(
+            chatId,
+            `❌ Unknown subcommand: ${subcommand}\nUse /remote to see available commands.`
+          );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
+      logger.error('Remote command failed', {
+        userId: msg.from?.id,
+        subcommand,
+        error: errorMessage
+      });
+    }
+  }
+
+  /**
+   * Show current remote configuration
+   */
+  private async handleRemoteShow(msg: Message, repo: Repository): Promise<void> {
+    const chatId = msg.chat.id;
+
+    try {
+      const { execAsync } = require('../utils/execAsync');
+      const { stdout } = await execAsync('git remote -v', {
+        cwd: repo.path,
+        timeout: 5000
+      });
+
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+
+      if (!stdout.trim()) {
+        await this.bot.sendMessage(
+          chatId,
+          `📁 *Repository:* ${escapedName}\n` +
+          `📂 *Path:* \`${escapedPath}\`\n\n` +
+          `⚠️ No remote configured\n\n` +
+          `Use \`/remote set <url>\` to add a remote.`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      const lines = stdout.trim().split('\n');
+      let remoteInfo = '';
+      for (const line of lines) {
+        const [name, url, type] = line.split(/\s+/);
+        if (type === '(fetch)') {
+          const escapedUrl = UIHelpers.escapeMarkdown(url);
+          remoteInfo += `🔗 *${name}:* \`${escapedUrl}\`\n`;
+        }
+      }
+
+      await this.bot.sendMessage(
+        chatId,
+        `📁 *Repository:* ${escapedName}\n` +
+        `📂 *Path:* \`${escapedPath}\`\n\n` +
+        `*Remote Configuration:*\n${remoteInfo}`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Failed to get remote info:\n${errorMessage}`);
+    }
+  }
+
+  /**
+   * Set remote URL
+   */
+  private async handleRemoteSet(msg: Message, repo: Repository, args: string[]): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (args.length === 0) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Usage: /remote set <url>\n\n' +
+        'Examples:\n' +
+        '• `/remote set https://github.com/user/repo.git`\n' +
+        '• `/remote set git@github.com:user/repo.git`',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    let remoteUrl = args[0];
+
+    // Convert owner/repo format to full GitHub URL
+    if (!remoteUrl.includes('://') && !remoteUrl.startsWith('git@')) {
+      if (remoteUrl.includes('/')) {
+        remoteUrl = `https://github.com/${remoteUrl}.git`;
+      } else {
+        await this.bot.sendMessage(
+          chatId,
+          '❌ Invalid format. Use either:\n' +
+          '• `owner/repo` (e.g., `guzus/poly-mm`)\n' +
+          '• Full URL (e.g., `https://github.com/owner/repo.git`)',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+    }
+
+    try {
+      const { execAsync } = require('../utils/execAsync');
+
+      // Check if origin remote exists
+      let remoteExists = false;
+      try {
+        await execAsync('git remote get-url origin', {
+          cwd: repo.path,
+          timeout: 5000
+        });
+        remoteExists = true;
+      } catch {
+        // Remote doesn't exist
+      }
+
+      if (remoteExists) {
+        // Update existing remote
+        await execAsync(`git remote set-url origin ${remoteUrl}`, {
+          cwd: repo.path,
+          timeout: 5000
+        });
+      } else {
+        // Add new remote
+        await execAsync(`git remote add origin ${remoteUrl}`, {
+          cwd: repo.path,
+          timeout: 5000
+        });
+      }
+
+      // Refresh repository info
+      await this.repositoryManager.refreshRepository(userId, repo.id);
+
+      const escapedUrl = UIHelpers.escapeMarkdown(remoteUrl);
+      await this.bot.sendMessage(
+        chatId,
+        `✅ Remote ${remoteExists ? 'updated' : 'added'} successfully!\n\n` +
+        `🔗 URL: \`${escapedUrl}\`\n\n` +
+        `You can now push/pull from this remote.`,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Failed to set remote:\n${errorMessage}`);
+    }
+  }
+
+  /**
+   * Test remote connection
+   */
+  private async handleRemoteTest(msg: Message, repo: Repository): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const statusMsg = await this.bot.sendMessage(chatId, '🔄 Testing remote connection...');
+
+    try {
+      const { execAsync } = require('../utils/execAsync');
+      await execAsync('git ls-remote origin', {
+        cwd: repo.path,
+        timeout: 15000
+      });
+
+      await this.bot.editMessageText(
+        '✅ Remote connection successful!\n\n' +
+        'The remote is properly configured and accessible.',
+        {
+          chat_id: chatId,
+          message_id: statusMsg.message_id
+        }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(
+        '❌ Remote connection failed!\n\n' +
+        `Error: ${errorMessage}\n\n` +
+        'Please check:\n' +
+        '• Remote URL is correct\n' +
+        '• You have network connectivity\n' +
+        '• You have proper authentication',
+        {
+          chat_id: chatId,
+          message_id: statusMsg.message_id
+        }
+      );
+    }
+  }
+
+  /**
+   * Remove remote
+   */
+  private async handleRemoteRemove(msg: Message, repo: Repository): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    try {
+      const { execAsync } = require('../utils/execAsync');
+      await execAsync('git remote remove origin', {
+        cwd: repo.path,
+        timeout: 5000
+      });
+
+      // Refresh repository info
+      await this.repositoryManager.refreshRepository(userId, repo.id);
+
+      await this.bot.sendMessage(
+        chatId,
+        '✅ Remote removed successfully!\n\n' +
+        'The repository is now disconnected from the remote.'
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Failed to remove remote:\n${errorMessage}`);
     }
   }
 }

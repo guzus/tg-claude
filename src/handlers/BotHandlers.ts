@@ -95,6 +95,10 @@ export class BotHandlers {
     return this.repositoryHandlers.handleRepo(msg, match);
   }
 
+  async handleRemote(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.repositoryHandlers.handleRemote(msg, match);
+  }
+
   // ==================== Status Commands ====================
 
   async handleStatus(msg: Message): Promise<void> {

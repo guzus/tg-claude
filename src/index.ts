@@ -51,7 +51,7 @@ bot.setMyCommands([
   { command: 'task', description: 'Execute a coding task with Claude AI' },
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
-  { command: 'link', description: 'Get repository URL link' },
+  { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
   { command: 'scan', description: 'Scan workspace for existing repositories' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'debug', description: 'Run a simple test task' },
@@ -74,6 +74,7 @@ bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
+bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
 bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/debug/, (msg) => handlers.handleDebug(msg));
