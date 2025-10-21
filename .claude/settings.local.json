@@ -8,7 +8,10 @@
       "Bash(pnpm run build)",
       "Bash(node dist/index.js)",
       "Bash(pkill -f \"node dist/index.js\")",
-      "Bash(timeout 5 pnpm run dev)"
+      "Bash(timeout 5 pnpm run dev)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push)"
     ],
     "deny": [],
     "ask": []
