@@ -25,8 +25,7 @@ export class UtilityHandlers extends BaseHandler {
       `🤖 *Claude Code Remote Control Bot*\n\n` +
       `Available commands:\n\n` +
       `📁 *Repository Management:*\n` +
-      `/repo - Manage repositories (clone/new/list/switch)\n` +
-      `/link - Get repository URL link\n\n` +
+      `/repo - Manage repositories (clone/new/list/switch)\n\n` +
       `🛠️ *Development:*\n` +
       `/task <description> - Execute a task\n` +
       `/commit <message> - Commit and push changes\n` +
@@ -41,8 +40,7 @@ export class UtilityHandlers extends BaseHandler {
       `/help - Show this help message\n\n` +
       `💡 *Quick Start:*\n` +
       `1. Use \`/repo clone owner/repo\` to clone a repository\n` +
-      `2. Use \`/task <description>\` to execute tasks\n` +
-      `3. Use \`/link\` to get your repository URL`;
+      `2. Use \`/task <description>\` to execute tasks`;
 
     const mainMenuKeyboard = UIHelpers.createMainMenuKeyboard(currentRepo !== null);
 
@@ -66,51 +64,6 @@ export class UtilityHandlers extends BaseHandler {
   async handleHelp(msg: Message): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
     await this.handleStart(msg);
-  }
-
-  /**
-   * /link command - Get quick access to repository URL
-   */
-  async handleLink(msg: Message): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const chatId = msg.chat.id;
-    const userId = msg.from!.id;
-
-    const repo = this.repositoryManager.getCurrentRepository(userId);
-
-    if (!repo) {
-      await this.bot.sendMessage(
-        chatId,
-        `📁 No active repository.\n\n` +
-        `Use /repo to set up a repository first.`
-      );
-      return;
-    }
-
-    if (!repo.gitUrl) {
-      await this.bot.sendMessage(
-        chatId,
-        `⚠️ Current repository has no remote URL.\n\n` +
-        `📁 Repository: ${repo.name}\n` +
-        `📂 Local path: \`${repo.path}\`\n\n` +
-        `To add a remote, use git commands or /task to push to a new repo.`,
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
-    // Convert git URL to web URL
-    const webUrl = repo.gitUrl.replace('.git', '').replace('git@github.com:', 'https://github.com/');
-
-    await this.bot.sendMessage(
-      chatId,
-      `🔗 *${repo.name}*\n\n` +
-      `${webUrl}\n\n` +
-      `📂 Local: \`${repo.path}\`\n` +
-      `🌿 Branch: ${repo.branch || 'main'}`,
-      { parse_mode: 'Markdown' }
-    );
   }
 
   /**

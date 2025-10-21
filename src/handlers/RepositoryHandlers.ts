@@ -384,7 +384,7 @@ export class RepositoryHandlers extends BaseHandler {
       `${webUrl ? `🔗 URL: ${webUrl}\n` : ''}` +
       `${repo.branch ? `🌿 Branch: ${repo.branch}\n` : ''}` +
       `🕒 Last used: ${repo.lastUsed.toLocaleString()}\n\n` +
-      `${webUrl ? `💡 Tip: Use /link to quickly get the repository URL` : '⚠️ No remote URL configured'}`,
+      `${webUrl ? `💡 Repository URL available above` : '⚠️ No remote URL configured'}`,
       {
         parse_mode: 'Markdown',
         reply_markup: keyboard

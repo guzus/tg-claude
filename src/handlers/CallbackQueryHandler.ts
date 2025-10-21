@@ -466,7 +466,6 @@ export class CallbackQueryHandler extends BaseHandler {
       '❓ *Help*\n\n' +
       '*Repository Management:*\n' +
       '• `/repo` - Manage repositories\n' +
-      '• `/link` - Get repository link\n' +
       '• `/scan` - Scan for repositories\n\n' +
       '*Development:*\n' +
       '• `/task <desc>` - Execute task\n' +

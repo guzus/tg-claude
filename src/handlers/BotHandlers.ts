@@ -46,10 +46,6 @@ export class BotHandlers {
     return this.utilityHandlers.handleHelp(msg);
   }
 
-  async handleLink(msg: Message): Promise<void> {
-    return this.utilityHandlers.handleLink(msg);
-  }
-
   async handleCheck(msg: Message): Promise<void> {
     return this.utilityHandlers.handleCheck(msg);
   }

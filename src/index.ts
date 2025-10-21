@@ -74,7 +74,6 @@ bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
-bot.onText(/\/link/, (msg) => handlers.handleLink(msg));
 bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/debug/, (msg) => handlers.handleDebug(msg));
