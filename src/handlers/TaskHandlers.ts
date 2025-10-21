@@ -115,28 +115,49 @@ export class TaskHandlers extends BaseHandler {
           // Auto-commit and push changes if task completed successfully
           let commitInfo = '';
           let needsRemoteSetup = false;
+          let pushError = '';
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
               const committed = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
               if (committed) {
                 commitInfo = '\n💾 Changes auto-committed';
 
+                logger.info('Starting auto-push', {
+                  taskId: task.id,
+                  workingDir: actualWorkingDir
+                });
+
                 // Auto-push changes
                 const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+
+                logger.info('Auto-push result', {
+                  taskId: task.id,
+                  result: pushResult
+                });
+
                 if (pushResult === 'success') {
-                  commitInfo += ' & pushed to GitHub\n';
+                  commitInfo += ' & pushed to GitHub ✅\n';
                 } else if (pushResult === 'no_remote') {
                   commitInfo += '\n⚠️ No remote repository configured\n';
                   needsRemoteSetup = true;
+                } else if (pushResult === 'no_changes') {
+                  commitInfo += ' (already up to date)\n';
                 } else {
-                  commitInfo += '\n⚠️ Push failed\n';
+                  commitInfo += '\n⚠️ Push failed - check logs for details\n';
+                  pushError = 'Push operation failed. This may be due to authentication or network issues.';
                 }
+              } else {
+                logger.info('No changes to commit', {
+                  taskId: task.id,
+                  workingDir: actualWorkingDir
+                });
               }
             } catch (error) {
               logger.error('Auto-commit/push failed', {
                 taskId: task.id,
                 error: error instanceof Error ? error.message : String(error)
               });
+              commitInfo = '\n⚠️ Commit/push error - check logs\n';
             }
           }
 
@@ -213,6 +234,22 @@ export class TaskHandlers extends BaseHandler {
                     ]
                   ]
                 }
+              }
+            );
+          }
+
+          // Show push error details if push failed
+          if (pushError) {
+            await this.bot.sendMessage(
+              chatId,
+              `⚠️ *Push Failed*\n\n${pushError}\n\n` +
+              `Common causes:\n` +
+              `• Not authenticated with GitHub\n` +
+              `• No network connection\n` +
+              `• Permission denied\n\n` +
+              `Check the logs with \`/logs ${task.id.substring(0, 8)}\` for more details.`,
+              {
+                parse_mode: 'Markdown'
               }
             );
           }

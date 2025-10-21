@@ -528,9 +528,9 @@ export class ClaudeExecutor {
 
   /**
    * Auto-push changes to remote repository
-   * Returns: 'success' | 'no_remote' | 'failed'
+   * Returns: 'success' | 'no_remote' | 'failed' | 'no_changes'
    */
-  async autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed'> {
+  async autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed' | 'no_changes'> {
     try {
       // Check if remote exists
       const hasRemote = await this.hasRemoteRepository(workingDir);
@@ -546,27 +546,84 @@ export class ClaudeExecutor {
       });
       const currentBranch = branchOutput.trim();
 
-      // Push to remote
-      await execAsync(`git push origin ${currentBranch}`, {
-        cwd: workingDir,
-        timeout: 30000
-      });
-
-      logger.info('Auto-pushed changes', {
+      logger.info('Attempting to push changes', {
         workingDir,
         branch: currentBranch
       });
 
-      return 'success';
+      // Check if there are commits to push
+      try {
+        const { stdout: statusOutput } = await execAsync('git status -sb', {
+          cwd: workingDir,
+          timeout: 5000
+        });
+
+        logger.info('Git status before push', {
+          workingDir,
+          status: statusOutput.trim()
+        });
+
+        // If status shows "ahead", there are commits to push
+        if (!statusOutput.includes('ahead')) {
+          logger.info('No commits to push', { workingDir });
+          return 'no_changes';
+        }
+      } catch (statusError) {
+        // Continue with push attempt even if status check fails
+        logger.warn('Could not check git status', {
+          workingDir,
+          error: statusError instanceof Error ? statusError.message : String(statusError)
+        });
+      }
+
+      // Try to push with upstream set (in case branch has no upstream)
+      try {
+        const { stdout: pushOutput, stderr: pushStderr } = await execAsync(
+          `git push -u origin ${currentBranch}`,
+          {
+            cwd: workingDir,
+            timeout: 30000
+          }
+        );
+
+        logger.info('Auto-pushed changes successfully', {
+          workingDir,
+          branch: currentBranch,
+          stdout: pushOutput.trim(),
+          stderr: pushStderr.trim()
+        });
+
+        return 'success';
+      } catch (pushError: any) {
+        const errorMessage = pushError.message || String(pushError);
+        const stderr = pushError.stderr || '';
+
+        logger.error('Push command failed', {
+          workingDir,
+          branch: currentBranch,
+          error: errorMessage,
+          stderr: stderr,
+          stdout: pushError.stdout || ''
+        });
+
+        // Check for specific error cases
+        if (errorMessage.includes('No configured push destination') ||
+            errorMessage.includes('no upstream branch') ||
+            stderr.includes('No configured push destination')) {
+          return 'no_remote';
+        }
+
+        if (errorMessage.includes('Everything up-to-date') ||
+            stderr.includes('Everything up-to-date')) {
+          logger.info('Repository already up to date', { workingDir });
+          return 'no_changes';
+        }
+
+        // Return failed for other errors (auth, network, etc.)
+        return 'failed';
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-
-      // Check if error is due to no remote
-      if (errorMessage.includes('No configured push destination') ||
-          errorMessage.includes('no upstream branch')) {
-        logger.warn('No remote repository configured for push', { workingDir });
-        return 'no_remote';
-      }
 
       logger.error('Failed to auto-push changes', {
         workingDir,
