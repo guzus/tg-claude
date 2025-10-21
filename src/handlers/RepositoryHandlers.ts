@@ -147,12 +147,17 @@ export class RepositoryHandlers extends BaseHandler {
       // Update pinned message with new repository
       await this.updatePinnedRepositoryInfo(chatId, userId);
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+      const escapedBranch = UIHelpers.escapeMarkdown(repo.branch || 'default');
+
       await this.bot.editMessageText(
         `✅ Repository cloned successfully!\n\n` +
-        `📁 Name: ${repo.name}\n` +
+        `📁 Name: ${escapedName}\n` +
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
-        `📂 Path: \`${repo.path}\`\n` +
-        `🌿 Branch: ${repo.branch || 'default'}\n\n` +
+        `📂 Path: \`${escapedPath}\`\n` +
+        `🌿 Branch: ${escapedBranch}\n\n` +
         `This repository is now active. Use /task to work on it.`,
         {
           chat_id: chatId,
@@ -189,12 +194,16 @@ export class RepositoryHandlers extends BaseHandler {
       // Update pinned message with new repository
       await this.updatePinnedRepositoryInfo(chatId, userId);
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+
       await this.bot.sendMessage(
         chatId,
         `✅ Repository created successfully!\n\n` +
-        `📁 Name: ${repo.name}\n` +
+        `📁 Name: ${escapedName}\n` +
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
-        `📂 Path: \`${repo.path}\`\n\n` +
+        `📂 Path: \`${escapedPath}\`\n\n` +
         `This repository is now active. Use /task to work on it.`,
         { parse_mode: 'Markdown' }
       );
@@ -229,13 +238,18 @@ export class RepositoryHandlers extends BaseHandler {
       // Update pinned message with new repository
       await this.updatePinnedRepositoryInfo(chatId, userId);
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+      const escapedUrl = repo.gitUrl ? UIHelpers.escapeMarkdown(repo.gitUrl) : '';
+
       await this.bot.sendMessage(
         chatId,
         `✅ Repository added successfully!\n\n` +
-        `📁 Name: ${repo.name}\n` +
+        `📁 Name: ${escapedName}\n` +
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
-        `📂 Path: \`${repo.path}\`\n` +
-        `${repo.gitUrl ? `🔗 Remote: ${repo.gitUrl}\n` : ''}\n` +
+        `📂 Path: \`${escapedPath}\`\n` +
+        `${repo.gitUrl ? `🔗 Remote: ${escapedUrl}\n` : ''}\n` +
         `This repository is now active. Use /task to work on it.`,
         { parse_mode: 'Markdown' }
       );
@@ -283,13 +297,18 @@ export class RepositoryHandlers extends BaseHandler {
             ? '✨'
             : '📂';
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+
       message +=
-        `${isCurrent ? '▶️ ' : ''}${typeEmoji} *${repo.name}*\n` +
+        `${isCurrent ? '▶️ ' : ''}${typeEmoji} *${escapedName}*\n` +
         `   ID: \`${repo.id.substring(0, 8)}\`\n` +
-        `   Path: \`${repo.path}\`\n`;
+        `   Path: \`${escapedPath}\`\n`;
 
       if (repo.gitUrl) {
-        message += `   Remote: ${repo.gitUrl}\n`;
+        const escapedUrl = UIHelpers.escapeMarkdown(repo.gitUrl);
+        message += `   Remote: ${escapedUrl}\n`;
       }
 
       message += `\n`;
@@ -332,11 +351,16 @@ export class RepositoryHandlers extends BaseHandler {
     try {
       this.repositoryManager.switchRepository(userId, repo.id);
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+      const escapedUrl = repo.gitUrl ? UIHelpers.escapeMarkdown(repo.gitUrl) : '';
+
       await this.bot.sendMessage(
         chatId,
-        `✅ Switched to repository: *${repo.name}*\n\n` +
-        `📂 Path: \`${repo.path}\`\n` +
-        `${repo.gitUrl ? `🔗 Remote: ${repo.gitUrl}\n` : ''}\n` +
+        `✅ Switched to repository: *${escapedName}*\n\n` +
+        `📂 Path: \`${escapedPath}\`\n` +
+        `${repo.gitUrl ? `🔗 Remote: ${escapedUrl}\n` : ''}\n` +
         `Use /task to work on this repository.`,
         { parse_mode: 'Markdown' }
       );
@@ -374,15 +398,20 @@ export class RepositoryHandlers extends BaseHandler {
     // Convert git URL to web URL for display
     const webUrl = UIHelpers.convertGitUrlToWeb(repo.gitUrl);
 
+    // Escape special characters for Markdown
+    const escapedName = UIHelpers.escapeMarkdown(repo.name);
+    const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+    const escapedBranch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : '';
+
     await this.bot.sendMessage(
       chatId,
       `▶️ *Current Repository*\n\n` +
-      `📁 Name: ${repo.name}\n` +
+      `📁 Name: ${escapedName}\n` +
       `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
-      `📂 Path: \`${repo.path}\`\n` +
+      `📂 Path: \`${escapedPath}\`\n` +
       `📝 Type: ${typeEmoji}\n` +
       `${webUrl ? `🔗 URL: ${webUrl}\n` : ''}` +
-      `${repo.branch ? `🌿 Branch: ${repo.branch}\n` : ''}` +
+      `${repo.branch ? `🌿 Branch: ${escapedBranch}\n` : ''}` +
       `🕒 Last used: ${repo.lastUsed.toLocaleString()}\n\n` +
       `${webUrl ? `💡 Repository URL available above` : '⚠️ No remote URL configured'}`,
       {
@@ -421,9 +450,12 @@ export class RepositoryHandlers extends BaseHandler {
     try {
       await this.repositoryManager.deleteRepository(userId, repo.id);
 
+      // Escape special characters for Markdown
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+
       await this.bot.sendMessage(
         chatId,
-        `✅ Repository deleted: *${repo.name}*\n\n` +
+        `✅ Repository deleted: *${escapedName}*\n\n` +
         `${repo.type !== RepositoryType.EXISTING ? 'Directory removed from disk.' : 'Reference removed (directory kept).'}`,
         { parse_mode: 'Markdown' }
       );

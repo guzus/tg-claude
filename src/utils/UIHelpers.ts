@@ -25,11 +25,16 @@ export class UIHelpers {
     const webUrl = this.convertGitUrlToWeb(currentRepo.gitUrl);
     const repoType = this.getRepoTypeEmoji(currentRepo.type);
 
+    // Escape special characters for Markdown
+    const escapedName = this.escapeMarkdown(currentRepo.name);
+    const escapedBranch = this.escapeMarkdown(currentRepo.branch || 'main');
+    const escapedPath = this.escapeMarkdown(currentRepo.path);
+
     const message =
       `📂 *Current Repository*\n\n` +
-      `${repoType} *${currentRepo.name}*\n` +
-      `🌿 Branch: \`${currentRepo.branch || 'main'}\`\n` +
-      `📍 Path: \`${currentRepo.path}\``;
+      `${repoType} *${escapedName}*\n` +
+      `🌿 Branch: \`${escapedBranch}\`\n` +
+      `📍 Path: \`${escapedPath}\``;
 
     const buttons: InlineKeyboardButton[][] = [];
 
@@ -212,11 +217,16 @@ export class UIHelpers {
     const webUrl = this.convertGitUrlToWeb(currentRepo.gitUrl);
     const typeEmoji = this.getRepoTypeEmoji(currentRepo.type);
 
+    // Escape special characters for Markdown
+    const escapedName = this.escapeMarkdown(currentRepo.name);
+    const escapedBranch = this.escapeMarkdown(currentRepo.branch || 'main');
+    const escapedPath = this.escapeMarkdown(currentRepo.path);
+
     return (
       '\n\n━━━━━━━━━━━━━━━━━━\n' +
-      `${typeEmoji} *${currentRepo.name}*\n` +
-      `🌿 ${currentRepo.branch || 'main'} | ` +
-      `${webUrl ? `[View on GitHub](${webUrl})` : currentRepo.path}`
+      `${typeEmoji} *${escapedName}*\n` +
+      `🌿 ${escapedBranch} | ` +
+      `${webUrl ? `[View on GitHub](${webUrl})` : escapedPath}`
     );
   }
 
@@ -238,6 +248,17 @@ export class UIHelpers {
     }
 
     return `${minutes}m ${remainingSeconds}s`;
+  }
+
+  /**
+   * Escapes special Markdown characters for Telegram
+   * @param text - Text to escape
+   * @returns Escaped text safe for Telegram Markdown
+   */
+  static escapeMarkdown(text: string): string {
+    if (!text) return text;
+    // Escape special characters used in Telegram Markdown
+    return text.replace(/([_*\[\]`])/g, '\\$1');
   }
 
   /**

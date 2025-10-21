@@ -75,9 +75,13 @@ export abstract class BaseHandler {
       const webUrl = currentRepo?.gitUrl ? UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl) : null;
       const typeEmoji = currentRepo ? UIHelpers.getRepoTypeEmoji(currentRepo.type) : '📂';
 
+      // Escape special characters for Markdown
+      const escapedName = currentRepo ? UIHelpers.escapeMarkdown(currentRepo.name) : '';
+      const escapedBranch = currentRepo ? UIHelpers.escapeMarkdown(currentRepo.branch || 'main') : '';
+
       const message = currentRepo
-        ? `${typeEmoji} *${currentRepo.name}*\n` +
-          `🌿 ${currentRepo.branch || 'main'}${webUrl ? ` | [GitHub](${webUrl})` : ''}`
+        ? `${typeEmoji} *${escapedName}*\n` +
+          `🌿 ${escapedBranch}${webUrl ? ` | [GitHub](${webUrl})` : ''}`
         : '📂 *No repository selected*\n\nUse /repo to set up a repository.';
 
       // Check if we have an existing pinned message
