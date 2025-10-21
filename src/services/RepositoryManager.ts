@@ -445,6 +445,49 @@ export class RepositoryManager {
   }
 
   /**
+   * Refresh repository info (updates git URL, branch, etc.)
+   */
+  async refreshRepository(userId: number, repositoryId: string): Promise<Repository> {
+    const session = this.getUserSession(userId);
+    const repository = session.repositories.get(repositoryId);
+
+    if (!repository) {
+      throw new Error('Repository not found');
+    }
+
+    // Update git remote URL
+    try {
+      const remoteUrl = await this.getGitRemoteUrl(repository.path);
+      if (remoteUrl) {
+        repository.gitUrl = remoteUrl;
+      }
+    } catch (error) {
+      logger.debug('Could not fetch remote URL during refresh', {
+        repositoryId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    // Update branch info
+    try {
+      const branch = await this.getCurrentBranch(repository.path);
+      if (branch) {
+        repository.branch = branch;
+      }
+    } catch (error) {
+      logger.debug('Could not fetch branch during refresh', {
+        repositoryId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    // Update last used time
+    repository.lastUsed = new Date();
+
+    return repository;
+  }
+
+  /**
    * Delete a repository
    */
   async deleteRepository(userId: number, repositoryId: string): Promise<void> {
@@ -565,6 +608,18 @@ export class RepositoryManager {
     try {
       const url = await this.executeGitCommand('config', ['--get', 'remote.origin.url'], repoPath);
       return url || null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Get current git branch
+   */
+  private async getCurrentBranch(repoPath: string): Promise<string | null> {
+    try {
+      const branch = await this.executeGitCommand('branch', ['--show-current'], repoPath);
+      return branch?.trim() || null;
     } catch {
       return null;
     }

@@ -33,19 +33,27 @@ export class UIHelpers {
 
     const buttons: InlineKeyboardButton[][] = [];
 
-    // First row: Open in browser button
+    // First row: Open in browser button (always show if we have a git URL)
     if (webUrl) {
       buttons.push([
         { text: '🔗 Open in Browser', url: webUrl }
       ]);
-    }
 
-    // Second row: Switch repo and refresh buttons
-    if (showSwitchButton) {
-      buttons.push([
-        { text: '🔄 Switch Repository', callback_data: 'repo_switch_menu' },
-        { text: '♻️ Refresh', callback_data: 'refresh_dashboard' }
-      ]);
+      // If we have a URL, show switch and refresh on same row
+      if (showSwitchButton) {
+        buttons.push([
+          { text: '🔄 Switch Repository', callback_data: 'repo_switch_menu' },
+          { text: '♻️ Refresh', callback_data: 'refresh_dashboard' }
+        ]);
+      }
+    } else {
+      // No URL - show switch and refresh buttons, plus a setup remote button
+      if (showSwitchButton) {
+        buttons.push([
+          { text: '🔄 Switch Repository', callback_data: 'repo_switch_menu' },
+          { text: '♻️ Refresh', callback_data: 'refresh_dashboard' }
+        ]);
+      }
     }
 
     return {

@@ -496,7 +496,24 @@ export class CallbackQueryHandler extends BaseHandler {
   ): Promise<void> {
     switch (subAction) {
       case 'dashboard':
-        await this.showCurrentRepo(chatId, messageId, userId);
+        // Refresh the current repository info
+        const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+        if (currentRepo) {
+          try {
+            // Refresh repository info (git URL, branch, etc.)
+            await this.repositoryManager.refreshRepository(userId, currentRepo.id);
+
+            // Show updated repository info
+            await this.showCurrentRepo(chatId, messageId, userId);
+          } catch (error) {
+            await this.bot.answerCallbackQuery(userId.toString(), {
+              text: '❌ Failed to refresh repository info',
+              show_alert: true
+            });
+          }
+        } else {
+          await this.showCurrentRepo(chatId, messageId, userId);
+        }
         break;
 
       default:
