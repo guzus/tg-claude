@@ -194,8 +194,7 @@ export class TaskHandlers extends BaseHandler {
           const finalMessage =
             `${statusEmoji} ${statusText}${commitInfo}\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
-            `Time: ${UIHelpers.formatDuration(executionTime)}\n` +
-            `Total output: ${fullOutput.length} chars\n\n` +
+            `Time: ${UIHelpers.formatDuration(executionTime)}\n\n` +
             `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\`` +
             repoFooter;
 

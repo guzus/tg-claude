@@ -328,6 +328,9 @@ export class CallbackQueryHandler extends BaseHandler {
 
     this.repositoryManager.switchRepository(userId, selectedRepo.id);
 
+    // Update pinned message with new repository
+    await this.updatePinnedRepositoryInfo(chatId, userId);
+
     const { message, keyboard } = UIHelpers.createRepositoryDashboard(selectedRepo);
 
     await this.bot.editMessageText(

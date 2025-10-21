@@ -210,7 +210,7 @@ export class UIHelpers {
 
     return (
       '\n\n━━━━━━━━━━━━━━━━━━\n' +
-      `📂 ${typeEmoji} *${currentRepo.name}*\n` +
+      `${typeEmoji} *${currentRepo.name}*\n` +
       `🌿 ${currentRepo.branch || 'main'} | ` +
       `${webUrl ? `[View on GitHub](${webUrl})` : currentRepo.path}`
     );

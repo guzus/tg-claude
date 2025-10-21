@@ -144,6 +144,9 @@ export class RepositoryHandlers extends BaseHandler {
         branch
       );
 
+      // Update pinned message with new repository
+      await this.updatePinnedRepositoryInfo(chatId, userId);
+
       await this.bot.editMessageText(
         `✅ Repository cloned successfully!\n\n` +
         `📁 Name: ${repo.name}\n` +
@@ -183,6 +186,9 @@ export class RepositoryHandlers extends BaseHandler {
     try {
       const repo = await this.repositoryManager.createRepository(userId, name);
 
+      // Update pinned message with new repository
+      await this.updatePinnedRepositoryInfo(chatId, userId);
+
       await this.bot.sendMessage(
         chatId,
         `✅ Repository created successfully!\n\n` +
@@ -219,6 +225,9 @@ export class RepositoryHandlers extends BaseHandler {
         repoPath,
         name
       );
+
+      // Update pinned message with new repository
+      await this.updatePinnedRepositoryInfo(chatId, userId);
 
       await this.bot.sendMessage(
         chatId,
