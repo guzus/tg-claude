@@ -70,17 +70,14 @@ export class TaskHandlers extends BaseHandler {
             combinedOutput += (combinedOutput ? '\n---STDERR---\n' : '') + errorOutput;
           }
 
-          // If no output yet, show waiting message
+          // Build status message
+          let newUpdateText;
           if (!combinedOutput.trim()) {
-            combinedOutput = `⏳ Waiting for Claude to respond...\n\nElapsed: ${UIHelpers.formatDuration(elapsed)}\nThis may take a few moments as Claude analyzes your request.`;
+            newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
+          } else {
+            const preview = combinedOutput.slice(-1500);
+            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n\n\`\`\`\n${preview}\n\`\`\``;
           }
-
-          const preview = combinedOutput.slice(-1500);
-          const newUpdateText =
-            `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n\n` +
-            `Updates: ${updateCount}\n` +
-            `Output size: ${combinedOutput.length} chars\n\n` +
-            `\`\`\`\n${preview}\n\`\`\``;
 
           // Only update if text has changed (avoid rate limit errors)
           if (newUpdateText !== lastUpdateText) {
