@@ -7,6 +7,7 @@ import { RateLimiter } from './services/RateLimiter';
 import { AuditLogger } from './services/AuditLogger';
 import { RepositoryManager } from './services/RepositoryManager';
 import { ConversationManager } from './services/ConversationManager';
+import { UserConfigManager } from './services/UserConfigManager';
 import { BotHandlers } from './handlers/BotHandlers';
 
 // Validate configuration
@@ -26,10 +27,14 @@ const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
 const repositoryManager = new RepositoryManager();
 const conversationManager = new ConversationManager();
+const userConfigManager = new UserConfigManager();
 
-// Initialize repository manager (discover existing repos)
+// Initialize repository manager and user config manager (discover existing repos and configs)
 (async () => {
-  await repositoryManager.initialize();
+  await Promise.all([
+    repositoryManager.initialize(),
+    userConfigManager.initialize()
+  ]);
 
   const stats = repositoryManager.getStats();
   if (stats.totalRepositories > 0) {
@@ -39,11 +44,15 @@ const conversationManager = new ConversationManager();
       byType: stats.repositoriesByType
     });
   }
+
+  logger.info('User config manager initialized', {
+    configuredUsers: userConfigManager.getUserIds().length
+  });
 })();
 
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
@@ -118,6 +127,7 @@ bot.setMyCommands([
   { command: 'logs', description: 'View full task logs' },
   { command: 'cancel', description: 'Cancel a running task' },
   { command: 'limits', description: 'Check your rate limits' },
+  { command: 'config', description: 'Manage user configuration' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {
   logger.error('Failed to set bot commands', { error: error.message });
@@ -141,6 +151,7 @@ bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
 bot.onText(/\/logs (.+)/, (msg, match) => handlers.handleLogs(msg, match));
 bot.onText(/\/cancel (.+)/, (msg, match) => handlers.handleCancel(msg, match));
 bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
+bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
 // Handle callback queries from inline keyboards

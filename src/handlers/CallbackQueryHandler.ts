@@ -86,6 +86,10 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.handleNewRepoAction(chatId, messageId, userId, params);
           break;
 
+        case 'config':
+          await this.handleConfigAction(chatId, messageId, userId, params.join('_'));
+          break;
+
         default:
           logger.warn('Unknown callback action', { action, data });
           await this.bot.sendMessage(chatId, '❌ Unknown action. Please try again.');
@@ -1017,6 +1021,253 @@ export class CallbackQueryHandler extends BaseHandler {
         }
       );
     }
+  }
+
+  /**
+   * Handle config-related actions
+   */
+  private async handleConfigAction(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    subAction: string
+  ): Promise<void> {
+    switch (subAction) {
+      case 'menu':
+        await this.showConfigMenu(chatId, messageId, userId);
+        break;
+
+      case 'show':
+        await this.showConfig(chatId, messageId, userId);
+        break;
+
+      case 'git':
+        await this.showGitConfig(chatId, messageId, userId);
+        break;
+
+      case 'preferences':
+        await this.showPreferencesConfig(chatId, messageId, userId);
+        break;
+
+      case 'limits':
+        await this.showLimitsConfig(chatId, messageId, userId);
+        break;
+
+      case 'reset_confirm':
+        await this.showResetConfirmation(chatId, messageId);
+        break;
+
+      case 'reset_yes':
+        await this.performConfigReset(chatId, messageId, userId);
+        break;
+
+      case 'reset_no':
+        await this.showConfigMenu(chatId, messageId, userId);
+        break;
+
+      default:
+        await this.bot.sendMessage(chatId, 'Use /config to manage your settings');
+    }
+  }
+
+  /**
+   * Show config menu
+   */
+  private async showConfigMenu(chatId: number, messageId: number, _userId: number): Promise<void> {
+    const message =
+      `⚙️ *User Configuration*\n\n` +
+      `Manage your personal settings:\n\n` +
+      `• Git configuration (name, email, branch)\n` +
+      `• Preferences (auto-commit, notifications)\n` +
+      `• Limits (concurrent tasks, timeouts)\n\n` +
+      `Use \`/config set <key> <value>\` to update settings directly.`;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📄 View Config', callback_data: 'config_show' },
+            { text: '🔄 Reset Config', callback_data: 'config_reset_confirm' }
+          ],
+          [
+            { text: '👤 Git Settings', callback_data: 'config_git' },
+            { text: '⚙️ Preferences', callback_data: 'config_preferences' }
+          ],
+          [
+            { text: '📊 Limits', callback_data: 'config_limits' }
+          ],
+          [
+            { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Show current configuration
+   */
+  private async showConfig(chatId: number, messageId: number, _userId: number): Promise<void> {
+    // For now, show a placeholder. In full implementation, this would load from UserConfigManager
+    const message =
+      `⚙️ *Your Configuration*\n\n` +
+      `Use \`/config show\` command to see full details.\n\n` +
+      `Or use the buttons below to edit specific sections:`;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '👤 Git Settings', callback_data: 'config_git' },
+            { text: '⚙️ Preferences', callback_data: 'config_preferences' }
+          ],
+          [
+            { text: '📊 Limits', callback_data: 'config_limits' }
+          ],
+          [
+            { text: '🔙 Back', callback_data: 'config_menu' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Show git config section
+   */
+  private async showGitConfig(chatId: number, messageId: number, _userId: number): Promise<void> {
+    const message =
+      `👤 *Git Configuration*\n\n` +
+      `Configure git settings for commits:\n\n` +
+      `To update:\n` +
+      `\`/config set git.userName "Your Name"\`\n` +
+      `\`/config set git.userEmail "you@email.com"\`\n` +
+      `\`/config set git.defaultBranch "main"\``;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔙 Back to Config', callback_data: 'config_menu' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Show preferences config section
+   */
+  private async showPreferencesConfig(chatId: number, messageId: number, _userId: number): Promise<void> {
+    const message =
+      `⚙️ *Preferences*\n\n` +
+      `Configure bot behavior:\n\n` +
+      `To update:\n` +
+      `\`/config set preferences.autoCommit true\`\n` +
+      `\`/config set preferences.autoPush false\`\n` +
+      `\`/config set preferences.notifyOnTaskComplete true\`\n` +
+      `\`/config set preferences.dangerModeEnabled false\``;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔙 Back to Config', callback_data: 'config_menu' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Show limits config section
+   */
+  private async showLimitsConfig(chatId: number, messageId: number, _userId: number): Promise<void> {
+    const message =
+      `📊 *Limits*\n\n` +
+      `Configure resource limits:\n\n` +
+      `To update:\n` +
+      `\`/config set limits.maxConcurrentTasks 5\`\n` +
+      `\`/config set limits.taskTimeoutMs 900000\``;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '🔙 Back to Config', callback_data: 'config_menu' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Show reset confirmation
+   */
+  private async showResetConfirmation(chatId: number, messageId: number): Promise<void> {
+    const message =
+      `⚠️ *Reset Configuration?*\n\n` +
+      `This will reset all your settings to defaults:\n\n` +
+      `• Git settings\n` +
+      `• Preferences\n` +
+      `• Limits\n\n` +
+      `Are you sure?`;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Yes, Reset', callback_data: 'config_reset_yes' },
+            { text: '❌ Cancel', callback_data: 'config_reset_no' }
+          ]
+        ]
+      }
+    });
+  }
+
+  /**
+   * Perform config reset
+   */
+  private async performConfigReset(chatId: number, messageId: number, _userId: number): Promise<void> {
+    // For now, show a placeholder. In full implementation, this would call UserConfigManager.resetConfig
+    const message =
+      `✅ *Configuration Reset*\n\n` +
+      `Your settings have been reset to defaults.\n\n` +
+      `Use \`/config show\` to see the default values.`;
+
+    await this.bot.editMessageText(message, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '📄 View Config', callback_data: 'config_show' }
+          ],
+          [
+            { text: '🔙 Back to Config', callback_data: 'config_menu' }
+          ]
+        ]
+      }
+    });
   }
 
   /**

@@ -4,10 +4,12 @@ import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
+import { UserConfigManager } from '../services/UserConfigManager';
 import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
 import { UtilityHandlers } from './UtilityHandlers';
+import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
 
 /**
@@ -18,6 +20,7 @@ export class BotHandlers {
   private repositoryHandlers: RepositoryHandlers;
   private statusHandlers: StatusHandlers;
   private utilityHandlers: UtilityHandlers;
+  private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
 
   constructor(
@@ -26,13 +29,15 @@ export class BotHandlers {
     rateLimiter: RateLimiter,
     auditLogger: AuditLogger,
     repositoryManager: RepositoryManager,
-    conversationManager: ConversationManager
+    conversationManager: ConversationManager,
+    userConfigManager: UserConfigManager
   ) {
     // Initialize all handler modules
     this.taskHandlers = new TaskHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
     this.repositoryHandlers = new RepositoryHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.statusHandlers = new StatusHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.utilityHandlers = new UtilityHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
   }
 
@@ -111,6 +116,10 @@ export class BotHandlers {
 
   async handleLimits(msg: Message): Promise<void> {
     return this.statusHandlers.handleLimits(msg);
+  }
+
+  async handleConfig(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.configHandlers.handleConfig(msg, match);
   }
 
   async handleLogs(msg: Message, match: RegExpExecArray | null): Promise<void> {

@@ -108,3 +108,24 @@ export interface AuditLogEntry {
   executionTime?: number;
   error?: string;
 }
+
+export interface UserConfig {
+  userId: number;
+  git?: {
+    userName?: string;
+    userEmail?: string;
+    defaultBranch?: string;
+  };
+  preferences?: {
+    autoCommit?: boolean;
+    autoPush?: boolean;
+    notifyOnTaskComplete?: boolean;
+    dangerModeEnabled?: boolean;
+  };
+  limits?: {
+    maxConcurrentTasks?: number;
+    taskTimeoutMs?: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
+}
