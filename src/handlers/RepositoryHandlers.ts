@@ -3,6 +3,10 @@ import { BaseHandler } from './BaseHandler';
 import { RepositoryType, Repository } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 /**
  * Handlers for repository management commands
@@ -538,7 +542,6 @@ export class RepositoryHandlers extends BaseHandler {
     const chatId = msg.chat.id;
 
     try {
-      const { execAsync } = require('../utils/execAsync');
       const { stdout } = await execAsync('git remote -v', {
         cwd: repo.path,
         timeout: 5000
@@ -620,8 +623,6 @@ export class RepositoryHandlers extends BaseHandler {
     }
 
     try {
-      const { execAsync } = require('../utils/execAsync');
-
       // Check if origin remote exists
       let remoteExists = false;
       try {
@@ -674,7 +675,6 @@ export class RepositoryHandlers extends BaseHandler {
     const statusMsg = await this.bot.sendMessage(chatId, '🔄 Testing remote connection...');
 
     try {
-      const { execAsync } = require('../utils/execAsync');
       await execAsync('git ls-remote origin', {
         cwd: repo.path,
         timeout: 15000
@@ -713,7 +713,6 @@ export class RepositoryHandlers extends BaseHandler {
     const userId = msg.from!.id;
 
     try {
-      const { execAsync } = require('../utils/execAsync');
       await execAsync('git remote remove origin', {
         cwd: repo.path,
         timeout: 5000
