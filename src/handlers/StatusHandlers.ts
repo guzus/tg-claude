@@ -103,6 +103,26 @@ export class StatusHandlers extends BaseHandler {
       return;
     }
 
+    // Try to send log file first
+    const logFilePath = this.executor.getTaskLogFilePath(taskId);
+    if (logFilePath) {
+      try {
+        await this.bot.sendDocument(chatId, logFilePath, {
+          caption: `📋 Task Execution Log\n\nTask ID: \`${taskId.substring(0, 8)}\`\nStatus: ${task.status}\nPrompt: ${task.prompt.substring(0, 100)}...`
+        }, {
+          filename: `task-${taskId.substring(0, 8)}.log`,
+          contentType: 'text/plain'
+        });
+        return;
+      } catch (error) {
+        logger.warn('Failed to send log file, falling back to text', {
+          taskId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
+    // Fallback to in-memory output if log file not available
     const fullOutput = task.output || '';
     const errorOutput = task.errorOutput || '';
     let combinedOutput = '';

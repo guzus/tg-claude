@@ -188,6 +188,18 @@ export class TaskHandlers extends BaseHandler {
               message_id: statusMsg.message_id,
               parse_mode: 'Markdown'
             });
+
+            // Send log file as a document
+            const logFilePath = this.executor.getTaskLogFilePath(task.id);
+            if (logFilePath) {
+              await this.bot.sendDocument(chatId, logFilePath, {
+                caption: `📋 Full execution log for task \`${task.id.substring(0, 8)}\``,
+                parse_mode: 'Markdown'
+              }, {
+                filename: `task-${task.id.substring(0, 8)}.log`,
+                contentType: 'text/plain'
+              });
+            }
           } catch (error) {
             // If message is too long, send as document
             await this.bot.sendDocument(

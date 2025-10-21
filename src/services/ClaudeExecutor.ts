@@ -5,12 +5,55 @@ import { logger } from '../utils/logger';
 import { v4 as uuidv4 } from 'uuid';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
 
 const execAsync = promisify(exec);
+
+// Task logs directory
+const TASK_LOGS_DIR = path.join(process.cwd(), 'logs', 'tasks');
 
 export class ClaudeExecutor {
   private activeTasks: Map<string, ChildProcess> = new Map();
   private taskHistory: Map<string, ClaudeTask> = new Map();
+  private taskLogFiles: Map<string, fs.WriteStream> = new Map();
+
+  constructor() {
+    // Ensure task logs directory exists
+    if (!fs.existsSync(TASK_LOGS_DIR)) {
+      fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
+      logger.info('Created task logs directory', { path: TASK_LOGS_DIR });
+    }
+  }
+
+  /**
+   * Create a log file for a task
+   */
+  private createTaskLogFile(taskId: string): fs.WriteStream {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const logFileName = `task_${taskId.substring(0, 8)}_${timestamp}.log`;
+    const logFilePath = path.join(TASK_LOGS_DIR, logFileName);
+
+    const logStream = fs.createWriteStream(logFilePath, { flags: 'a' });
+    this.taskLogFiles.set(taskId, logStream);
+
+    logger.info('Created task log file', { taskId, logFilePath });
+    return logStream;
+  }
+
+  /**
+   * Get the log file path for a task
+   */
+  getTaskLogFilePath(taskId: string): string | null {
+    const task = this.taskHistory.get(taskId);
+    if (!task) return null;
+
+    const timestamp = task.startTime.toISOString().replace(/[:.]/g, '-');
+    const logFileName = `task_${taskId.substring(0, 8)}_${timestamp}.log`;
+    const logFilePath = path.join(TASK_LOGS_DIR, logFileName);
+
+    return fs.existsSync(logFilePath) ? logFilePath : null;
+  }
 
   /**
    * Authenticate with GitHub CLI using GITHUB_TOKEN environment variable
@@ -204,6 +247,15 @@ export class ClaudeExecutor {
       task.status = TaskStatus.RUNNING;
       this.taskHistory.set(task.id, task);
 
+      // Create log file for this task
+      const logStream = this.createTaskLogFile(task.id);
+      logStream.write(`=== Task Execution Log ===\n`);
+      logStream.write(`Task ID: ${task.id}\n`);
+      logStream.write(`Started: ${task.startTime.toISOString()}\n`);
+      logStream.write(`Prompt: ${prompt}\n`);
+      logStream.write(`Working Directory: ${workingDir}\n`);
+      logStream.write(`\n=== OUTPUT ===\n\n`);
+
       // Set timeout
       const timeoutHandle = setTimeout(() => {
         if (this.activeTasks.has(task.id)) {
@@ -234,7 +286,13 @@ export class ClaudeExecutor {
         const chunk = data.toString();
         task.output += chunk;
 
-        // Limit output size
+        // Write to log file
+        const logStream = this.taskLogFiles.get(task.id);
+        if (logStream) {
+          logStream.write(chunk);
+        }
+
+        // Limit output size in memory
         if (task.output.length > config.maxOutputSize * 10) {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
@@ -257,7 +315,13 @@ export class ClaudeExecutor {
         const chunk = data.toString();
         task.errorOutput += chunk;
 
-        // Limit error output size
+        // Write to log file
+        const logStream = this.taskLogFiles.get(task.id);
+        if (logStream) {
+          logStream.write(`[STDERR] ${chunk}`);
+        }
+
+        // Limit error output size in memory
         if (task.errorOutput.length > config.maxOutputSize * 10) {
           task.errorOutput = task.errorOutput.slice(-config.maxOutputSize * 10);
         }
@@ -302,6 +366,18 @@ export class ClaudeExecutor {
 
         const executionTime = task.endTime.getTime() - task.startTime.getTime();
 
+        // Close log file
+        const logStream = this.taskLogFiles.get(task.id);
+        if (logStream) {
+          logStream.write(`\n\n=== Task Completed ===\n`);
+          logStream.write(`Status: ${task.status}\n`);
+          logStream.write(`Exit Code: ${code}\n`);
+          logStream.write(`Execution Time: ${executionTime}ms\n`);
+          logStream.write(`Ended: ${task.endTime.toISOString()}\n`);
+          logStream.end();
+          this.taskLogFiles.delete(task.id);
+        }
+
         logger.info('Task completed', {
           taskId: task.id,
           status: task.status,
@@ -328,6 +404,16 @@ export class ClaudeExecutor {
         }
 
         task.endTime = new Date();
+
+        // Close log file
+        const logStream = this.taskLogFiles.get(task.id);
+        if (logStream) {
+          logStream.write(`\n\n=== Task Error ===\n`);
+          logStream.write(`Error: ${error.message}\n`);
+          logStream.write(`Ended: ${task.endTime.toISOString()}\n`);
+          logStream.end();
+          this.taskLogFiles.delete(task.id);
+        }
 
         logger.error('Task process error', {
           taskId: task.id,
