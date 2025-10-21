@@ -753,6 +753,16 @@ export class CallbackQueryHandler extends BaseHandler {
           timeout: 5000
         });
 
+        // Configure git identity for this repository
+        await execAsync('git config user.name "Claude Telegram Bot"', {
+          cwd: repo.path,
+          timeout: 5000
+        });
+        await execAsync('git config user.email "bot@claude-telegram.local"', {
+          cwd: repo.path,
+          timeout: 5000
+        });
+
         // Create initial commit if none exists
         try {
           await execAsync('git log -1', {
@@ -761,7 +771,7 @@ export class CallbackQueryHandler extends BaseHandler {
           });
         } catch {
           // No commits, create initial commit
-          await execAsync('git add .', {
+          await execAsync('git add . || true', {
             cwd: repo.path,
             timeout: 5000
           });

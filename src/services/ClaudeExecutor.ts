@@ -612,6 +612,35 @@ export class ClaudeExecutor {
   }
 
   /**
+   * Ensure git identity is configured for the repository
+   */
+  private async ensureGitIdentity(workingDir: string): Promise<void> {
+    try {
+      // Check if user name is configured
+      const { stdout: userName } = await execAsync('git config user.name', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      if (!userName.trim()) {
+        throw new Error('No user name configured');
+      }
+    } catch {
+      // Configure default bot identity
+      await execAsync('git config user.name "Claude Telegram Bot"', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+      await execAsync('git config user.email "bot@claude-telegram.local"', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      logger.info('Configured git identity for repository', { workingDir });
+    }
+  }
+
+  /**
    * Auto-commit changes in the working directory
    * Returns commit hash if successful, null otherwise
    */
@@ -623,6 +652,9 @@ export class ClaudeExecutor {
         logger.info('No uncommitted changes to commit', { workingDir });
         return null;
       }
+
+      // Ensure git identity is configured
+      await this.ensureGitIdentity(workingDir);
 
       // Stage all changes
       await execAsync('git add .', {
