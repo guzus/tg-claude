@@ -1,6 +1,7 @@
 import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
+import { logger } from '../utils/logger';
 
 /**
  * Handlers for status and monitoring commands
