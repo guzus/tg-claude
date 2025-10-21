@@ -553,14 +553,15 @@ export class ClaudeExecutor {
 
   /**
    * Auto-commit changes in the working directory
+   * Returns commit hash if successful, null otherwise
    */
-  async autoCommitChanges(workingDir: string, taskPrompt: string): Promise<boolean> {
+  async autoCommitChanges(workingDir: string, taskPrompt: string): Promise<string | null> {
     try {
       // Check if there are changes to commit
       const hasChanges = await this.hasUncommittedChanges(workingDir);
       if (!hasChanges) {
         logger.info('No uncommitted changes to commit', { workingDir });
-        return false;
+        return null;
       }
 
       // Stage all changes
@@ -578,18 +579,27 @@ export class ClaudeExecutor {
         timeout: 10000
       });
 
-      logger.info('Auto-committed changes', {
-        workingDir,
-        commitMessage
+      // Get the commit hash
+      const { stdout: commitHash } = await execAsync('git rev-parse HEAD', {
+        cwd: workingDir,
+        timeout: 5000
       });
 
-      return true;
+      const hash = commitHash.trim();
+
+      logger.info('Auto-committed changes', {
+        workingDir,
+        commitMessage,
+        commitHash: hash
+      });
+
+      return hash;
     } catch (error) {
       logger.error('Failed to auto-commit changes', {
         workingDir,
         error: error instanceof Error ? error.message : String(error)
       });
-      return false;
+      return null;
     }
   }
 

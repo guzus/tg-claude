@@ -116,11 +116,22 @@ export class TaskHandlers extends BaseHandler {
           let commitInfo = '';
           let needsRemoteSetup = false;
           let pushError = '';
+          let commitUrl = '';
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
-              const committed = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
-              if (committed) {
+              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
+              if (commitHash) {
                 commitInfo = '\n💾 Changes auto-committed';
+
+                // Get repository info to build commit URL
+                const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+                if (currentRepo && currentRepo.gitUrl) {
+                  const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
+                  if (webUrl) {
+                    commitUrl = `${webUrl}/commit/${commitHash}`;
+                    logger.info('Built commit URL', { commitUrl, commitHash });
+                  }
+                }
 
                 logger.info('Starting auto-push', {
                   taskId: task.id,
@@ -137,6 +148,9 @@ export class TaskHandlers extends BaseHandler {
 
                 if (pushResult === 'success') {
                   commitInfo += ' & pushed to GitHub ✅\n';
+                  if (commitUrl) {
+                    commitInfo += `🔗 [View commit](${commitUrl})\n`;
+                  }
                 } else if (pushResult === 'no_remote') {
                   commitInfo += '\n⚠️ No remote repository configured\n';
                   needsRemoteSetup = true;
