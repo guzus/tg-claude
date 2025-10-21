@@ -447,6 +447,168 @@ export class ClaudeExecutor {
   }
 
   /**
+   * Check if there are uncommitted changes in the working directory
+   */
+  async hasUncommittedChanges(workingDir: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync('git status --porcelain', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+      return stdout.trim().length > 0;
+    } catch (error) {
+      logger.warn('Failed to check git status', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Auto-commit changes in the working directory
+   */
+  async autoCommitChanges(workingDir: string, taskPrompt: string): Promise<boolean> {
+    try {
+      // Check if there are changes to commit
+      const hasChanges = await this.hasUncommittedChanges(workingDir);
+      if (!hasChanges) {
+        logger.info('No uncommitted changes to commit', { workingDir });
+        return false;
+      }
+
+      // Stage all changes
+      await execAsync('git add .', {
+        cwd: workingDir,
+        timeout: 10000
+      });
+
+      // Create commit message based on task prompt
+      const commitMessage = `Auto-commit: ${taskPrompt.substring(0, 100)}${taskPrompt.length > 100 ? '...' : ''}`;
+
+      // Commit changes
+      await execAsync(`git commit -m "${commitMessage}"`, {
+        cwd: workingDir,
+        timeout: 10000
+      });
+
+      logger.info('Auto-committed changes', {
+        workingDir,
+        commitMessage
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to auto-commit changes', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Check if remote repository exists
+   */
+  async hasRemoteRepository(workingDir: string): Promise<boolean> {
+    try {
+      const { stdout } = await execAsync('git remote -v', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+      return stdout.trim().length > 0;
+    } catch (error) {
+      logger.warn('Failed to check remote repository', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Auto-push changes to remote repository
+   * Returns: 'success' | 'no_remote' | 'failed'
+   */
+  async autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed'> {
+    try {
+      // Check if remote exists
+      const hasRemote = await this.hasRemoteRepository(workingDir);
+      if (!hasRemote) {
+        logger.info('No remote repository configured', { workingDir });
+        return 'no_remote';
+      }
+
+      // Get current branch
+      const { stdout: branchOutput } = await execAsync('git branch --show-current', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+      const currentBranch = branchOutput.trim();
+
+      // Push to remote
+      await execAsync(`git push origin ${currentBranch}`, {
+        cwd: workingDir,
+        timeout: 30000
+      });
+
+      logger.info('Auto-pushed changes', {
+        workingDir,
+        branch: currentBranch
+      });
+
+      return 'success';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      // Check if error is due to no remote
+      if (errorMessage.includes('No configured push destination') ||
+          errorMessage.includes('no upstream branch')) {
+        logger.warn('No remote repository configured for push', { workingDir });
+        return 'no_remote';
+      }
+
+      logger.error('Failed to auto-push changes', {
+        workingDir,
+        error: errorMessage
+      });
+      return 'failed';
+    }
+  }
+
+  /**
+   * Create GitHub repository using gh CLI
+   */
+  async createGitHubRepository(workingDir: string, isPrivate: boolean = false): Promise<boolean> {
+    try {
+      // Get repository name from working directory
+      const path = require('path');
+      const repoName = path.basename(workingDir);
+
+      // Create repository using gh CLI
+      const visibility = isPrivate ? '--private' : '--public';
+      await execAsync(`gh repo create ${repoName} ${visibility} --source=. --remote=origin --push`, {
+        cwd: workingDir,
+        timeout: 30000
+      });
+
+      logger.info('Created GitHub repository', {
+        workingDir,
+        repoName,
+        visibility
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to create GitHub repository', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
+  }
+
+  /**
    * Clean up old completed tasks
    */
   cleanupOldTasks(maxAge: number = 3600000): number {

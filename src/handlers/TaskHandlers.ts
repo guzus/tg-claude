@@ -112,6 +112,34 @@ export class TaskHandlers extends BaseHandler {
             ? Math.round((currentTask.endTime.getTime() - currentTask.startTime.getTime()) / 1000)
             : 0;
 
+          // Auto-commit and push changes if task completed successfully
+          let commitInfo = '';
+          let needsRemoteSetup = false;
+          if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
+            try {
+              const committed = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
+              if (committed) {
+                commitInfo = '\n💾 Changes auto-committed';
+
+                // Auto-push changes
+                const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+                if (pushResult === 'success') {
+                  commitInfo += ' & pushed to GitHub\n';
+                } else if (pushResult === 'no_remote') {
+                  commitInfo += '\n⚠️ No remote repository configured\n';
+                  needsRemoteSetup = true;
+                } else {
+                  commitInfo += '\n⚠️ Push failed\n';
+                }
+              }
+            } catch (error) {
+              logger.error('Auto-commit/push failed', {
+                taskId: task.id,
+                error: error instanceof Error ? error.message : String(error)
+              });
+            }
+          }
+
           // Combine outputs for final display
           let fullOutput = '';
           if (output) {
@@ -129,7 +157,7 @@ export class TaskHandlers extends BaseHandler {
           const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
 
           const finalMessage =
-            `${statusEmoji} ${statusText}\n\n` +
+            `${statusEmoji} ${statusText}${commitInfo}\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
             `Time: ${UIHelpers.formatDuration(executionTime)}\n` +
             `Total output: ${fullOutput.length} chars\n\n` +
@@ -163,6 +191,30 @@ export class TaskHandlers extends BaseHandler {
                 reply_markup: repoKeyboard
               });
             }
+          }
+
+          // Prompt user to create remote repository if needed
+          if (needsRemoteSetup && actualWorkingDir) {
+            await this.bot.sendMessage(
+              chatId,
+              '📦 *Create GitHub Repository?*\n\n' +
+              'Your changes have been committed locally but no remote repository exists.\n\n' +
+              'Would you like to create a GitHub repository and push your changes?',
+              {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [
+                    [
+                      { text: '✅ Create Public Repository', callback_data: `create_repo_public_${actualWorkingDir}` },
+                      { text: '🔒 Create Private Repository', callback_data: `create_repo_private_${actualWorkingDir}` }
+                    ],
+                    [
+                      { text: '❌ Skip', callback_data: 'create_repo_skip' }
+                    ]
+                  ]
+                }
+              }
+            );
           }
 
           // Log audit entry

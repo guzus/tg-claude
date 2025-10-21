@@ -60,6 +60,10 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.handleRefreshAction(chatId, messageId, userId, params.join('_'));
           break;
 
+        case 'create':
+          await this.handleCreateRepoAction(chatId, messageId, userId, params);
+          break;
+
         default:
           logger.warn('Unknown callback action', { action, data });
           await this.bot.sendMessage(chatId, '❌ Unknown action. Please try again.');
@@ -518,6 +522,107 @@ export class CallbackQueryHandler extends BaseHandler {
 
       default:
         await this.handleMainMenu(chatId, messageId, userId);
+    }
+  }
+
+  /**
+   * Handle repository creation action
+   */
+  private async handleCreateRepoAction(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    params: string[]
+  ): Promise<void> {
+    // params[0] = 'repo'
+    // params[1] = 'public' or 'private' or 'skip'
+    // params[2...] = working directory path
+
+    const action = params[1];
+    const workingDir = params.slice(2).join('_');
+
+    if (action === 'skip') {
+      await this.bot.editMessageText(
+        '✅ Skipped repository creation.\n\nYour changes remain committed locally.',
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown'
+        }
+      );
+      return;
+    }
+
+    const isPrivate = action === 'private';
+
+    // Show processing message
+    await this.bot.editMessageText(
+      '⏳ Creating GitHub repository...\n\nThis may take a few moments.',
+      {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'Markdown'
+      }
+    );
+
+    try {
+      // Create repository
+      const success = await this.executor.createGitHubRepository(workingDir, isPrivate);
+
+      if (success) {
+        // Refresh repository info
+        const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+        if (currentRepo) {
+          await this.repositoryManager.refreshRepository(userId, currentRepo.id);
+        }
+
+        await this.bot.editMessageText(
+          `✅ *GitHub Repository Created!*\n\n` +
+          `Your changes have been pushed to GitHub.\n` +
+          `Visibility: ${isPrivate ? '🔒 Private' : '✅ Public'}`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: '📂 View Repository', callback_data: 'repo_current' }]
+              ]
+            }
+          }
+        );
+      } else {
+        await this.bot.editMessageText(
+          '❌ *Failed to Create Repository*\n\n' +
+          'Please make sure:\n' +
+          '• GitHub CLI (gh) is installed\n' +
+          '• You are authenticated with GitHub\n' +
+          '• You have internet connection\n\n' +
+          'You can try creating the repository manually using:\n' +
+          '`gh repo create`',
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown'
+          }
+        );
+      }
+    } catch (error) {
+      logger.error('Error creating GitHub repository', {
+        error: error instanceof Error ? error.message : String(error),
+        workingDir,
+        isPrivate
+      });
+
+      await this.bot.editMessageText(
+        '❌ *Error Creating Repository*\n\n' +
+        `${error instanceof Error ? error.message : String(error)}`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown'
+        }
+      );
     }
   }
 }
