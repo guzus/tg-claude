@@ -41,21 +41,33 @@ export class RepositoryManager {
     }
 
     try {
+      // Clean up URL - remove trailing slashes and ensure .git suffix is consistent
+      gitUrl = gitUrl.trim().replace(/\/+$/, ''); // Remove trailing slashes
+
       // Convert SSH to HTTPS if needed
       if (gitUrl.startsWith('git@github.com:')) {
         gitUrl = gitUrl.replace('git@github.com:', 'https://github.com/');
         logger.debug('Converted SSH URL to HTTPS', { gitUrl });
       }
 
+      // Ensure .git suffix for consistency
+      if (!gitUrl.endsWith('.git')) {
+        gitUrl = gitUrl + '.git';
+      }
+
       // If it's already HTTPS, inject the token
-      if (gitUrl.startsWith('https://github.com/')) {
+      if (gitUrl.startsWith('https://github.com/') || gitUrl.startsWith('https://www.github.com/')) {
         // GitHub expects: https://x-access-token:TOKEN@github.com/...
         // Or simply: https://TOKEN@github.com/...
         // Using x-access-token format which is the recommended approach
-        const authenticatedUrl = gitUrl.replace('https://github.com/', `https://x-access-token:${this.githubToken}@github.com/`);
-        logger.debug('Injected token into URL', {
+        const authenticatedUrl = gitUrl.replace(
+          /^https:\/\/(www\.)?github\.com\//,
+          `https://x-access-token:${this.githubToken}@github.com/`
+        );
+        logger.info('Injected token into URL', {
           hasToken: authenticatedUrl.includes('@github.com'),
-          urlLength: authenticatedUrl.length
+          originalUrlLength: gitUrl.length,
+          endsWithGit: authenticatedUrl.endsWith('.git')
         });
         return authenticatedUrl;
       }
@@ -266,13 +278,25 @@ export class RepositoryManager {
         repoPath
       ]);
 
-      // Remove token from git config for security (replace with original URL)
-      if (authenticatedUrl !== originalGitUrl) {
+      // Configure git to use the token for authentication
+      if (this.githubToken && authenticatedUrl !== originalGitUrl) {
         try {
-          await this.executeGitCommand('remote', ['set-url', 'origin', originalGitUrl], repoPath);
-          logger.debug('Removed token from git config', { repoPath });
+          // The authenticated URL with token is already set as the remote origin
+          // This ensures all future git operations (push/pull/fetch) will use the token
+          logger.info('Repository configured with GitHub token authentication', {
+            repoPath,
+            tokenLength: this.githubToken.length,
+            hasToken: true
+          });
+
+          // Verify the remote URL is set correctly
+          const remoteUrl = await this.getGitRemoteUrl(repoPath);
+          logger.debug('Verified git remote URL', {
+            hasAuth: remoteUrl?.includes('@github.com') || false,
+            repoPath
+          });
         } catch (error) {
-          logger.warn('Failed to update git remote URL', {
+          logger.warn('Failed to verify git credentials', {
             error: error instanceof Error ? error.message : String(error)
           });
         }
