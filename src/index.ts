@@ -45,6 +45,60 @@ const conversationManager = new ConversationManager();
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
 
+// Initialize current repositories from pinned messages for all allowed users
+(async () => {
+  // Give the bot a moment to fully initialize
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  logger.info('Initializing repositories from pinned messages');
+
+  for (const userId of config.allowedUserIds) {
+    try {
+      // Fetch pinned message and switch to the repository
+      const chatId = userId; // In private chats, chat ID equals user ID
+
+      const chat = await bot.getChat(chatId);
+
+      if (chat.pinned_message?.text) {
+        const text = chat.pinned_message.text;
+
+        // Extract repository name between asterisks on the first line
+        // Format: "<emoji> *<repository-name>*\n🌿 <branch>..."
+        const match = text.match(/^\S+\s+\*(.+?)\*/);
+        if (match && match[1]) {
+          const repoName = match[1].trim();
+
+          // Find repository by name
+          const repositories = repositoryManager.listRepositories(userId);
+          const matchingRepo = repositories.find(r => r.name === repoName);
+
+          if (matchingRepo) {
+            repositoryManager.switchRepository(userId, matchingRepo.id);
+            logger.info('Switched to repository from pinned message', {
+              userId,
+              repoName,
+              repoId: matchingRepo.id
+            });
+          } else {
+            logger.debug('Repository from pinned message not found', {
+              userId,
+              repoName,
+              availableRepos: repositories.map(r => r.name)
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.debug('Could not initialize repository from pinned message', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  logger.info('Completed pinned message initialization');
+})();
+
 // Set bot commands in Telegram UI
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },

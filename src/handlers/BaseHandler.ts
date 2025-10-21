@@ -143,5 +143,98 @@ export abstract class BaseHandler {
       });
     }
   }
+
+  /**
+   * Fetch pinned message from a chat and extract repository name
+   */
+  protected async fetchPinnedRepositoryName(chatId: number): Promise<string | null> {
+    try {
+      const chat = await this.bot.getChat(chatId);
+
+      if (!chat.pinned_message) {
+        logger.debug('No pinned message found', { chatId });
+        return null;
+      }
+
+      const pinnedMessage = chat.pinned_message;
+
+      // Store the pinned message ID
+      if (pinnedMessage.message_id) {
+        BaseHandler.pinnedMessages.set(chatId, pinnedMessage.message_id);
+      }
+
+      // Parse repository name from message text
+      // Format: "<emoji> *<repository-name>*\n🌿 <branch>..."
+      if (!pinnedMessage.text) {
+        logger.debug('Pinned message has no text', { chatId });
+        return null;
+      }
+
+      const text = pinnedMessage.text;
+
+      // Extract repository name between asterisks on the first line
+      const match = text.match(/^\S+\s+\*(.+?)\*/);
+      if (match && match[1]) {
+        const repoName = match[1].trim();
+        logger.info('Extracted repository name from pinned message', {
+          chatId,
+          repoName
+        });
+        return repoName;
+      }
+
+      logger.debug('Could not parse repository name from pinned message', {
+        chatId,
+        text
+      });
+      return null;
+    } catch (error) {
+      logger.debug('Failed to fetch pinned message', {
+        chatId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Initialize current repository from pinned message
+   */
+  public async initializeFromPinnedMessage(userId: number): Promise<void> {
+    try {
+      // In Telegram, private chat ID is the same as user ID
+      const chatId = userId;
+
+      const repoName = await this.fetchPinnedRepositoryName(chatId);
+      if (!repoName) {
+        logger.debug('No repository name found in pinned message', { userId });
+        return;
+      }
+
+      // Find repository by name
+      const repositories = this.repositoryManager.listRepositories(userId);
+      const matchingRepo = repositories.find(r => r.name === repoName);
+
+      if (matchingRepo) {
+        this.repositoryManager.switchRepository(userId, matchingRepo.id);
+        logger.info('Switched to repository from pinned message', {
+          userId,
+          repoName,
+          repoId: matchingRepo.id
+        });
+      } else {
+        logger.debug('Repository from pinned message not found in user repositories', {
+          userId,
+          repoName,
+          availableRepos: repositories.map(r => r.name)
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to initialize from pinned message', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
 }
 
