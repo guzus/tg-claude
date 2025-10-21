@@ -625,6 +625,49 @@ export class ClaudeExecutor {
         return 'no_remote';
       }
 
+      // Get current remote URL
+      const { stdout: remoteUrl } = await execAsync('git config --get remote.origin.url', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      const currentRemoteUrl = remoteUrl.trim();
+      logger.info('Current remote URL', {
+        workingDir,
+        hasAuth: currentRemoteUrl.includes('@github.com'),
+        isHttps: currentRemoteUrl.startsWith('https://')
+      });
+
+      // Inject GitHub token if needed
+      const githubToken = process.env.GITHUB_TOKEN;
+      if (githubToken && currentRemoteUrl.includes('github.com') && !currentRemoteUrl.includes('@github.com')) {
+        logger.info('Injecting GitHub token into remote URL for push', { workingDir });
+
+        // Convert to authenticated URL
+        let authenticatedUrl = currentRemoteUrl;
+
+        // Convert SSH to HTTPS if needed
+        if (authenticatedUrl.startsWith('git@github.com:')) {
+          authenticatedUrl = authenticatedUrl.replace('git@github.com:', 'https://github.com/');
+        }
+
+        // Inject token
+        if (authenticatedUrl.startsWith('https://github.com/')) {
+          authenticatedUrl = authenticatedUrl.replace(
+            'https://github.com/',
+            `https://x-access-token:${githubToken}@github.com/`
+          );
+
+          // Update remote URL temporarily
+          await execAsync(`git remote set-url origin "${authenticatedUrl}"`, {
+            cwd: workingDir,
+            timeout: 5000
+          });
+
+          logger.info('Updated remote URL with authentication', { workingDir });
+        }
+      }
+
       // Get current branch
       const { stdout: branchOutput } = await execAsync('git branch --show-current', {
         cwd: workingDir,
@@ -668,7 +711,11 @@ export class ClaudeExecutor {
           `git push -u origin ${currentBranch}`,
           {
             cwd: workingDir,
-            timeout: 30000
+            timeout: 30000,
+            env: {
+              ...process.env,
+              GIT_TERMINAL_PROMPT: '0'
+            }
           }
         );
 
@@ -703,6 +750,14 @@ export class ClaudeExecutor {
             stderr.includes('Everything up-to-date')) {
           logger.info('Repository already up to date', { workingDir });
           return 'no_changes';
+        }
+
+        if (errorMessage.includes('403') || stderr.includes('403') ||
+            errorMessage.includes('Permission denied') || stderr.includes('Permission denied')) {
+          logger.error('Push failed due to authentication/permission', {
+            workingDir,
+            hasToken: !!process.env.GITHUB_TOKEN
+          });
         }
 
         // Return failed for other errors (auth, network, etc.)
