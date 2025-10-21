@@ -202,14 +202,31 @@ export class RepositoryHandlers extends BaseHandler {
       const escapedName = UIHelpers.escapeMarkdown(repo.name);
       const escapedPath = UIHelpers.escapeMarkdown(repo.path);
 
+      // Ask user if they want to link existing or create new GitHub repository
       await this.bot.sendMessage(
         chatId,
-        `✅ Repository created successfully!\n\n` +
+        `✅ Local repository created!\n\n` +
         `📁 Name: ${escapedName}\n` +
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
         `📂 Path: \`${escapedPath}\`\n\n` +
-        `This repository is now active. Use /task to work on it.`,
-        { parse_mode: 'Markdown' }
+        `Would you like to connect this to GitHub?`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '✅ Create New Public Repo', callback_data: `new_repo_create_public_${repo.id}` },
+                { text: '🔒 Create New Private Repo', callback_data: `new_repo_create_private_${repo.id}` }
+              ],
+              [
+                { text: '🔗 Link to Existing Repo', callback_data: `new_repo_link_${repo.id}` }
+              ],
+              [
+                { text: '❌ Skip for Now', callback_data: `new_repo_skip_${repo.id}` }
+              ]
+            ]
+          }
+        }
       );
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

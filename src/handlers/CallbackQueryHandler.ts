@@ -2,6 +2,10 @@ import { CallbackQuery } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
+import { promisify } from 'util';
+import { exec } from 'child_process';
+
+const execAsync = promisify(exec);
 
 /**
  * Pending repository creation state
@@ -75,6 +79,10 @@ export class CallbackQueryHandler extends BaseHandler {
 
         case 'create':
           await this.handleCreateRepoAction(chatId, messageId, userId, params);
+          break;
+
+        case 'new':
+          await this.handleNewRepoAction(chatId, messageId, userId, params);
           break;
 
         default:
@@ -662,6 +670,170 @@ export class CallbackQueryHandler extends BaseHandler {
           parse_mode: 'Markdown'
         }
       );
+    }
+  }
+
+  /**
+   * Handle new repository setup action (create on GitHub or link existing)
+   */
+  private async handleNewRepoAction(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    params: string[]
+  ): Promise<void> {
+    // params[0] = 'repo'
+    // params[1] = 'create' or 'link' or 'skip'
+    // params[2] = 'public' or 'private' (if create)
+    // params[3+] = repository ID
+
+    const action = params[1]; // create or link or skip
+    const visibility = params[2]; // public or private (for create action)
+    const repoId = params.slice(action === 'create' ? 3 : 2).join('_');
+
+    // Get repository
+    const repo = this.repositoryManager.listRepositories(userId).find(r => r.id === repoId);
+    if (!repo) {
+      await this.bot.editMessageText(
+        '❌ Repository not found. It may have been deleted.',
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+      return;
+    }
+
+    if (action === 'skip') {
+      await this.bot.editMessageText(
+        '✅ Repository is ready to use!\n\n' +
+        'You can connect it to GitHub later using:\n' +
+        '• `/remote set <url>` to link existing repository\n' +
+        '• Or create one when you commit changes',
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown'
+        }
+      );
+      return;
+    }
+
+    if (action === 'link') {
+      await this.bot.editMessageText(
+        '🔗 Link to Existing Repository\n\n' +
+        'Use the `/remote set` command to connect to your existing GitHub repository:\n\n' +
+        'Examples:\n' +
+        '• `/remote set owner/repo`\n' +
+        '• `/remote set https://github.com/owner/repo.git`',
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown'
+        }
+      );
+      return;
+    }
+
+    if (action === 'create') {
+      const isPrivate = visibility === 'private';
+
+      await this.bot.editMessageText(
+        `⏳ Creating GitHub repository...`,
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+
+      try {
+        // Initialize repository with git
+        await execAsync('git init', {
+          cwd: repo.path,
+          timeout: 5000
+        });
+
+        // Create initial commit if none exists
+        try {
+          await execAsync('git log -1', {
+            cwd: repo.path,
+            timeout: 5000
+          });
+        } catch {
+          // No commits, create initial commit
+          await execAsync('git add .', {
+            cwd: repo.path,
+            timeout: 5000
+          });
+
+          await execAsync('git commit -m "Initial commit" --allow-empty', {
+            cwd: repo.path,
+            timeout: 5000
+          });
+        }
+
+        // Create GitHub repository
+        const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+
+        if (result === 'success') {
+          // Refresh repository info
+          await this.repositoryManager.refreshRepository(userId, repo.id);
+
+          await this.bot.editMessageText(
+            `✅ *GitHub Repository Created!*\n\n` +
+            `Repository: \`${repo.name}\`\n` +
+            `Visibility: ${isPrivate ? '🔒 Private' : '✅ Public'}\n\n` +
+            `Your repository is now connected to GitHub!`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: 'Markdown',
+              reply_markup: {
+                inline_keyboard: [
+                  [{ text: '📂 View Repository', callback_data: 'repo_current' }]
+                ]
+              }
+            }
+          );
+        } else if (result === 'already_exists') {
+          await this.bot.editMessageText(
+            `⚠️ Repository \`${repo.name}\` already exists on GitHub!\n\n` +
+            `Please use \`/remote set owner/repo\` to link to it.`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: 'Markdown'
+            }
+          );
+        } else {
+          await this.bot.editMessageText(
+            '❌ Failed to create GitHub repository\n\n' +
+            'Please make sure:\n' +
+            '• GitHub CLI (gh) is installed\n' +
+            '• You are authenticated with GitHub\n' +
+            '• You have internet connection',
+            {
+              chat_id: chatId,
+              message_id: messageId
+            }
+          );
+        }
+      } catch (error) {
+        logger.error('Error creating GitHub repository for new repo', {
+          error: error instanceof Error ? error.message : String(error),
+          repoId,
+          repoPath: repo.path
+        });
+
+        await this.bot.editMessageText(
+          '❌ Error creating repository\n\n' +
+          `${error instanceof Error ? error.message : String(error)}`,
+          {
+            chat_id: chatId,
+            message_id: messageId
+          }
+        );
+      }
     }
   }
 
