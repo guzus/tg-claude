@@ -124,7 +124,7 @@ export class UserConfigManager {
       },
       limits: {
         maxConcurrentTasks: 3,
-        taskTimeoutMs: 600000 // 10 minutes
+        taskTimeoutMs: 1800000 // 30 minutes
       },
       createdAt: now,
       updatedAt: now

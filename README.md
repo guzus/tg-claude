@@ -538,7 +538,7 @@ This bot uses `--dangerously-skip-permission` which bypasses all Claude Code saf
 2. **Rate Limiting** - 20/hour, 100/day per user
 3. **Input Sanitization** - Removes dangerous characters
 4. **Path Validation** - Restricts to workspace directory
-5. **Timeout Protection** - Auto-kills after 10 minutes
+5. **Timeout Protection** - Auto-kills after 30 minutes
 6. **Audit Logging** - All commands tracked
 
 ### Best Practices
@@ -862,7 +862,7 @@ npm run clean       # Remove dist/
 - Memory: ~50-100MB base + task overhead
 - Startup: < 2 seconds
 - Concurrent tasks: 3 per user
-- Task timeout: 10 minutes
+- Task timeout: 30 minutes
 - Rate limits: 20/hour, 100/day
 - Output buffer: 4KB per message
 

@@ -11,7 +11,7 @@ export const config: BotConfig = {
     : [],
   workspacePath: process.env.WORKSPACE_PATH || process.cwd(),
   maxConcurrentTasks: parseInt(process.env.MAX_CONCURRENT_TASKS || '3'),
-  taskTimeoutMs: parseInt(process.env.TASK_TIMEOUT_MS || '600000'), // 10 minutes
+  taskTimeoutMs: parseInt(process.env.TASK_TIMEOUT_MS || '1800000'), // 30 minutes
   maxOutputSize: parseInt(process.env.MAX_OUTPUT_SIZE || '4096'),
   logLevel: process.env.LOG_LEVEL || 'info',
   logFile: process.env.LOG_FILE || './logs/bot.log',
