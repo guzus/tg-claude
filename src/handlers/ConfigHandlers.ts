@@ -7,8 +7,6 @@ import { logger } from '../utils/logger';
  * Handlers for user configuration commands
  */
 export class ConfigHandlers extends BaseHandler {
-  private userConfigManager: UserConfigManager;
-
   constructor(
     bot: any,
     executor: any,
@@ -18,8 +16,7 @@ export class ConfigHandlers extends BaseHandler {
     userConfigManager: UserConfigManager,
     conversationManager?: any
   ) {
-    super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager);
-    this.userConfigManager = userConfigManager;
+    super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
   }
 
   /**
@@ -125,6 +122,11 @@ export class ConfigHandlers extends BaseHandler {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
 
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      return;
+    }
+
     const config = await this.userConfigManager.getConfig(userId);
 
     const message =
@@ -168,6 +170,11 @@ export class ConfigHandlers extends BaseHandler {
   private async setConfigValue(msg: Message, args: string[]): Promise<void> {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      return;
+    }
 
     if (args.length < 2) {
       await this.bot.sendMessage(
@@ -251,6 +258,11 @@ export class ConfigHandlers extends BaseHandler {
   private async resetConfig(msg: Message): Promise<void> {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      return;
+    }
 
     try {
       await this.userConfigManager.resetConfig(userId);

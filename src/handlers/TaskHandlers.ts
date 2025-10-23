@@ -33,9 +33,13 @@ export class TaskHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
 
+      // Get user-specific timeout if available
+      const userTimeout = await this.getUserTimeout(userId);
+
       // Execute task
       const task = await this.executor.executeTask(userId, chatId, prompt, {
-        workingDir: actualWorkingDir
+        workingDir: actualWorkingDir,
+        timeout: userTimeout
       });
 
       task.messageId = statusMsg.message_id;

@@ -4,6 +4,7 @@ import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
+import { UserConfigManager } from '../services/UserConfigManager';
 import { isAuthorized } from '../middleware/security';
 import { logger } from '../utils/logger';
 
@@ -20,7 +21,8 @@ export abstract class BaseHandler {
     protected rateLimiter: RateLimiter,
     protected auditLogger: AuditLogger,
     protected repositoryManager: RepositoryManager,
-    protected conversationManager?: ConversationManager
+    protected conversationManager?: ConversationManager,
+    protected userConfigManager?: UserConfigManager
   ) { }
 
   /**
@@ -61,6 +63,18 @@ export abstract class BaseHandler {
 
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
     return currentRepo?.path || process.cwd();
+  }
+
+  /**
+   * Get user-specific timeout or fallback to global config
+   */
+  protected async getUserTimeout(userId: number): Promise<number | undefined> {
+    if (!this.userConfigManager) {
+      return undefined; // Will use global config default
+    }
+
+    const userConfig = await this.userConfigManager.getConfig(userId);
+    return userConfig?.limits?.taskTimeoutMs;
   }
 
   /**
