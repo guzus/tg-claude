@@ -90,6 +90,14 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.handleConfigAction(chatId, messageId, userId, params.join('_'));
           break;
 
+        case 'cancel':
+          await this.handleCancelTask(chatId, messageId, userId, params.join('_'));
+          break;
+
+        case 'view':
+          await this.handleViewLog(chatId, messageId, userId, params.join('_'));
+          break;
+
         default:
           logger.warn('Unknown callback action', { action, data });
           await this.bot.sendMessage(chatId, '❌ Unknown action. Please try again.');
@@ -1268,6 +1276,169 @@ export class CallbackQueryHandler extends BaseHandler {
         ]
       }
     });
+  }
+
+  /**
+   * Handle cancel task button
+   */
+  private async handleCancelTask(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    taskId: string
+  ): Promise<void> {
+    try {
+      // Extract task ID from params (format: "task:taskId")
+      const actualTaskId = taskId.replace('task:', '');
+
+      const task = this.executor.getTask(actualTaskId);
+      if (!task) {
+        await this.bot.editMessageText('❌ Task not found or already completed.', {
+          chat_id: chatId,
+          message_id: messageId
+        });
+        return;
+      }
+
+      // Check if task belongs to user
+      if (task.userId !== userId) {
+        await this.bot.answerCallbackQuery(userId.toString(), {
+          text: '❌ You can only cancel your own tasks',
+          show_alert: true
+        });
+        return;
+      }
+
+      // Cancel the task
+      const cancelled = this.executor.cancelTask(actualTaskId);
+
+      if (cancelled) {
+        await this.bot.editMessageText(
+          `🛑 *Task Cancelled*\n\n` +
+          `Task ID: \`${actualTaskId.substring(0, 8)}\`\n` +
+          `Status: Cancelled by user\n` +
+          `Time: ${UIHelpers.formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000))}`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown'
+          }
+        );
+
+        logger.info('Task cancelled by user', {
+          taskId: actualTaskId,
+          userId
+        });
+      } else {
+        await this.bot.editMessageText('❌ Failed to cancel task. It may have already completed.', {
+          chat_id: chatId,
+          message_id: messageId
+        });
+      }
+    } catch (error) {
+      logger.error('Error cancelling task', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        taskId
+      });
+
+      await this.bot.sendMessage(chatId, '❌ Error cancelling task.');
+    }
+  }
+
+  /**
+   * Handle view log button - sends full task log
+   */
+  private async handleViewLog(
+    chatId: number,
+    _messageId: number,
+    userId: number,
+    taskId: string
+  ): Promise<void> {
+    try {
+      // Extract task ID from params (format: "log:taskId")
+      const actualTaskId = taskId.replace('log:', '');
+
+      const task = this.executor.getTask(actualTaskId);
+      if (!task) {
+        await this.bot.answerCallbackQuery(userId.toString(), {
+          text: '❌ Task not found',
+          show_alert: true
+        });
+        return;
+      }
+
+      // Check if task belongs to user
+      if (task.userId !== userId) {
+        await this.bot.answerCallbackQuery(userId.toString(), {
+          text: '❌ You can only view your own task logs',
+          show_alert: true
+        });
+        return;
+      }
+
+      // Try to send log file if it exists
+      const logFilePath = this.executor.getTaskLogFilePath(actualTaskId);
+
+      if (logFilePath) {
+        await this.bot.sendDocument(chatId, logFilePath, {
+          caption: `📋 Full log for task \`${actualTaskId.substring(0, 8)}\``,
+          parse_mode: 'Markdown'
+        }, {
+          filename: `task-${actualTaskId.substring(0, 8)}.log`,
+          contentType: 'text/plain'
+        });
+      } else {
+        // Fallback to in-memory output
+        const fullOutput = task.output || '';
+        const errorOutput = task.errorOutput || '';
+        let combinedOutput = '';
+
+        if (fullOutput) {
+          combinedOutput += '=== STDOUT ===\n' + fullOutput;
+        }
+        if (errorOutput) {
+          combinedOutput += '\n\n=== STDERR ===\n' + errorOutput;
+        }
+        if (!combinedOutput.trim()) {
+          combinedOutput = 'No output captured yet.';
+        }
+
+        // Send as document
+        await this.bot.sendDocument(
+          chatId,
+          Buffer.from(combinedOutput),
+          {
+            caption: `📋 Full log for task \`${actualTaskId.substring(0, 8)}\``,
+            parse_mode: 'Markdown'
+          },
+          {
+            filename: `task-${actualTaskId.substring(0, 8)}.log`,
+            contentType: 'text/plain'
+          }
+        );
+      }
+
+      await this.bot.answerCallbackQuery(userId.toString(), {
+        text: '✅ Log sent'
+      });
+
+      logger.info('Task log sent to user', {
+        taskId: actualTaskId,
+        userId
+      });
+    } catch (error) {
+      logger.error('Error sending task log', {
+        error: error instanceof Error ? error.message : String(error),
+        userId,
+        taskId
+      });
+
+      await this.bot.answerCallbackQuery(userId.toString(), {
+        text: '❌ Error retrieving log',
+        show_alert: true
+      });
+    }
   }
 
   /**

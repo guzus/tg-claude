@@ -70,6 +70,9 @@ export class TaskHandlers extends BaseHandler {
             combinedOutput += (combinedOutput ? '\n---STDERR---\n' : '') + errorOutput;
           }
 
+          // Parse output to extract current action
+          const currentAction = this.parseCurrentAction(combinedOutput);
+
           // Build status message
           let newUpdateText;
           const preview = combinedOutput.slice(-1500).trim();
@@ -78,9 +81,22 @@ export class TaskHandlers extends BaseHandler {
             // No output yet - just show waiting message
             newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
           } else {
-            // Has output - show it
-            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n\n\`\`\`\n${preview}\n\`\`\``;
+            // Has output - show it with current action
+            const actionLine = currentAction ? `📌 ${currentAction}\n\n` : '';
+            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n${actionLine}\`\`\`\n${preview}\n\`\`\``;
           }
+
+          // Create control buttons
+          const controlButtons = {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
+                  { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+                ]
+              ]
+            }
+          };
 
           // Only update if text has changed (avoid rate limit errors)
           if (newUpdateText !== lastUpdateText) {
@@ -88,7 +104,8 @@ export class TaskHandlers extends BaseHandler {
               await this.bot.editMessageText(newUpdateText, {
                 chat_id: chatId,
                 message_id: statusMsg.message_id,
-                parse_mode: 'Markdown'
+                parse_mode: 'Markdown',
+                ...controlButtons
               });
               lastUpdateText = newUpdateText;
             } catch (error) {
@@ -558,6 +575,62 @@ Always commit and push your changes after completing the task unless explicitly 
     );
 
     await this.executeAndStream(msg, beastPrompt);
+  }
+
+  /**
+   * Parse Claude's output to extract current action/file being worked on
+   */
+  private parseCurrentAction(output: string): string | null {
+    if (!output) return null;
+
+    const lines = output.split('\n');
+    const recentLines = lines.slice(-50); // Look at last 50 lines
+
+    // Look for common Claude Code patterns
+    for (let i = recentLines.length - 1; i >= 0; i--) {
+      const line = recentLines[i].trim();
+
+      // Reading files
+      if (line.match(/Reading|Read.*file|Opening/i)) {
+        const fileMatch = line.match(/['"`]([^'"`]+\.[a-zA-Z]+)['"`]/);
+        if (fileMatch) return `Reading ${fileMatch[1]}`;
+      }
+
+      // Writing/editing files
+      if (line.match(/Writing|Wrote|Editing|Modified|Updated/i)) {
+        const fileMatch = line.match(/['"`]([^'"`]+\.[a-zA-Z]+)['"`]/);
+        if (fileMatch) return `Editing ${fileMatch[1]}`;
+      }
+
+      // Running commands
+      if (line.match(/Running|Executing|Command:/i)) {
+        const cmdMatch = line.match(/Running|Executing|Command:\s*(.{0,50})/i);
+        if (cmdMatch) return `Running: ${cmdMatch[1] || 'command'}`;
+      }
+
+      // Git operations
+      if (line.match(/git (add|commit|push|pull|clone)/i)) {
+        const gitOp = line.match(/git\s+(\w+)/i);
+        if (gitOp) return `Git ${gitOp[1]}`;
+      }
+
+      // Installing packages
+      if (line.match(/npm install|yarn add|pnpm add|pip install/i)) {
+        return 'Installing dependencies';
+      }
+
+      // Building/compiling
+      if (line.match(/Building|Compiling|Bundling/i)) {
+        return 'Building project';
+      }
+
+      // Testing
+      if (line.match(/Running tests|Testing/i)) {
+        return 'Running tests';
+      }
+    }
+
+    return null;
   }
 }
 
