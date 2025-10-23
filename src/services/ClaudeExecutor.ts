@@ -555,7 +555,7 @@ export class ClaudeExecutor {
       return 'Task not found';
     }
 
-    const output = task.output || task.errorOutput || 'No output';
+    const output = task.output || task.errorOutput || '';
     return output.slice(-config.maxOutputSize);
   }
 
