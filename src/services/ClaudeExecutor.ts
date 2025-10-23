@@ -256,14 +256,31 @@ export class ClaudeExecutor {
       logStream.write(`Working Directory: ${workingDir}\n`);
       logStream.write(`\n=== OUTPUT ===\n\n`);
 
-      // Set timeout
-      const timeoutHandle = setTimeout(() => {
+      // Heartbeat-based timeout mechanism
+      // Timeout resets whenever we receive output, preventing timeout for active tasks
+      let timeoutHandle: NodeJS.Timeout | null = null;
+
+      const killTask = () => {
         if (this.activeTasks.has(task.id)) {
-          logger.warn('Task timeout, killing process', { taskId: task.id });
+          logger.warn('Task timeout - no output received for timeout duration', {
+            taskId: task.id,
+            timeoutMs: timeout,
+            lastOutputTime: new Date().toISOString()
+          });
           claudeProcess.kill('SIGTERM');
           task.status = TaskStatus.TIMEOUT;
         }
-      }, timeout);
+      };
+
+      const resetTimeout = () => {
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
+        timeoutHandle = setTimeout(killTask, timeout);
+      };
+
+      // Start initial timeout
+      resetTimeout();
 
       // Monitor for initial output within 5 seconds
       let hasReceivedOutput = false;
@@ -283,6 +300,9 @@ export class ClaudeExecutor {
         hasReceivedOutput = true;
         clearTimeout(outputCheckTimer);
 
+        // Reset timeout on activity (heartbeat)
+        resetTimeout();
+
         const chunk = data.toString();
         task.output += chunk;
 
@@ -297,7 +317,7 @@ export class ClaudeExecutor {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
 
-        logger.info('Task stdout received', {
+        logger.info('Task stdout received (timeout reset)', {
           taskId: task.id,
           pid: claudeProcess.pid,
           chunkSize: chunk.length,
@@ -311,6 +331,9 @@ export class ClaudeExecutor {
       claudeProcess.stderr?.on('data', (data: Buffer) => {
         hasReceivedOutput = true;
         clearTimeout(outputCheckTimer);
+
+        // Reset timeout on activity (heartbeat)
+        resetTimeout();
 
         const chunk = data.toString();
         task.errorOutput += chunk;
@@ -326,7 +349,7 @@ export class ClaudeExecutor {
           task.errorOutput = task.errorOutput.slice(-config.maxOutputSize * 10);
         }
 
-        logger.info('Task stderr received', {
+        logger.info('Task stderr received (timeout reset)', {
           taskId: task.id,
           pid: claudeProcess.pid,
           chunkSize: chunk.length,
@@ -354,7 +377,9 @@ export class ClaudeExecutor {
 
       // Handle process completion
       claudeProcess.on('close', (code: number | null) => {
-        clearTimeout(timeoutHandle);
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
         this.activeTasks.delete(task.id);
 
         task.exitCode = code || 0;
@@ -388,7 +413,9 @@ export class ClaudeExecutor {
 
       // Handle process errors
       claudeProcess.on('error', (error: Error) => {
-        clearTimeout(timeoutHandle);
+        if (timeoutHandle) {
+          clearTimeout(timeoutHandle);
+        }
         this.activeTasks.delete(task.id);
 
         task.status = TaskStatus.FAILED;
