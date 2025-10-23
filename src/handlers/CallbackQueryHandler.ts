@@ -1302,10 +1302,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
       // Check if task belongs to user
       if (task.userId !== userId) {
-        await this.bot.answerCallbackQuery(userId.toString(), {
-          text: '❌ You can only cancel your own tasks',
-          show_alert: true
-        });
+        await this.bot.sendMessage(chatId, '❌ You can only cancel your own tasks');
         return;
       }
 
@@ -1361,19 +1358,13 @@ export class CallbackQueryHandler extends BaseHandler {
 
       const task = this.executor.getTask(actualTaskId);
       if (!task) {
-        await this.bot.answerCallbackQuery(userId.toString(), {
-          text: '❌ Task not found',
-          show_alert: true
-        });
+        await this.bot.sendMessage(chatId, '❌ Task not found');
         return;
       }
 
       // Check if task belongs to user
       if (task.userId !== userId) {
-        await this.bot.answerCallbackQuery(userId.toString(), {
-          text: '❌ You can only view your own task logs',
-          show_alert: true
-        });
+        await this.bot.sendMessage(chatId, '❌ You can only view your own task logs');
         return;
       }
 
@@ -1419,10 +1410,6 @@ export class CallbackQueryHandler extends BaseHandler {
         );
       }
 
-      await this.bot.answerCallbackQuery(userId.toString(), {
-        text: '✅ Log sent'
-      });
-
       logger.info('Task log sent to user', {
         taskId: actualTaskId,
         userId
@@ -1434,10 +1421,7 @@ export class CallbackQueryHandler extends BaseHandler {
         taskId
       });
 
-      await this.bot.answerCallbackQuery(userId.toString(), {
-        text: '❌ Error retrieving log',
-        show_alert: true
-      });
+      await this.bot.sendMessage(chatId, '❌ Error retrieving log. Please try again.');
     }
   }
 
