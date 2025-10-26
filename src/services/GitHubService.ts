@@ -27,9 +27,18 @@ export class GitHubService {
     try {
       logger.info('Authenticating with GitHub CLI...');
 
-      // Use echo to pipe the token to gh auth login
+      // First check if already authenticated (GITHUB_TOKEN env var might be in use)
+      const isAlreadyAuth = await this.checkAuthStatus();
+      if (isAlreadyAuth) {
+        logger.info('GitHub CLI already authenticated via environment variable');
+        this.isAuthenticated = true;
+        return true;
+      }
+
+      // Unset GITHUB_TOKEN temporarily to allow gh auth login --with-token
+      // The gh CLI prioritizes env vars over stdin, which causes conflicts
       const { stderr } = await execAsync(
-        `echo "${this.token}" | gh auth login --with-token`,
+        `unset GITHUB_TOKEN && echo "${this.token}" | gh auth login --with-token`,
         { shell: '/bin/bash' }
       );
 
