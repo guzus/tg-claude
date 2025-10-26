@@ -205,7 +205,7 @@ export class CallbackQueryHandler extends BaseHandler {
    * Show repository list with inline buttons
    */
   private async showRepoList(chatId: number, messageId: number, userId: number): Promise<void> {
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
     if (repositories.length === 0) {
@@ -354,7 +354,7 @@ export class CallbackQueryHandler extends BaseHandler {
     userId: number,
     repoIdPrefix: string
   ): Promise<void> {
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const selectedRepo = repositories.find((r: any) => r.id.startsWith(repoIdPrefix));
 
     if (!selectedRepo) {
@@ -392,7 +392,7 @@ export class CallbackQueryHandler extends BaseHandler {
     userId: number,
     repoIdPrefix: string
   ): Promise<void> {
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const repoToDelete = repositories.find((r: any) => r.id.startsWith(repoIdPrefix));
 
     if (!repoToDelete) {
@@ -767,7 +767,8 @@ export class CallbackQueryHandler extends BaseHandler {
     const repoId = params.slice(action === 'create' ? 3 : 2).join('_');
 
     // Get repository
-    const repo = this.repositoryManager.listRepositories(userId).find(r => r.id === repoId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
+    const repo = repositories.find(r => r.id === repoId);
     if (!repo) {
       await this.bot.editMessageText(
         '❌ Repository not found. It may have been deleted.',

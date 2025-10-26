@@ -293,6 +293,14 @@ export class RepositoryManager {
     const repoId = uuidv4();
     const repoPath = path.join(this.baseWorkspacePath, `user_${userId}`, repoName);
 
+    // Check if this repository was previously deleted
+    const wasDeleted = await this.isRepositoryDeleted(userId, gitUrl, repoPath);
+    if (wasDeleted) {
+      throw new Error(
+        'This repository was previously deleted. If you want to clone it again, please use a different name or contact support to undelete it.'
+      );
+    }
+
     // Store original URL for display purposes
     const originalGitUrl = gitUrl;
 
@@ -401,6 +409,14 @@ export class RepositoryManager {
     const repoId = uuidv4();
     const repoPath = path.join(this.baseWorkspacePath, `user_${userId}`, name);
 
+    // Check if this repository path was previously deleted
+    const wasDeleted = await this.isRepositoryDeleted(userId, undefined, repoPath);
+    if (wasDeleted) {
+      throw new Error(
+        'A repository at this path was previously deleted. Please use a different name.'
+      );
+    }
+
     logger.info('Creating new repository', { userId, name, repoPath });
 
     try {
@@ -474,26 +490,37 @@ export class RepositoryManager {
     // Check if it's a git repository
     const isGitRepo = await this.directoryExists(path.join(repoPath, '.git'));
 
-    const repository: Repository = {
-      id: repoId,
-      name: repoName,
-      path: repoPath,
-      type: RepositoryType.EXISTING,
-      createdAt: new Date(),
-      lastUsed: new Date()
-    };
+    let gitUrl: string | undefined;
 
     // If it's a git repo, try to get the remote URL
     if (isGitRepo) {
       try {
         const remoteUrl = await this.getGitRemoteUrl(repoPath);
         if (remoteUrl) {
-          repository.gitUrl = remoteUrl;
+          gitUrl = remoteUrl;
         }
       } catch (error) {
         // Ignore if we can't get remote URL
       }
     }
+
+    // Check if this repository was previously deleted
+    const wasDeleted = await this.isRepositoryDeleted(userId, gitUrl, repoPath);
+    if (wasDeleted) {
+      throw new Error(
+        'This repository was previously deleted. If you want to add it again, please contact support to undelete it.'
+      );
+    }
+
+    const repository: Repository = {
+      id: repoId,
+      name: repoName,
+      path: repoPath,
+      type: RepositoryType.EXISTING,
+      gitUrl,
+      createdAt: new Date(),
+      lastUsed: new Date()
+    };
 
     session.repositories.set(repoId, repository);
     session.currentRepositoryId = repoId;
@@ -564,11 +591,28 @@ export class RepositoryManager {
   /**
    * List all repositories for a user
    */
-  listRepositories(userId: number): Repository[] {
+  async listRepositories(userId: number): Promise<Repository[]> {
     const session = this.getUserSession(userId);
-    return Array.from(session.repositories.values()).sort(
-      (a, b) => b.lastUsed.getTime() - a.lastUsed.getTime()
-    );
+    const allRepos = Array.from(session.repositories.values());
+
+    // Filter out deleted repositories
+    const activeRepos: Repository[] = [];
+    for (const repo of allRepos) {
+      const isDeleted = await this.isRepositoryDeleted(userId, repo.gitUrl, repo.path);
+      if (!isDeleted) {
+        activeRepos.push(repo);
+      } else {
+        // Remove from session if it's in the deleted list
+        session.repositories.delete(repo.id);
+        logger.debug('Filtered out deleted repository from list', {
+          repositoryId: repo.id,
+          name: repo.name,
+          path: repo.path
+        });
+      }
+    }
+
+    return activeRepos.sort((a, b) => b.lastUsed.getTime() - a.lastUsed.getTime());
   }
 
   /**
@@ -625,6 +669,36 @@ export class RepositoryManager {
       throw new Error('Repository not found');
     }
 
+    // Save to deleted repositories list in user config
+    if (this.userConfigManager) {
+      try {
+        const userConfig = await this.userConfigManager.getConfig(userId);
+        const deletedRepos = userConfig.deletedRepositories || [];
+
+        // Add this repository to the deleted list
+        deletedRepos.push({
+          gitUrl: repository.gitUrl,
+          path: repository.path,
+          deletedAt: new Date()
+        });
+
+        await this.userConfigManager.updateConfig(userId, {
+          deletedRepositories: deletedRepos
+        });
+
+        logger.info('Repository marked as deleted in user config', {
+          repositoryId,
+          gitUrl: repository.gitUrl,
+          path: repository.path
+        });
+      } catch (error) {
+        logger.warn('Failed to save deleted repository to user config', {
+          repositoryId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     // Only delete directories we created (not existing ones)
     if (repository.type !== RepositoryType.EXISTING) {
       try {
@@ -646,6 +720,42 @@ export class RepositoryManager {
     }
 
     logger.info('Repository deleted', { repositoryId, name: repository.name });
+  }
+
+  /**
+   * Check if a repository is in the deleted list
+   */
+  private async isRepositoryDeleted(
+    userId: number,
+    gitUrl?: string,
+    repoPath?: string
+  ): Promise<boolean> {
+    if (!this.userConfigManager) {
+      return false;
+    }
+
+    try {
+      const userConfig = await this.userConfigManager.getConfig(userId);
+      const deletedRepos = userConfig.deletedRepositories || [];
+
+      return deletedRepos.some((deleted) => {
+        // Match by git URL if both are available
+        if (gitUrl && deleted.gitUrl && gitUrl === deleted.gitUrl) {
+          return true;
+        }
+        // Match by path if available
+        if (repoPath && deleted.path === repoPath) {
+          return true;
+        }
+        return false;
+      });
+    } catch (error) {
+      logger.warn('Failed to check deleted repositories', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return false;
+    }
   }
 
   /**

@@ -110,9 +110,16 @@ export interface AuditLogEntry {
   error?: string;
 }
 
+export interface DeletedRepository {
+  gitUrl?: string;
+  path: string;
+  deletedAt: Date;
+}
+
 export interface UserConfig {
   userId: number;
   currentRepositoryId?: string;
+  deletedRepositories?: DeletedRepository[];
   git?: {
     userName?: string;
     userEmail?: string;

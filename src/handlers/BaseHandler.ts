@@ -226,11 +226,11 @@ export abstract class BaseHandler {
       }
 
       // Find repository by name
-      const repositories = this.repositoryManager.listRepositories(userId);
+      const repositories = await this.repositoryManager.listRepositories(userId);
       const matchingRepo = repositories.find(r => r.name === repoName);
 
       if (matchingRepo) {
-        this.repositoryManager.switchRepository(userId, matchingRepo.id);
+        await this.repositoryManager.switchRepository(userId, matchingRepo.id);
         logger.info('Switched to repository from pinned message', {
           userId,
           repoName,

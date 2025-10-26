@@ -85,7 +85,7 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
           const repoName = match[1].trim();
 
           // Find repository by name
-          const repositories = repositoryManager.listRepositories(userId);
+          const repositories = await repositoryManager.listRepositories(userId);
           const matchingRepo = repositories.find(r => r.name === repoName);
 
           if (matchingRepo) {

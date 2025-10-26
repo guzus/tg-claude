@@ -287,7 +287,7 @@ export class RepositoryHandlers extends BaseHandler {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
 
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
     if (repositories.length === 0) {
@@ -358,7 +358,7 @@ export class RepositoryHandlers extends BaseHandler {
     const partialId = args[0];
 
     // Find repository by partial ID
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const repo = repositories.find((r) => r.id.startsWith(partialId));
 
     if (!repo) {
@@ -370,7 +370,7 @@ export class RepositoryHandlers extends BaseHandler {
     }
 
     try {
-      this.repositoryManager.switchRepository(userId, repo.id);
+      await this.repositoryManager.switchRepository(userId, repo.id);
 
       // Escape special characters for Markdown
       const escapedName = UIHelpers.escapeMarkdown(repo.name);
@@ -457,7 +457,7 @@ export class RepositoryHandlers extends BaseHandler {
     const partialId = args[0];
 
     // Find repository by partial ID
-    const repositories = this.repositoryManager.listRepositories(userId);
+    const repositories = await this.repositoryManager.listRepositories(userId);
     const repo = repositories.find((r) => r.id.startsWith(partialId));
 
     if (!repo) {
