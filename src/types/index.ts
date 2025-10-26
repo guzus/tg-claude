@@ -111,6 +111,7 @@ export interface AuditLogEntry {
 
 export interface UserConfig {
   userId: number;
+  currentRepositoryId?: string;
   git?: {
     userName?: string;
     userEmail?: string;

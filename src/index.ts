@@ -25,9 +25,9 @@ try {
 const executor = new ClaudeExecutor();
 const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
-const repositoryManager = new RepositoryManager();
-const conversationManager = new ConversationManager();
 const userConfigManager = new UserConfigManager();
+const repositoryManager = new RepositoryManager(undefined, userConfigManager);
+const conversationManager = new ConversationManager();
 
 // Initialize repository manager and user config manager (discover existing repos and configs)
 (async () => {
@@ -82,7 +82,7 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
           const matchingRepo = repositories.find(r => r.name === repoName);
 
           if (matchingRepo) {
-            repositoryManager.switchRepository(userId, matchingRepo.id);
+            await repositoryManager.switchRepository(userId, matchingRepo.id);
             logger.info('Switched to repository from pinned message', {
               userId,
               repoName,

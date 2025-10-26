@@ -365,7 +365,7 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
-    this.repositoryManager.switchRepository(userId, selectedRepo.id);
+    await this.repositoryManager.switchRepository(userId, selectedRepo.id);
 
     // Update pinned message with new repository
     await this.updatePinnedRepositoryInfo(chatId, userId);
