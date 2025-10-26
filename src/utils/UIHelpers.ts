@@ -122,8 +122,7 @@ export class UIHelpers {
 
     if (hasCurrentRepo) {
       buttons.unshift([
-        { text: '🚀 Run Task', callback_data: 'task_menu' },
-        { text: '💾 Commit', callback_data: 'commit_menu' }
+        { text: '🚀 Run Task', callback_data: 'task_menu' }
       ]);
     }
 

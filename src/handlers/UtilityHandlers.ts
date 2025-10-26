@@ -28,8 +28,6 @@ export class UtilityHandlers extends BaseHandler {
       `/repo - Manage repositories (clone/new/list/switch)\n\n` +
       `🛠️ *Development:*\n` +
       `/task <description> - Execute a task\n` +
-      `/commit <message> - Commit and push changes\n` +
-      `/read <url> - Read documentation\n` +
       `/review - Review code changes\n` +
       `/test - Run tests\n` +
       `/build - Build project\n\n` +

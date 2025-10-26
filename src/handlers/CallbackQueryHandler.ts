@@ -66,10 +66,6 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.handleTaskAction(chatId, messageId, userId, params.join('_'));
           break;
 
-        case 'commit':
-          await this.handleCommitAction(chatId, messageId, userId);
-          break;
-
         case 'show':
           await this.handleShowAction(chatId, messageId, userId, params.join('_'));
           break;
@@ -510,27 +506,6 @@ export class CallbackQueryHandler extends BaseHandler {
   }
 
   /**
-   * Handle commit-related actions
-   */
-  private async handleCommitAction(chatId: number, messageId: number, _userId: number): Promise<void> {
-    await this.bot.editMessageText(
-      '💾 *Commit Changes*\n\n' +
-      'Use `/commit <message>` to commit and push changes.\n\n' +
-      'Example: `/commit Add new feature`',
-      {
-        chat_id: chatId,
-        message_id: messageId,
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: '🔙 Back to Main Menu', callback_data: 'main_menu' }]
-          ]
-        }
-      }
-    );
-  }
-
-  /**
    * Handle show actions (help, logs, limits)
    */
   private async handleShowAction(
@@ -565,7 +540,6 @@ export class CallbackQueryHandler extends BaseHandler {
       '• `/scan` - Scan for repositories\n\n' +
       '*Development:*\n' +
       '• `/task <desc>` - Execute task\n' +
-      '• `/commit <msg>` - Commit changes\n' +
       '• `/review` - Review changes\n' +
       '• `/test` - Run tests\n' +
       '• `/build` - Build project\n\n' +

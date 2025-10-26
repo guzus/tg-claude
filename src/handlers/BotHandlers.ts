@@ -74,14 +74,6 @@ export class BotHandlers {
     return this.taskHandlers.executeBeastMode(msg, prompt);
   }
 
-  async handleCommit(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    return this.taskHandlers.handleCommit(msg, match);
-  }
-
-  async handleRead(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    return this.taskHandlers.handleRead(msg, match);
-  }
-
   async handleReview(msg: Message): Promise<void> {
     return this.taskHandlers.handleReview(msg);
   }

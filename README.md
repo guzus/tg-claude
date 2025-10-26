@@ -124,8 +124,6 @@ Telegram Client ↔ TypeScript Bot ↔ Claude Code CLI
 ✅ **Telegram Commands**
 - `/start` - Welcome and help
 - `/task <description>` - Execute custom tasks
-- `/commit <message>` - Git commit and push
-- `/read <url>` - Read documentation
 - `/review` - Review code changes
 - `/test` - Run tests
 - `/build` - Build project
@@ -239,26 +237,6 @@ Bot: 🤖 Task started...
 [Claude analyzes and fixes]
 Bot: ✅ Completed (12s)
 Fixed authentication bug in src/auth/login.ts:45
-```
-
-#### Commit and Push
-
-```
-/commit Add user profile caching feature
-
-Bot: ✅ Committed 3 files
-Pushed to origin/main successfully
-```
-
-#### Read Documentation
-
-```
-/read https://react.dev/learn/hooks
-
-Bot: ✅ Summary of React Hooks:
-- useState for state management
-- useEffect for side effects
-...
 ```
 
 #### Review Code
@@ -807,8 +785,6 @@ All via Telegram:
 
 - `/start` - Show welcome and help
 - `/task <description>` - Execute task
-- `/commit <message>` - Git commit and push
-- `/read <url>` - Read documentation
 - `/review` - Review code changes
 - `/test` - Run tests
 - `/build` - Build project
