@@ -144,7 +144,7 @@ export class TaskHandlers extends BaseHandler {
           let commitUrl = '';
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
-              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir, commitMessageContext);
+              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir);
               let shouldPush = false;
 
               if (commitHash) {

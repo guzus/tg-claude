@@ -671,7 +671,7 @@ export class ClaudeExecutor {
    * Auto-commit changes in the working directory
    * Returns commit hash if successful, null otherwise
    */
-  async autoCommitChanges(workingDir: string, taskPrompt: string): Promise<string | null> {
+  async autoCommitChanges(workingDir: string): Promise<string | null> {
     try {
       // Check if there are changes to commit
       const hasChanges = await this.hasUncommittedChanges(workingDir);
@@ -689,8 +689,8 @@ export class ClaudeExecutor {
         timeout: 10000
       });
 
-      // Generate appropriate commit message using Claude
-      const commitMessage = await this.generateCommitMessage(taskPrompt, workingDir);
+      // Generate appropriate commit message using Claude (based on git diff only)
+      const commitMessage = await this.generateCommitMessage(workingDir);
 
       // Commit changes (escape double quotes in message)
       const escapedMessage = commitMessage.replace(/"/g, '\\"');
@@ -725,11 +725,12 @@ export class ClaudeExecutor {
 
   /**
    * Generate an appropriate commit message using Claude CLI
+   * Analyzes git diff to determine what changed and creates a conventional commit message
    */
-  private async generateCommitMessage(taskPrompt: string, workingDir: string): Promise<string> {
+  private async generateCommitMessage(workingDir: string): Promise<string> {
     try {
-      // Get the git diff of staged changes
-      const { stdout: gitDiff } = await execAsync('git diff --cached', {
+      // Get the git diff of all changes (staged and unstaged) compared to HEAD
+      const { stdout: gitDiff } = await execAsync('git diff HEAD', {
         cwd: workingDir,
         timeout: 10000
       });
@@ -746,10 +747,10 @@ export class ClaudeExecutor {
         ? gitDiff.substring(0, maxDiffSize) + '\n\n... (diff truncated)'
         : gitDiff;
 
-      // Create prompt for Claude
+      // Create prompt for Claude - analyze ONLY the changes, not the task description
       const prompt = `You are a helpful assistant that generates conventional commit messages.
 
-Task that was executed: ${taskPrompt}
+Analyze the following changes and generate an appropriate commit message.
 
 Files changed:
 ${gitStatus}
@@ -760,7 +761,7 @@ ${diff}
 Generate a concise, professional commit message following conventional commits format (type: description).
 - Use one of these types: feat, fix, docs, style, refactor, test, chore
 - Keep the description under 72 characters
-- Be specific about what changed
+- Be specific about what changed based on the diff
 - Do not add any markdown formatting or extra explanation
 - Return ONLY the commit message, nothing else
 
@@ -779,11 +780,10 @@ Example format: "feat: Add user authentication system"`;
         }
       );
 
-      const commitMessage = claudeResponse.trim().split('\n')[0] || `chore: ${taskPrompt.substring(0, 72)}`;
+      const commitMessage = claudeResponse.trim().split('\n')[0] || 'chore: Update code';
 
       logger.info('Generated commit message with Claude CLI', {
-        commitMessage,
-        taskPrompt: taskPrompt.substring(0, 50)
+        commitMessage
       });
 
       return commitMessage;
@@ -792,8 +792,8 @@ Example format: "feat: Add user authentication system"`;
         error: error instanceof Error ? error.message : String(error)
       });
 
-      // Fallback to simple message if Claude fails
-      return `chore: ${taskPrompt.substring(0, 72)}`;
+      // Fallback to generic message if Claude fails
+      return 'chore: Update code';
     }
   }
 
