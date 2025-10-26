@@ -5,15 +5,18 @@ import { v4 as uuidv4 } from 'uuid';
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
 import { config } from '../config';
+import { UserConfigManager } from './UserConfigManager';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
   private baseWorkspacePath: string;
   private githubToken: string | undefined;
+  private userConfigManager: UserConfigManager | undefined;
 
-  constructor(baseWorkspacePath?: string) {
+  constructor(baseWorkspacePath?: string, userConfigManager?: UserConfigManager) {
     this.baseWorkspacePath = baseWorkspacePath || config.workspacePath;
     this.githubToken = process.env.GITHUB_TOKEN;
+    this.userConfigManager = userConfigManager;
 
     if (this.githubToken) {
       logger.info('GitHub token found - will use for git operations', {
@@ -96,12 +99,54 @@ export class RepositoryManager {
       // Scan for existing repositories
       await this.discoverRepositories();
 
+      // Restore currentRepositoryId from UserConfig for all users
+      if (this.userConfigManager) {
+        await this.restoreCurrentRepositories();
+      }
+
       logger.info('RepositoryManager initialized', {
         totalUsers: this.userSessions.size,
         totalRepos: this.getTotalRepositoryCount()
       });
     } catch (error) {
       logger.error('Failed to initialize RepositoryManager', {
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  /**
+   * Restore current repository IDs from UserConfig
+   */
+  private async restoreCurrentRepositories(): Promise<void> {
+    if (!this.userConfigManager) return;
+
+    try {
+      const userIds = this.userConfigManager.getUserIds();
+
+      for (const userId of userIds) {
+        const userConfig = await this.userConfigManager.getConfig(userId);
+
+        if (userConfig.currentRepositoryId) {
+          const session = this.getUserSession(userId);
+
+          // Check if the repository exists in the session
+          if (session.repositories.has(userConfig.currentRepositoryId)) {
+            session.currentRepositoryId = userConfig.currentRepositoryId;
+            logger.info('Restored current repository from config', {
+              userId,
+              repositoryId: userConfig.currentRepositoryId
+            });
+          } else {
+            logger.debug('Current repository not found in session', {
+              userId,
+              repositoryId: userConfig.currentRepositoryId
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to restore current repositories', {
         error: error instanceof Error ? error.message : String(error)
       });
     }
@@ -318,6 +363,20 @@ export class RepositoryManager {
       session.repositories.set(repoId, repository);
       session.currentRepositoryId = repoId;
 
+      // Persist to UserConfig
+      if (this.userConfigManager) {
+        try {
+          await this.userConfigManager.updateConfig(userId, {
+            currentRepositoryId: repoId
+          });
+        } catch (error) {
+          logger.warn('Failed to persist current repository to config', {
+            userId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+
       logger.info('Repository cloned successfully', { repoId, repoName });
       return repository;
     } catch (error) {
@@ -366,6 +425,20 @@ export class RepositoryManager {
       // Store in session
       session.repositories.set(repoId, repository);
       session.currentRepositoryId = repoId;
+
+      // Persist to UserConfig
+      if (this.userConfigManager) {
+        try {
+          await this.userConfigManager.updateConfig(userId, {
+            currentRepositoryId: repoId
+          });
+        } catch (error) {
+          logger.warn('Failed to persist current repository to config', {
+            userId,
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
 
       logger.info('Repository created successfully', { repoId, name });
       return repository;
@@ -425,6 +498,20 @@ export class RepositoryManager {
     session.repositories.set(repoId, repository);
     session.currentRepositoryId = repoId;
 
+    // Persist to UserConfig
+    if (this.userConfigManager) {
+      try {
+        await this.userConfigManager.updateConfig(userId, {
+          currentRepositoryId: repoId
+        });
+      } catch (error) {
+        logger.warn('Failed to persist current repository to config', {
+          userId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
+
     logger.info('Existing repository added', { repoId, repoName, repoPath });
     return repository;
   }
@@ -432,7 +519,7 @@ export class RepositoryManager {
   /**
    * Switch to a different repository
    */
-  switchRepository(userId: number, repositoryId: string): Repository {
+  async switchRepository(userId: number, repositoryId: string): Promise<Repository> {
     const session = this.getUserSession(userId);
     const repository = session.repositories.get(repositoryId);
 
@@ -442,6 +529,22 @@ export class RepositoryManager {
 
     session.currentRepositoryId = repositoryId;
     repository.lastUsed = new Date();
+
+    // Persist to UserConfig
+    if (this.userConfigManager) {
+      try {
+        await this.userConfigManager.updateConfig(userId, {
+          currentRepositoryId: repositoryId
+        });
+        logger.debug('Persisted current repository to config', { userId, repositoryId });
+      } catch (error) {
+        logger.warn('Failed to persist current repository to config', {
+          userId,
+          repositoryId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
 
     logger.info('Switched repository', { userId, repositoryId, name: repository.name });
     return repository;

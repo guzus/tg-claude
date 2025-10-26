@@ -142,7 +142,7 @@ export class ConfigHandlers extends BaseHandler {
       `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +
       `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
-      `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 600000) / 1000}s\`\n\n` +
+      `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
       `_Last updated: ${config.updatedAt.toLocaleString()}_`;
 
     await this.bot.sendMessage(chatId, message, {
