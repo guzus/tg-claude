@@ -63,6 +63,16 @@ npm start
 - Create API key
 - Copy key
 
+**GitHub Token (Optional):**
+- Visit [github.com/settings/tokens](https://github.com/settings/tokens)
+- Click "Generate new token" → "Generate new token (classic)"
+- Set expiration (recommended: 90 days)
+- Select scopes:
+  - `repo` (Full control of private repositories)
+  - `read:org` (Read org and team membership)
+- Click "Generate token"
+- Copy token immediately (won't be shown again)
+
 ### Configure .env
 
 ```env
@@ -194,6 +204,9 @@ MAX_REQUESTS_PER_USER_PER_DAY=100
 LOG_LEVEL=info
 LOG_FILE=./logs/bot.log
 HEALTH_PORT=3000
+
+# GitHub Token (Optional - for private repos and gh CLI operations)
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 The bot validates configuration on startup and exits with error if invalid.
