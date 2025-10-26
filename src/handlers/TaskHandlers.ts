@@ -15,7 +15,8 @@ export class TaskHandlers extends BaseHandler {
   async executeAndStream(
     msg: Message,
     prompt: string,
-    workingDir?: string
+    workingDir?: string,
+    originalUserRequest?: string
   ): Promise<void> {
     const userId = msg.from!.id;
     const chatId = msg.chat.id;
@@ -25,11 +26,14 @@ export class TaskHandlers extends BaseHandler {
     // Use current repository if no working directory specified
     const actualWorkingDir = this.getWorkingDirectory(userId, workingDir);
 
+    // Use original user request for commit messages, fallback to prompt
+    const commitMessageContext = originalUserRequest || prompt;
+
     try {
       // Send initial status message
       const statusMsg = await this.bot.sendMessage(
         chatId,
-        `🤖 Task started...\n\n\`\`\`\n${prompt.substring(0, 200)}\n\`\`\``,
+        `🤖 Task started...\n\n\`\`\`\n${commitMessageContext.substring(0, 200)}\n\`\`\``,
         { parse_mode: 'Markdown' }
       );
 
@@ -140,7 +144,7 @@ export class TaskHandlers extends BaseHandler {
           let commitUrl = '';
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
-              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir, prompt);
+              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir, commitMessageContext);
               let shouldPush = false;
 
               if (commitHash) {
@@ -321,7 +325,7 @@ export class TaskHandlers extends BaseHandler {
           this.auditLogger.logCommand({
             userId,
             username,
-            command: prompt,
+            command: commitMessageContext,
             taskId: task.id,
             success: currentTask.status === TaskStatus.COMPLETED,
             executionTime,
@@ -339,7 +343,7 @@ export class TaskHandlers extends BaseHandler {
       this.auditLogger.logCommand({
         userId,
         username,
-        command: prompt,
+        command: commitMessageContext,
         success: false,
         executionTime,
         error: errorMessage
@@ -347,7 +351,7 @@ export class TaskHandlers extends BaseHandler {
 
       logger.error('Task execution failed', {
         userId,
-        prompt: prompt.substring(0, 100),
+        prompt: commitMessageContext.substring(0, 100),
         error: errorMessage
       });
     }
@@ -398,7 +402,7 @@ IMPORTANT: After completing the coding task:
 
 Always commit and push your changes after completing the task unless explicitly told not to.`;
 
-    await this.executeAndStream(msg, augmentedPrompt);
+    await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
 
   /**
@@ -441,8 +445,8 @@ Always commit and push your changes after completing the task unless explicitly 
       false // Not beast mode for plain messages
     );
 
-    // Execute with enhanced prompt
-    await this.executeAndStream(msg, enhancedPrompt);
+    // Execute with enhanced prompt, passing original user message for commit messages
+    await this.executeAndStream(msg, enhancedPrompt, undefined, userMessage);
   }
 
   /**
@@ -475,7 +479,7 @@ Always commit and push your changes after completing the task unless explicitly 
       true // Beast mode ON
     );
 
-    await this.executeAndStream(msg, beastPrompt);
+    await this.executeAndStream(msg, beastPrompt, undefined, userRequest);
   }
 
   /**
