@@ -8,7 +8,14 @@ import { AuditLogger } from './services/AuditLogger';
 import { RepositoryManager } from './services/RepositoryManager';
 import { ConversationManager } from './services/ConversationManager';
 import { UserConfigManager } from './services/UserConfigManager';
+import { GitHubService } from './services/GitHubService';
 import { BotHandlers } from './handlers/BotHandlers';
+
+// Initialize GitHub service and authenticate
+const githubService = new GitHubService(config.githubToken);
+(async () => {
+  await githubService.authenticate();
+})();
 
 // Validate configuration
 try {

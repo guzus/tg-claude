@@ -6,6 +6,7 @@ dotenv.config();
 export const config: BotConfig = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
   claudeApiKey: process.env.CLAUDE_API_KEY || '',
+  githubToken: process.env.GITHUB_TOKEN || '',
   allowedUserIds: process.env.ALLOWED_USER_IDS
     ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
     : [],
