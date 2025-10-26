@@ -220,6 +220,17 @@ export class RepositoryManager {
             gitUrl = undefined;
           }
 
+          // Check if this repository was previously deleted
+          const wasDeleted = await this.isRepositoryDeleted(userId, gitUrl, repoPath);
+          if (wasDeleted) {
+            logger.debug('Skipping deleted repository during discovery', {
+              userId,
+              repoPath,
+              gitUrl
+            });
+            continue;
+          }
+
           const repository: Repository = {
             id: repoId,
             name: entry.name,
