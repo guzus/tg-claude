@@ -59,10 +59,6 @@ export class BotHandlers {
     return this.utilityHandlers.handleDebug(msg, this.taskHandlers);
   }
 
-  async handleScan(msg: Message): Promise<void> {
-    return this.utilityHandlers.handleScan(msg);
-  }
-
   // ==================== Task Commands ====================
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -72,18 +68,6 @@ export class BotHandlers {
   async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
     const prompt = match?.[1] || '';
     return this.taskHandlers.executeBeastMode(msg, prompt);
-  }
-
-  async handleReview(msg: Message): Promise<void> {
-    return this.taskHandlers.handleReview(msg);
-  }
-
-  async handleTest(msg: Message): Promise<void> {
-    return this.taskHandlers.handleTest(msg);
-  }
-
-  async handleBuild(msg: Message): Promise<void> {
-    return this.taskHandlers.handleBuild(msg);
   }
 
   // ==================== Repository Commands ====================

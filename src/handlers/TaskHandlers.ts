@@ -402,36 +402,6 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
-   * /review command
-   */
-  async handleReview(msg: Message): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const prompt = 'Review the current code changes and provide feedback';
-    await this.executeAndStream(msg, prompt);
-  }
-
-  /**
-   * /test command
-   */
-  async handleTest(msg: Message): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const prompt = 'Run all tests and report results';
-    await this.executeAndStream(msg, prompt);
-  }
-
-  /**
-   * /build command
-   */
-  async handleBuild(msg: Message): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const prompt = 'Build the project and fix any errors';
-    await this.executeAndStream(msg, prompt);
-  }
-
-  /**
    * Handle plain text messages (no /task prefix needed)
    */
   async handlePlainMessage(msg: Message): Promise<void> {

@@ -27,10 +27,7 @@ export class UtilityHandlers extends BaseHandler {
       `📁 *Repository Management:*\n` +
       `/repo - Manage repositories (clone/new/list/switch)\n\n` +
       `🛠️ *Development:*\n` +
-      `/task <description> - Execute a task\n` +
-      `/review - Review code changes\n` +
-      `/test - Run tests\n` +
-      `/build - Build project\n\n` +
+      `/task <description> - Execute a task\n\n` +
       `ℹ️ *Status & Help:*\n` +
       `/status - Check active tasks\n` +
       `/cancel <taskId> - Cancel a task\n` +
@@ -194,33 +191,5 @@ export class UtilityHandlers extends BaseHandler {
     });
   }
 
-  /**
-   * /scan command - Rescan for repositories
-   */
-  async handleScan(msg: Message): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const chatId = msg.chat.id;
-
-    await this.bot.sendMessage(chatId, '🔍 Scanning for repositories...');
-
-    try {
-      const result = await this.repositoryManager.rescan();
-
-      await this.bot.sendMessage(
-        chatId,
-        `✅ *Repository Scan Complete*\n\n` +
-        `👥 Users: ${result.usersFound}\n` +
-        `📁 New repositories found: ${result.reposFound}\n\n` +
-        `Use \`/repo list\` to see all repositories.`,
-        { parse_mode: 'Markdown' }
-      );
-    } catch (error) {
-      await this.bot.sendMessage(
-        chatId,
-        '❌ Scan failed: ' + (error instanceof Error ? error.message : String(error))
-      );
-    }
-  }
 }
 

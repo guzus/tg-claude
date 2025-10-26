@@ -210,7 +210,7 @@ export class CallbackQueryHandler extends BaseHandler {
         'No repositories found.\n\n' +
         'Use `/repo clone <url>` to clone a repository\n' +
         'Use `/repo new <name>` to create a new repository\n' +
-        'Use `/scan` to discover existing repositories',
+        'Use `/repo add <path>` to add an existing repository',
         {
           chat_id: chatId,
           message_id: messageId,
@@ -264,8 +264,8 @@ export class CallbackQueryHandler extends BaseHandler {
       '`/repo clone <git-url>`\n\n' +
       '*Create new repository:*\n' +
       '`/repo new <name>`\n\n' +
-      '*Scan for existing repositories:*\n' +
-      '`/scan`';
+      '*Add existing repository:*\n' +
+      '`/repo add <path>`';
 
     await this.bot.editMessageText(message, {
       chat_id: chatId,
@@ -536,13 +536,9 @@ export class CallbackQueryHandler extends BaseHandler {
     const message =
       '❓ *Help*\n\n' +
       '*Repository Management:*\n' +
-      '• `/repo` - Manage repositories\n' +
-      '• `/scan` - Scan for repositories\n\n' +
+      '• `/repo` - Manage repositories\n\n' +
       '*Development:*\n' +
-      '• `/task <desc>` - Execute task\n' +
-      '• `/review` - Review changes\n' +
-      '• `/test` - Run tests\n' +
-      '• `/build` - Build project\n\n' +
+      '• `/task <desc>` - Execute task\n\n' +
       '*Status & Info:*\n' +
       '• `/status` - Check active tasks\n' +
       '• `/logs <id>` - View task logs\n' +

@@ -36,7 +36,6 @@ export class RepositoryHandlers extends BaseHandler {
         `/repo switch <id> - Switch to repository\n` +
         `/repo current - Show current repository\n` +
         `/repo delete <id> - Delete repository\n\n` +
-        `💡 Tip: Use \`/scan\` to discover existing repos\n\n` +
         `Examples:\n` +
         `\`/repo clone guzus/poly-mm\`\n` +
         `\`/repo clone https://github.com/user/repo.git\`\n` +

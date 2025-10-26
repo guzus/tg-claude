@@ -124,9 +124,6 @@ Telegram Client ↔ TypeScript Bot ↔ Claude Code CLI
 ✅ **Telegram Commands**
 - `/start` - Welcome and help
 - `/task <description>` - Execute custom tasks
-- `/review` - Review code changes
-- `/test` - Run tests
-- `/build` - Build project
 - `/status` - Show active tasks
 - `/cancel <id>` - Cancel tasks
 - `/limits` - Check rate limits
@@ -237,17 +234,6 @@ Bot: 🤖 Task started...
 [Claude analyzes and fixes]
 Bot: ✅ Completed (12s)
 Fixed authentication bug in src/auth/login.ts:45
-```
-
-#### Review Code
-
-```
-/review
-
-Bot: ✅ Code Review:
-✅ Good separation of concerns
-⚠️  Consider error handling in UserService.ts:123
-💡 Suggestion: Extract validation logic
 ```
 
 #### Check Status
@@ -785,9 +771,6 @@ All via Telegram:
 
 - `/start` - Show welcome and help
 - `/task <description>` - Execute task
-- `/review` - Review code changes
-- `/test` - Run tests
-- `/build` - Build project
 - `/status` - Show active tasks
 - `/cancel <id>` - Cancel task
 - `/limits` - Check rate limits
