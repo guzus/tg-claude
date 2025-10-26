@@ -606,19 +606,19 @@ export class RepositoryManager {
     const session = this.getUserSession(userId);
     const allRepos = Array.from(session.repositories.values());
 
-    // Filter out deleted repositories
+    // Filter out deleted repositories (without modifying the session)
     const activeRepos: Repository[] = [];
     for (const repo of allRepos) {
       const isDeleted = await this.isRepositoryDeleted(userId, repo.gitUrl, repo.path);
       if (!isDeleted) {
         activeRepos.push(repo);
       } else {
-        // Remove from session if it's in the deleted list
-        session.repositories.delete(repo.id);
-        logger.debug('Filtered out deleted repository from list', {
+        // Log but don't remove from session here to avoid unexpected state changes
+        logger.debug('Filtered out deleted repository from list (still in session)', {
           repositoryId: repo.id,
           name: repo.name,
-          path: repo.path
+          path: repo.path,
+          gitUrl: repo.gitUrl
         });
       }
     }
@@ -734,6 +734,32 @@ export class RepositoryManager {
   }
 
   /**
+   * Normalize a git URL for comparison by removing authentication, protocol variations, and .git suffix
+   */
+  private normalizeGitUrl(gitUrl: string): string {
+    if (!gitUrl) return '';
+
+    let normalized = gitUrl.trim().toLowerCase();
+
+    // Remove authentication tokens (https://token@github.com or https://user:token@github.com)
+    normalized = normalized.replace(/https?:\/\/[^@]+@/, 'https://');
+
+    // Convert SSH to HTTPS (git@github.com:user/repo -> https://github.com/user/repo)
+    normalized = normalized.replace(/^git@([^:]+):/, 'https://$1/');
+
+    // Remove www. prefix
+    normalized = normalized.replace('://www.', '://');
+
+    // Remove trailing slashes
+    normalized = normalized.replace(/\/+$/, '');
+
+    // Remove .git suffix
+    normalized = normalized.replace(/\.git$/, '');
+
+    return normalized;
+  }
+
+  /**
    * Check if a repository is in the deleted list
    */
   private async isRepositoryDeleted(
@@ -750,9 +776,13 @@ export class RepositoryManager {
       const deletedRepos = userConfig.deletedRepositories || [];
 
       return deletedRepos.some((deleted) => {
-        // Match by git URL if both are available
-        if (gitUrl && deleted.gitUrl && gitUrl === deleted.gitUrl) {
-          return true;
+        // Match by git URL if both are available (using normalized URLs)
+        if (gitUrl && deleted.gitUrl) {
+          const normalizedGitUrl = this.normalizeGitUrl(gitUrl);
+          const normalizedDeletedUrl = this.normalizeGitUrl(deleted.gitUrl);
+          if (normalizedGitUrl && normalizedDeletedUrl && normalizedGitUrl === normalizedDeletedUrl) {
+            return true;
+          }
         }
         // Match by path if available
         if (repoPath && deleted.path === repoPath) {
