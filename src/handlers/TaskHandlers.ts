@@ -258,6 +258,13 @@ export class TaskHandlers extends BaseHandler {
                 contentType: 'text/plain'
               });
             }
+
+            // Send simple notification message
+            await this.bot.sendMessage(
+              chatId,
+              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
+              { parse_mode: 'Markdown' }
+            );
           } catch (error) {
             // If message is too long, send as document
             await this.bot.sendDocument(
@@ -279,6 +286,13 @@ export class TaskHandlers extends BaseHandler {
                 reply_markup: repoKeyboard
               });
             }
+
+            // Send simple notification message
+            await this.bot.sendMessage(
+              chatId,
+              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
+              { parse_mode: 'Markdown' }
+            );
           }
 
           // Prompt user to create remote repository if needed
