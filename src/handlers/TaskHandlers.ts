@@ -16,7 +16,8 @@ export class TaskHandlers extends BaseHandler {
     msg: Message,
     prompt: string,
     workingDir?: string,
-    originalUserRequest?: string
+    originalUserRequest?: string,
+    beastMode: boolean = false
   ): Promise<void> {
     const userId = msg.from!.id;
     const chatId = msg.chat.id;
@@ -29,11 +30,16 @@ export class TaskHandlers extends BaseHandler {
     // Use original user request for commit messages, fallback to prompt
     const commitMessageContext = originalUserRequest || prompt;
 
+    // Check if beast mode is enabled from user config
+    const userConfig = this.userConfigManager ? await this.userConfigManager.getConfig(userId) : null;
+    const isBeastModeEnabled = beastMode || (userConfig?.preferences?.beastModeEnabled ?? false);
+
     try {
-      // Send initial status message
+      // Send initial status message with beast mode indicator
+      const beastModeBadge = UIHelpers.getBeastModeBadge(isBeastModeEnabled);
       const statusMsg = await this.bot.sendMessage(
         chatId,
-        `🤖 Task started...\n\n\`\`\`\n${commitMessageContext.substring(0, 200)}\n\`\`\``,
+        `${beastModeBadge}🤖 Task started...\n\n\`\`\`\n${commitMessageContext.substring(0, 200)}\n\`\`\``,
         { parse_mode: 'Markdown' }
       );
 
@@ -84,14 +90,15 @@ export class TaskHandlers extends BaseHandler {
           // Build status message
           let newUpdateText;
           const preview = combinedOutput.slice(-1500).trim();
+          const beastModeBadge = UIHelpers.getBeastModeBadge(isBeastModeEnabled);
 
           if (!preview) {
             // No output yet - just show waiting message
-            newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
+            newUpdateText = `${beastModeBadge}⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
           } else {
             // Has output - show it with current action
             const actionLine = currentAction ? `📌 ${currentAction}\n\n` : '';
-            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n${actionLine}\`\`\`\n${preview}\n\`\`\``;
+            newUpdateText = `${beastModeBadge}🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n${actionLine}\`\`\`\n${preview}\n\`\`\``;
           }
 
           // Create control buttons
@@ -485,15 +492,235 @@ Always commit and push your changes after completing the task unless explicitly 
 
     const context = this.conversationManager?.getContext(userId);
 
-    // Build beast mode prompt
-    const beastPrompt = PromptBuilder.buildEnhancedPrompt(
-      userRequest,
-      currentRepo,
-      context,
-      true // Beast mode ON
+    // Execute with iterations
+    await this.executeWithIterations(msg, userRequest, currentRepo, context);
+  }
+
+  /**
+   * Execute task with iterative improvements until perfect
+   */
+  private async executeWithIterations(
+    msg: Message,
+    userRequest: string,
+    currentRepo: any,
+    context?: string
+  ): Promise<void> {
+    const userId = msg.from!.id;
+    const chatId = msg.chat.id;
+    const maxIterations = 5; // Safety limit to prevent infinite loops
+    let iteration = 0;
+    let continueIterating = true;
+
+    while (continueIterating && iteration < maxIterations) {
+      iteration++;
+
+      // Notify about iteration
+      if (iteration > 1) {
+        await this.bot.sendMessage(
+          chatId,
+          `🔄 *Iteration ${iteration}/${maxIterations}*\n\nContinuing beast mode execution...`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+
+      // Build beast mode prompt
+      const beastPrompt = PromptBuilder.buildEnhancedPrompt(
+        userRequest,
+        currentRepo,
+        context,
+        true // Beast mode ON
+      );
+
+      // Execute the task
+      await this.executeAndStream(msg, beastPrompt, undefined, userRequest, true);
+
+      // Get the last task output
+      const tasks = Array.from(this.executor.getAllTasks().values());
+      const lastTask = tasks[tasks.length - 1];
+
+      if (!lastTask) {
+        logger.warn('No task found for beast mode iteration', { userId, iteration });
+        break;
+      }
+
+      // Check if task failed - stop iterations
+      if (lastTask.status === TaskStatus.FAILED || lastTask.status === TaskStatus.TIMEOUT) {
+        logger.info('Task failed or timed out, stopping iterations', {
+          userId,
+          iteration,
+          status: lastTask.status
+        });
+        continueIterating = false;
+        break;
+      }
+
+      // Get task output for evaluation
+      const taskOutput = this.executor.getTaskOutput(lastTask.id);
+
+      // Check if we should continue iterating
+      continueIterating = await this.shouldContinueIteration(
+        msg,
+        userRequest,
+        taskOutput,
+        iteration,
+        maxIterations
+      );
+
+      logger.info('Beast mode iteration evaluation', {
+        userId,
+        iteration,
+        continueIterating
+      });
+    }
+
+    // Send final summary
+    if (iteration >= maxIterations) {
+      await this.bot.sendMessage(
+        chatId,
+        `🚦 *Beast Mode Complete*\n\nReached maximum iterations (${maxIterations}). Task execution stopped.`,
+        { parse_mode: 'Markdown' }
+      );
+    } else {
+      await this.bot.sendMessage(
+        chatId,
+        `🚦 *Beast Mode Complete*\n\nTask completed in ${iteration} iteration(s).`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+  }
+
+  /**
+   * Evaluate if we should continue with another iteration
+   */
+  private async shouldContinueIteration(
+    msg: Message,
+    originalRequest: string,
+    previousOutput: string,
+    currentIteration: number,
+    maxIterations: number
+  ): Promise<boolean> {
+    const userId = msg.from!.id;
+    const chatId = msg.chat.id;
+
+    // Build evaluation prompt
+    const evaluationPrompt = PromptBuilder.buildEvaluationPrompt(
+      originalRequest,
+      previousOutput
     );
 
-    await this.executeAndStream(msg, beastPrompt, undefined, userRequest);
+    logger.info('Evaluating task for next iteration', {
+      userId,
+      iteration: currentIteration,
+      outputLength: previousOutput.length
+    });
+
+    // Send evaluation notification
+    await this.bot.sendMessage(
+      chatId,
+      `🔍 Evaluating results...`,
+      { parse_mode: 'Markdown' }
+    );
+
+    // Execute evaluation
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) return false;
+
+    try {
+      const evalTask = await this.executor.executeTask(userId, chatId, evaluationPrompt, {
+        workingDir: currentRepo.path,
+        timeout: 60000 // 1 minute timeout for evaluation
+      });
+
+      // Wait for evaluation to complete (with timeout)
+      const startTime = Date.now();
+      const evalTimeout = 90000; // 1.5 minutes
+
+      while (true) {
+        const task = this.executor.getTask(evalTask.id);
+        if (!task) break;
+
+        if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
+          const evalOutput = this.executor.getTaskOutput(evalTask.id);
+
+          // Parse evaluation response
+          const action = this.parseEvaluationAction(evalOutput);
+
+          logger.info('Evaluation result', {
+            userId,
+            iteration: currentIteration,
+            action
+          });
+
+          // Send evaluation result to user
+          if (action && action !== 'COMPLETE') {
+            await this.bot.sendMessage(
+              chatId,
+              `📋 *Evaluation Result*\n\nAction: ${action}\n\nProceeding with next iteration...`,
+              { parse_mode: 'Markdown' }
+            );
+          }
+
+          return action !== 'COMPLETE' && currentIteration < maxIterations;
+        }
+
+        // Check timeout
+        if (Date.now() - startTime > evalTimeout) {
+          logger.warn('Evaluation timeout', { userId, iteration: currentIteration });
+          return false; // Don't continue if evaluation times out
+        }
+
+        // Wait a bit before checking again
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    } catch (error) {
+      logger.error('Evaluation failed', {
+        userId,
+        iteration: currentIteration,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+
+    return false; // Default to not continuing on error
+  }
+
+  /**
+   * Parse the evaluation action from Claude's response
+   */
+  private parseEvaluationAction(output: string): string | null {
+    if (!output) return null;
+
+    // Look for ACTION: <action> in the output
+    const actionMatch = output.match(/ACTION:\s*(FIX|CONTINUE|NEW_OBJECTIVE|COMPLETE)/i);
+    if (actionMatch) {
+      return actionMatch[1].toUpperCase();
+    }
+
+    // Fallback: look for indicators in the output
+    if (output.toLowerCase().includes('action: complete') ||
+        output.toLowerCase().includes('task is complete') ||
+        output.toLowerCase().includes('everything is done')) {
+      return 'COMPLETE';
+    }
+
+    if (output.toLowerCase().includes('action: fix') ||
+        output.toLowerCase().includes('need to fix') ||
+        output.toLowerCase().includes('bug') ||
+        output.toLowerCase().includes('error')) {
+      return 'FIX';
+    }
+
+    if (output.toLowerCase().includes('action: continue') ||
+        output.toLowerCase().includes('incomplete') ||
+        output.toLowerCase().includes('still need')) {
+      return 'CONTINUE';
+    }
+
+    if (output.toLowerCase().includes('action: new_objective') ||
+        output.toLowerCase().includes('next_objective:')) {
+      return 'NEW_OBJECTIVE';
+    }
+
+    return 'COMPLETE'; // Default to complete if unclear
   }
 
   /**

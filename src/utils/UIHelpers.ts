@@ -273,4 +273,20 @@ export class UIHelpers {
     const truncated = text.substring(0, maxLength - 50);
     return truncated + '\n\n... (message truncated)';
   }
+
+  /**
+   * Gets the beast mode indicator emoji
+   * Returns traffic light emoji when beast mode is active
+   */
+  static getBeastModeIndicator(beastModeEnabled: boolean): string {
+    return beastModeEnabled ? '🚦 ' : '';
+  }
+
+  /**
+   * Creates a beast mode status badge
+   */
+  static getBeastModeBadge(beastModeEnabled: boolean): string {
+    if (!beastModeEnabled) return '';
+    return '🚦 *BEAST MODE*\n';
+  }
 }

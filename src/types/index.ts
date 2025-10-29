@@ -130,6 +130,7 @@ export interface UserConfig {
     autoPush?: boolean;
     notifyOnTaskComplete?: boolean;
     dangerModeEnabled?: boolean;
+    beastModeEnabled?: boolean;
   };
   limits?: {
     maxConcurrentTasks?: number;

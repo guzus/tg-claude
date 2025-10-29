@@ -140,10 +140,28 @@ You are operating in **autonomous mode**. This means:
 - Make reasonable assumptions when requirements are ambiguous
 - Prioritize working code over perfection
 
+### Self-Evaluation and Planning
+At the end of your work, you MUST evaluate:
+1. **Task Completion**: Is the original request fully implemented and working?
+2. **Quality Check**: Are there any bugs, test failures, or issues?
+3. **New Objectives**: Did you discover any related tasks that should be done?
+
+If you find:
+- Bugs or test failures → Fix them immediately
+- Incomplete features → Continue implementation
+- New related objectives → Document them clearly at the end with prefix "NEXT_OBJECTIVE:"
+
+Format for new objectives:
+\`\`\`
+NEXT_OBJECTIVE: Brief description of what needs to be done next
+Explanation: Why this is needed and how it relates to the current work
+\`\`\`
+
 ### Stopping Criteria
 Only stop when:
 - The task is fully complete and working
 - Tests are passing (if applicable)
+- No bugs or obvious issues remain
 - You hit a genuine blocker requiring human input
 - You need clarification on requirements
 
@@ -153,8 +171,81 @@ Provide a summary of:
 - Changes made to which files
 - Any tests run and their results
 - Known limitations or areas for future improvement
+- Any NEXT_OBJECTIVE items discovered
 
 **Remember**: You have full autonomy. Be bold, make decisions, and get the job done!`;
+  }
+
+  /**
+   * Build self-evaluation prompt for beast mode iteration
+   */
+  static buildEvaluationPrompt(
+    originalRequest: string,
+    previousOutput: string
+  ): string {
+    return `# Task Evaluation
+
+## Original Request
+${originalRequest}
+
+## Previous Execution Output
+${previousOutput.slice(-3000)}
+
+## Your Task
+Evaluate the previous execution and determine:
+
+1. **Is the original request fully complete?**
+   - Check if all requirements are met
+   - Verify functionality works as expected
+   - Look for any incomplete implementations
+
+2. **Are there any bugs or failures?**
+   - Review any error messages
+   - Check for test failures
+   - Identify build issues
+
+3. **Did new objectives emerge?**
+   - Related features that should be added
+   - Code improvements discovered during implementation
+   - Technical debt that should be addressed
+
+## Response Format
+
+If work is needed, respond with ONE of these:
+
+### Option 1: Fix Issues
+If there are bugs or failures:
+\`\`\`
+ACTION: FIX
+ISSUE: Brief description of the problem
+PLAN: How you will fix it
+\`\`\`
+
+### Option 2: Continue Implementation
+If the task is incomplete:
+\`\`\`
+ACTION: CONTINUE
+REMAINING: What still needs to be done
+PLAN: Next steps to complete it
+\`\`\`
+
+### Option 3: New Objective
+If you found a related task:
+\`\`\`
+ACTION: NEW_OBJECTIVE
+OBJECTIVE: Brief description
+REASON: Why it's important
+PLAN: How to implement it
+\`\`\`
+
+### Option 4: Complete
+If everything is done and working:
+\`\`\`
+ACTION: COMPLETE
+SUMMARY: Brief summary of what was accomplished
+\`\`\`
+
+Based on your evaluation, what should happen next?`;
   }
 
   /**

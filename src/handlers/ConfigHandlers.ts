@@ -78,7 +78,8 @@ export class ConfigHandlers extends BaseHandler {
       `Commands:\n` +
       `/config show - View current configuration\n` +
       `/config set <key> <value> - Set a config value\n` +
-      `/config reset - Reset to defaults\n\n` +
+      `/config reset - Reset to defaults\n` +
+      `/beastmode - Toggle beast mode 🚦\n\n` +
       `Configuration keys:\n` +
       `• \`git.userName\` - Git user name\n` +
       `• \`git.userEmail\` - Git user email\n` +
@@ -87,6 +88,7 @@ export class ConfigHandlers extends BaseHandler {
       `• \`preferences.autoPush\` - Auto-push (true/false)\n` +
       `• \`preferences.notifyOnTaskComplete\` - Notifications (true/false)\n` +
       `• \`preferences.dangerModeEnabled\` - Danger mode (true/false)\n` +
+      `• \`preferences.beastModeEnabled\` - Beast mode (true/false)\n` +
       `• \`limits.maxConcurrentTasks\` - Max concurrent tasks (number)\n` +
       `• \`limits.taskTimeoutMs\` - Task timeout in ms (number)\n\n` +
       `Example:\n` +
@@ -139,7 +141,8 @@ export class ConfigHandlers extends BaseHandler {
       `💾 Auto Commit: ${config.preferences?.autoCommit ? '✅' : '❌'}\n` +
       `📤 Auto Push: ${config.preferences?.autoPush ? '✅' : '❌'}\n` +
       `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
-      `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
+      `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n` +
+      `🚦 Beast Mode: ${config.preferences?.beastModeEnabled ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +
       `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
       `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
@@ -280,6 +283,67 @@ export class ConfigHandlers extends BaseHandler {
         chatId,
         `❌ Failed to reset config: ${error instanceof Error ? error.message : String(error)}`
       );
+    }
+  }
+
+  /**
+   * /beastmode command - Toggle beast mode on/off
+   */
+  async handleBeastModeToggle(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      return;
+    }
+
+    try {
+      const config = await this.userConfigManager.getConfig(userId);
+      const currentState = config.preferences?.beastModeEnabled ?? false;
+      const newState = !currentState;
+
+      await this.userConfigManager.updateConfig(userId, {
+        preferences: {
+          beastModeEnabled: newState
+        }
+      });
+
+      const stateEmoji = newState ? '🚦 ON' : '⚫ OFF';
+      const message =
+        `${stateEmoji} *Beast Mode ${newState ? 'Enabled' : 'Disabled'}*\n\n` +
+        (newState
+          ? `🚦 Beast mode is now active! All tasks will run with:\n\n` +
+            `• Multiple iterations until perfect\n` +
+            `• Self-evaluation and planning\n` +
+            `• Automatic bug fixes\n` +
+            `• Discovery of new objectives\n\n` +
+            `Use \`/beast <request>\` or just send a message to execute tasks in beast mode.\n\n` +
+            `To disable, use \`/beastmode\` again.`
+          : `Beast mode is now disabled.\n\n` +
+            `Tasks will run in standard mode.\n\n` +
+            `To enable beast mode again, use \`/beastmode\`.`);
+
+      await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown'
+      });
+
+      logger.info('Beast mode toggled', {
+        userId,
+        previousState: currentState,
+        newState
+      });
+    } catch (error) {
+      await this.bot.sendMessage(
+        chatId,
+        `❌ Failed to toggle beast mode: ${error instanceof Error ? error.message : String(error)}`
+      );
+      logger.error('Beast mode toggle failed', {
+        userId,
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   }
 }

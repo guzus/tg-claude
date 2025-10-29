@@ -120,7 +120,8 @@ export class UserConfigManager {
         autoCommit: false,
         autoPush: false,
         notifyOnTaskComplete: true,
-        dangerModeEnabled: false
+        dangerModeEnabled: false,
+        beastModeEnabled: false
       },
       limits: {
         maxConcurrentTasks: 3,

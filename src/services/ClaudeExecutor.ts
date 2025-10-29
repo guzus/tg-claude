@@ -560,6 +560,13 @@ export class ClaudeExecutor {
   }
 
   /**
+   * Get all tasks (for iterative execution tracking)
+   */
+  getAllTasks(): Map<string, ClaudeTask> {
+    return this.taskHistory;
+  }
+
+  /**
    * Check if there are uncommitted changes in the working directory
    */
   async hasUncommittedChanges(workingDir: string): Promise<boolean> {

@@ -70,6 +70,10 @@ export class BotHandlers {
     return this.taskHandlers.executeBeastMode(msg, prompt);
   }
 
+  async handleBeastModeToggle(msg: Message): Promise<void> {
+    return this.configHandlers.handleBeastModeToggle(msg);
+  }
+
   // ==================== Repository Commands ====================
 
   async handleRepo(msg: Message, match: RegExpExecArray | null): Promise<void> {
