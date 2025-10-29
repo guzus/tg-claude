@@ -1028,6 +1028,181 @@ Example format: "feat: Add user authentication system"`;
   }
 
   /**
+   * Create a new branch from the current branch
+   * @param workingDir - Working directory path
+   * @param branchName - Name of the new branch
+   * @returns 'success' | 'already_exists' | 'failed'
+   */
+  async createBranch(workingDir: string, branchName: string): Promise<'success' | 'already_exists' | 'failed'> {
+    try {
+      // Check if branch already exists
+      const { stdout: branchList } = await execAsync('git branch --list', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      if (branchList.includes(branchName)) {
+        logger.info('Branch already exists', { workingDir, branchName });
+        return 'already_exists';
+      }
+
+      // Create and checkout new branch
+      await execAsync(`git checkout -b ${branchName}`, {
+        cwd: workingDir,
+        timeout: 10000
+      });
+
+      logger.info('Created new branch', { workingDir, branchName });
+      return 'success';
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to create branch', {
+        workingDir,
+        branchName,
+        error: errorMessage
+      });
+      return 'failed';
+    }
+  }
+
+  /**
+   * Get the default branch name from git config or use 'main'
+   */
+  async getDefaultBranchName(workingDir: string): Promise<string> {
+    try {
+      const { stdout } = await execAsync('git symbolic-ref refs/remotes/origin/HEAD', {
+        cwd: workingDir,
+        timeout: 5000
+      });
+      const branch = stdout.trim().replace('refs/remotes/origin/', '');
+      return branch || 'main';
+    } catch (error) {
+      // If that fails, try to get from remote
+      try {
+        const { stdout } = await execAsync('git remote show origin', {
+          cwd: workingDir,
+          timeout: 10000
+        });
+        const match = stdout.match(/HEAD branch: (.+)/);
+        if (match) {
+          return match[1].trim();
+        }
+      } catch (remoteError) {
+        logger.debug('Could not determine default branch from remote', { workingDir });
+      }
+      // Default to 'main'
+      return 'main';
+    }
+  }
+
+  /**
+   * Create a pull request using gh CLI
+   * @param workingDir - Working directory path
+   * @param title - PR title
+   * @param body - PR body/description
+   * @param baseBranch - Base branch to merge into (defaults to default branch)
+   * @returns Object with success status and PR URL if successful
+   */
+  async createPullRequest(
+    workingDir: string,
+    title: string,
+    body: string,
+    baseBranch?: string
+  ): Promise<{ success: boolean; prUrl?: string; error?: string }> {
+    try {
+      // Get the base branch if not provided
+      const base = baseBranch || await this.getDefaultBranchName(workingDir);
+
+      // Create PR using gh CLI
+      const { stdout } = await execAsync(
+        `gh pr create --title "${title.replace(/"/g, '\\"')}" --body "${body.replace(/"/g, '\\"')}" --base ${base}`,
+        {
+          cwd: workingDir,
+          timeout: 30000
+        }
+      );
+
+      // Extract PR URL from output
+      const prUrl = stdout.trim().split('\n').pop() || '';
+
+      logger.info('Created pull request', {
+        workingDir,
+        title,
+        base,
+        prUrl
+      });
+
+      return { success: true, prUrl };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to create pull request', {
+        workingDir,
+        title,
+        error: errorMessage
+      });
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Full PR workflow: create branch, push changes, and create PR
+   * @param workingDir - Working directory path
+   * @param commitMessage - The commit message to use for the PR title
+   * @returns Object with success status, PR URL, and any errors
+   */
+  async createBranchAndPullRequest(
+    workingDir: string,
+    commitMessage: string
+  ): Promise<{ success: boolean; prUrl?: string; branchName?: string; error?: string }> {
+    try {
+      // Generate unique branch name based on timestamp and commit message
+      const timestamp = Date.now().toString(36);
+      const sanitizedMessage = commitMessage
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 50);
+      const branchName = `claude/${sanitizedMessage}-${timestamp}`;
+
+      // Create new branch
+      const branchResult = await this.createBranch(workingDir, branchName);
+      if (branchResult === 'failed') {
+        return { success: false, error: 'Failed to create branch' };
+      }
+
+      // Push the branch
+      const pushResult = await this.autoPushChanges(workingDir);
+      if (pushResult === 'failed' || pushResult === 'no_remote') {
+        return { success: false, branchName, error: `Push failed: ${pushResult}` };
+      }
+
+      // Create PR
+      const prResult = await this.createPullRequest(
+        workingDir,
+        commitMessage,
+        `This pull request was automatically created by Claude.\n\n**Changes:**\n${commitMessage}`
+      );
+
+      if (!prResult.success) {
+        return { success: false, branchName, error: prResult.error };
+      }
+
+      return {
+        success: true,
+        branchName,
+        prUrl: prResult.prUrl
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      logger.error('Failed to create branch and pull request', {
+        workingDir,
+        error: errorMessage
+      });
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
    * Clean up old completed tasks
    */
   cleanupOldTasks(maxAge: number = 3600000): number {

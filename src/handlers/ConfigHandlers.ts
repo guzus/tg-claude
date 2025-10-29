@@ -85,6 +85,7 @@ export class ConfigHandlers extends BaseHandler {
       `• \`git.defaultBranch\` - Default branch name\n` +
       `• \`preferences.autoCommit\` - Auto-commit (true/false)\n` +
       `• \`preferences.autoPush\` - Auto-push (true/false)\n` +
+      `• \`preferences.createPullRequest\` - Create PR instead of direct push (true/false)\n` +
       `• \`preferences.notifyOnTaskComplete\` - Notifications (true/false)\n` +
       `• \`preferences.dangerModeEnabled\` - Danger mode (true/false)\n` +
       `• \`limits.maxConcurrentTasks\` - Max concurrent tasks (number)\n` +
@@ -138,6 +139,7 @@ export class ConfigHandlers extends BaseHandler {
       `*Preferences:*\n` +
       `💾 Auto Commit: ${config.preferences?.autoCommit ? '✅' : '❌'}\n` +
       `📤 Auto Push: ${config.preferences?.autoPush ? '✅' : '❌'}\n` +
+      `🔀 Create Pull Request: ${config.preferences?.createPullRequest ?? true ? '✅' : '❌'}\n` +
       `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
       `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +

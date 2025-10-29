@@ -185,27 +185,66 @@ export class TaskHandlers extends BaseHandler {
                   workingDir: actualWorkingDir
                 });
 
-                // Auto-push changes
-                const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+                // Check if user wants to create PR (default: true)
+                let createPullRequest = true;
+                if (this.userConfigManager) {
+                  const userConfig = await this.userConfigManager.getConfig(userId);
+                  createPullRequest = userConfig?.preferences?.createPullRequest ?? true;
+                }
 
-                logger.info('Auto-push result', {
+                logger.info('Push workflow decision', {
                   taskId: task.id,
-                  result: pushResult
+                  createPullRequest
                 });
 
-                if (pushResult === 'success') {
-                  commitInfo += ' & pushed to GitHub ✅\n';
-                  if (commitUrl) {
-                    commitInfo += `🔗 [View commit](${commitUrl})\n`;
+                if (createPullRequest && commitHash) {
+                  // Create branch and pull request workflow
+                  const prResult = await this.executor.createBranchAndPullRequest(
+                    actualWorkingDir,
+                    commitMessageContext.substring(0, 200)
+                  );
+
+                  logger.info('PR creation result', {
+                    taskId: task.id,
+                    success: prResult.success,
+                    branchName: prResult.branchName,
+                    prUrl: prResult.prUrl
+                  });
+
+                  if (prResult.success && prResult.prUrl) {
+                    commitInfo += ` & PR created ✅\n`;
+                    commitInfo += `🔗 [View Pull Request](${prResult.prUrl})\n`;
+                    commitInfo += `🌿 Branch: ${prResult.branchName}\n`;
+                  } else if (prResult.error?.includes('no_remote') || prResult.error?.includes('No configured push destination')) {
+                    commitInfo += '\n⚠️ No remote repository configured\n';
+                    needsRemoteSetup = true;
+                  } else {
+                    commitInfo += '\n⚠️ PR creation failed - check logs for details\n';
+                    pushError = `PR creation failed: ${prResult.error || 'Unknown error'}`;
                   }
-                } else if (pushResult === 'no_remote') {
-                  commitInfo += '\n⚠️ No remote repository configured\n';
-                  needsRemoteSetup = true;
-                } else if (pushResult === 'no_changes') {
-                  commitInfo += ' (already up to date)\n';
                 } else {
-                  commitInfo += '\n⚠️ Push failed - check logs for details\n';
-                  pushError = 'Push operation failed. This may be due to authentication or network issues.';
+                  // Direct push to current branch (traditional workflow)
+                  const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+
+                  logger.info('Auto-push result', {
+                    taskId: task.id,
+                    result: pushResult
+                  });
+
+                  if (pushResult === 'success') {
+                    commitInfo += ' & pushed to GitHub ✅\n';
+                    if (commitUrl) {
+                      commitInfo += `🔗 [View commit](${commitUrl})\n`;
+                    }
+                  } else if (pushResult === 'no_remote') {
+                    commitInfo += '\n⚠️ No remote repository configured\n';
+                    needsRemoteSetup = true;
+                  } else if (pushResult === 'no_changes') {
+                    commitInfo += ' (already up to date)\n';
+                  } else {
+                    commitInfo += '\n⚠️ Push failed - check logs for details\n';
+                    pushError = 'Push operation failed. This may be due to authentication or network issues.';
+                  }
                 }
               }
             } catch (error) {

@@ -130,6 +130,7 @@ export interface UserConfig {
     autoPush?: boolean;
     notifyOnTaskComplete?: boolean;
     dangerModeEnabled?: boolean;
+    createPullRequest?: boolean; // If true, create branch and PR; if false, push to current branch
   };
   limits?: {
     maxConcurrentTasks?: number;

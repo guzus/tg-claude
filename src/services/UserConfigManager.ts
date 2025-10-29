@@ -119,6 +119,7 @@ export class UserConfigManager {
       preferences: {
         autoCommit: false,
         autoPush: false,
+        createPullRequest: true, // Default to creating PRs instead of direct push
         notifyOnTaskComplete: true,
         dangerModeEnabled: false
       },
