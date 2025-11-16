@@ -9,6 +9,7 @@ import { RepositoryManager } from './services/RepositoryManager';
 import { ConversationManager } from './services/ConversationManager';
 import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
+import { MothershipService } from './services/MothershipService';
 import { BotHandlers } from './handlers/BotHandlers';
 
 // Initialize GitHub service and authenticate
@@ -35,6 +36,7 @@ const auditLogger = new AuditLogger();
 const userConfigManager = new UserConfigManager();
 const repositoryManager = new RepositoryManager(undefined, userConfigManager);
 const conversationManager = new ConversationManager();
+const mothershipService = new MothershipService();
 
 // Initialize repository manager and user config manager (discover existing repos and configs)
 (async () => {
@@ -59,7 +61,7 @@ const conversationManager = new ConversationManager();
 
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
@@ -122,18 +124,9 @@ bot.setMyCommands([
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
-  { command: 'scan', description: 'Scan workspace for existing repositories' },
+  { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
-  { command: 'debug', description: 'Run a simple test task' },
-  { command: 'commit', description: 'Commit changes and push to git' },
-  { command: 'read', description: 'Read and summarize documentation from URL' },
-  { command: 'review', description: 'Review current code changes' },
-  { command: 'test', description: 'Run all tests' },
-  { command: 'build', description: 'Build the project' },
   { command: 'status', description: 'Check active tasks' },
-  { command: 'logs', description: 'View full task logs' },
-  { command: 'cancel', description: 'Cancel a running task' },
-  { command: 'limits', description: 'Check your rate limits' },
   { command: 'config', description: 'Manage user configuration' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {
@@ -146,12 +139,9 @@ bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
+bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
-bot.onText(/\/debug/, (msg) => handlers.handleDebug(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
-bot.onText(/\/logs (.+)/, (msg, match) => handlers.handleLogs(msg, match));
-bot.onText(/\/cancel (.+)/, (msg, match) => handlers.handleCancel(msg, match));
-bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
