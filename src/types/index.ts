@@ -1,6 +1,15 @@
+export type LLMProvider = 'anthropic' | 'deepseek';
+
+export interface LLMProviderConfig {
+  provider: LLMProvider;
+  apiKey: string;
+  baseUrl?: string;  // Optional custom base URL
+  model?: string;    // Optional model override
+}
+
 export interface BotConfig {
   telegramToken: string;
-  claudeApiKey: string;
+  claudeApiKey: string;       // Legacy - prefer llmProvider
   githubToken: string;
   allowedUserIds: number[];
   workspacePath: string;
@@ -11,6 +20,7 @@ export interface BotConfig {
   logFile: string;
   maxRequestsPerUserPerHour: number;
   maxRequestsPerUserPerDay: number;
+  llmProvider?: LLMProviderConfig;  // New unified LLM provider config
 }
 
 export interface ClaudeTask {

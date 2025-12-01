@@ -165,10 +165,21 @@ export class ClaudeExecutor {
         hasApiKey: !!config.claudeApiKey
       });
 
-      // Build environment variables
-      // Claude CLI will use its own authentication if ANTHROPIC_API_KEY is not set
+      // Build environment variables for LLM provider
+      // Supports both Anthropic and DeepSeek (via Anthropic-compatible API)
       const env = { ...process.env };
-      if (config.claudeApiKey && !config.claudeApiKey.includes('your_claude_api_key_here')) {
+      if (config.llmProvider) {
+        // Use new unified provider config
+        env.ANTHROPIC_API_KEY = config.llmProvider.apiKey;
+        if (config.llmProvider.baseUrl) {
+          env.ANTHROPIC_BASE_URL = config.llmProvider.baseUrl;
+        }
+        logger.info('Using LLM provider', {
+          provider: config.llmProvider.provider,
+          hasBaseUrl: !!config.llmProvider.baseUrl
+        });
+      } else if (config.claudeApiKey && !config.claudeApiKey.includes('your_claude_api_key_here')) {
+        // Legacy: use claudeApiKey directly
         env.ANTHROPIC_API_KEY = config.claudeApiKey;
       }
 
@@ -767,16 +778,24 @@ Generate a concise, professional commit message following conventional commits f
 
 Example format: "feat: Add user authentication system"`;
 
+      // Build environment for Claude CLI with LLM provider support
+      const cliEnv = { ...process.env };
+      if (config.llmProvider) {
+        cliEnv.ANTHROPIC_API_KEY = config.llmProvider.apiKey;
+        if (config.llmProvider.baseUrl) {
+          cliEnv.ANTHROPIC_BASE_URL = config.llmProvider.baseUrl;
+        }
+      } else if (config.claudeApiKey) {
+        cliEnv.ANTHROPIC_API_KEY = config.claudeApiKey;
+      }
+
       // Use Claude CLI to generate commit message
       const { stdout: claudeResponse } = await execAsync(
         `claude "${prompt.replace(/"/g, '\\"')}"`,
         {
           cwd: workingDir,
           timeout: 30000,
-          env: {
-            ...process.env,
-            ANTHROPIC_API_KEY: config.claudeApiKey || process.env.ANTHROPIC_API_KEY
-          }
+          env: cliEnv
         }
       );
 
