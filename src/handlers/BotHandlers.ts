@@ -13,6 +13,7 @@ import { UtilityHandlers } from './UtilityHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
 import { MothershipHandlers } from './MothershipHandlers';
+import { MCPHandlers } from './MCPHandlers';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -25,6 +26,7 @@ export class BotHandlers {
   private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
   private mothershipHandlers: MothershipHandlers;
+  private mcpHandlers: MCPHandlers;
 
   constructor(
     bot: TelegramBot,
@@ -44,6 +46,7 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
+    this.mcpHandlers = new MCPHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
   }
 
   // ==================== Utility Commands ====================
@@ -89,6 +92,19 @@ export class BotHandlers {
 
   async handleConfig(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleConfig(msg, match);
+  }
+
+  // ==================== MCP Commands ====================
+
+  async handleMCP(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.mcpHandlers.handleMCP(msg, match);
+  }
+
+  /**
+   * Get user's MCP config for task execution
+   */
+  async getUserMCPConfig(userId: number) {
+    return this.mcpHandlers.getUserMCPConfig(userId);
   }
 
   // ==================== Mothership Bot Commands ====================

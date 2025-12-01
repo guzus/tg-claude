@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { mcpManager } from './MCPManager';
 
 const execAsync = promisify(exec);
 
@@ -17,6 +18,7 @@ export class ClaudeExecutor {
   private activeTasks: Map<string, ChildProcess> = new Map();
   private taskHistory: Map<string, ClaudeTask> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
+  private taskMCPConfigs: Map<string, string> = new Map(); // taskId -> workingDir with .mcp.json
 
   constructor() {
     // Ensure task logs directory exists
@@ -105,7 +107,8 @@ export class ClaudeExecutor {
       workingDir = config.workspacePath,
       dangerMode = true,
       additionalFlags = [],
-      timeout = config.taskTimeoutMs
+      timeout = config.taskTimeoutMs,
+      mcpConfig
     } = options;
 
     // Create task
@@ -136,6 +139,20 @@ export class ClaudeExecutor {
       const fs = require('fs');
       if (!fs.existsSync(workingDir)) {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
+      }
+
+      // Configure MCP servers if provided
+      if (mcpConfig && mcpConfig.servers.length > 0) {
+        const enabledServers = mcpConfig.servers.filter(s => s.enabled);
+        if (enabledServers.length > 0) {
+          await mcpManager.writeMCPConfig(workingDir, mcpConfig);
+          this.taskMCPConfigs.set(task.id, workingDir);
+          logger.info('Configured MCP servers for task', {
+            taskId: task.id,
+            serverCount: enabledServers.length,
+            servers: enabledServers.map(s => s.name)
+          });
+        }
       }
 
       // Check if running as root
@@ -414,6 +431,15 @@ export class ClaudeExecutor {
           this.taskLogFiles.delete(task.id);
         }
 
+        // Cleanup MCP configuration if it was written for this task
+        const mcpWorkingDir = this.taskMCPConfigs.get(task.id);
+        if (mcpWorkingDir) {
+          mcpManager.removeMCPConfig(mcpWorkingDir).catch(err => {
+            logger.warn('Failed to cleanup MCP config', { taskId: task.id, error: err });
+          });
+          this.taskMCPConfigs.delete(task.id);
+        }
+
         logger.info('Task completed', {
           taskId: task.id,
           status: task.status,
@@ -451,6 +477,15 @@ export class ClaudeExecutor {
           logStream.write(`Ended: ${task.endTime.toISOString()}\n`);
           logStream.end();
           this.taskLogFiles.delete(task.id);
+        }
+
+        // Cleanup MCP configuration on error
+        const mcpWorkingDir = this.taskMCPConfigs.get(task.id);
+        if (mcpWorkingDir) {
+          mcpManager.removeMCPConfig(mcpWorkingDir).catch(err => {
+            logger.warn('Failed to cleanup MCP config on error', { taskId: task.id, error: err });
+          });
+          this.taskMCPConfigs.delete(task.id);
         }
 
         logger.error('Task process error', {

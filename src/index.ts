@@ -124,6 +124,7 @@ bot.setMyCommands([
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
+  { command: 'mcp', description: '🔌 Manage MCP servers (add/remove/list)' },
   { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'status', description: 'Check active tasks' },
@@ -139,6 +140,7 @@ bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
+bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMCP(msg, match));
 bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));

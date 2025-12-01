@@ -5,6 +5,7 @@ import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
+import { UserMCPConfig } from '../types';
 import { isAuthorized } from '../middleware/security';
 import { logger } from '../utils/logger';
 
@@ -75,6 +76,18 @@ export abstract class BaseHandler {
 
     const userConfig = await this.userConfigManager.getConfig(userId);
     return userConfig?.limits?.taskTimeoutMs;
+  }
+
+  /**
+   * Get user's MCP configuration for task execution
+   */
+  protected async getUserMCPConfig(userId: number): Promise<UserMCPConfig | undefined> {
+    if (!this.userConfigManager) {
+      return undefined;
+    }
+
+    const userConfig = await this.userConfigManager.getConfig(userId);
+    return userConfig?.mcp;
   }
 
   /**

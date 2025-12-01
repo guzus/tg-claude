@@ -40,10 +40,14 @@ export class TaskHandlers extends BaseHandler {
       // Get user-specific timeout if available
       const userTimeout = await this.getUserTimeout(userId);
 
+      // Get user's MCP configuration
+      const mcpConfig = await this.getUserMCPConfig(userId);
+
       // Execute task
       const task = await this.executor.executeTask(userId, chatId, prompt, {
         workingDir: actualWorkingDir,
-        timeout: userTimeout
+        timeout: userTimeout,
+        mcpConfig
       });
 
       task.messageId = statusMsg.message_id;

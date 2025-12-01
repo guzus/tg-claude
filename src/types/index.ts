@@ -7,6 +7,83 @@ export interface LLMProviderConfig {
   model?: string;    // Optional model override
 }
 
+// MCP Server Configuration Types
+export type MCPTransport = 'http' | 'stdio' | 'sse';
+
+export interface MCPServerConfig {
+  name: string;
+  transport: MCPTransport;
+  url?: string;           // For http/sse transport
+  command?: string;       // For stdio transport
+  args?: string[];        // Additional arguments for stdio
+  env?: Record<string, string>;  // Environment variables
+  enabled: boolean;
+  description?: string;
+}
+
+export interface MCPPreset {
+  id: string;
+  name: string;
+  description: string;
+  servers: MCPServerConfig[];
+}
+
+// Predefined MCP server templates for easy setup
+export const MCP_SERVER_TEMPLATES: Record<string, Omit<MCPServerConfig, 'name' | 'enabled'>> = {
+  'filesystem': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-filesystem', '/tmp'],
+    description: 'File system access MCP server'
+  },
+  'github': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-github'],
+    env: { GITHUB_TOKEN: '${GITHUB_TOKEN}' },
+    description: 'GitHub integration MCP server'
+  },
+  'postgres': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-postgres'],
+    env: { DATABASE_URL: '${DATABASE_URL}' },
+    description: 'PostgreSQL database MCP server'
+  },
+  'sqlite': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-sqlite'],
+    description: 'SQLite database MCP server'
+  },
+  'brave-search': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-brave-search'],
+    env: { BRAVE_API_KEY: '${BRAVE_API_KEY}' },
+    description: 'Brave Search MCP server'
+  },
+  'fetch': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-fetch'],
+    description: 'HTTP fetch MCP server'
+  },
+  'memory': {
+    transport: 'stdio',
+    command: 'npx',
+    args: ['-y', '@anthropic/mcp-server-memory'],
+    description: 'Knowledge graph memory MCP server'
+  }
+};
+
+// User's MCP configuration
+export interface UserMCPConfig {
+  servers: MCPServerConfig[];
+  activePreset?: string;
+  customEnv?: Record<string, string>;  // User-specific env vars for MCP
+}
+
 export interface BotConfig {
   telegramToken: string;
   claudeApiKey: string;       // Legacy - prefer llmProvider
@@ -52,6 +129,7 @@ export interface ClaudeExecutionOptions {
   dangerMode?: boolean;
   additionalFlags?: string[];
   timeout?: number;
+  mcpConfig?: UserMCPConfig;  // MCP servers to enable for this execution
 }
 
 export interface UserActivity {
@@ -145,6 +223,7 @@ export interface UserConfig {
     maxConcurrentTasks?: number;
     taskTimeoutMs?: number;
   };
+  mcp?: UserMCPConfig;  // MCP server configuration
   createdAt: Date;
   updatedAt: Date;
 }
