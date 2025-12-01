@@ -5,12 +5,14 @@ import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
+import { MothershipService } from '../services/MothershipService';
 import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
 import { UtilityHandlers } from './UtilityHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
+import { MothershipHandlers } from './MothershipHandlers';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -22,6 +24,7 @@ export class BotHandlers {
   private utilityHandlers: UtilityHandlers;
   private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
+  private mothershipHandlers: MothershipHandlers;
 
   constructor(
     bot: TelegramBot,
@@ -30,7 +33,8 @@ export class BotHandlers {
     auditLogger: AuditLogger,
     repositoryManager: RepositoryManager,
     conversationManager: ConversationManager,
-    userConfigManager: UserConfigManager
+    userConfigManager: UserConfigManager,
+    mothershipService: MothershipService
   ) {
     // Initialize all handler modules
     this.taskHandlers = new TaskHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
@@ -39,6 +43,7 @@ export class BotHandlers {
     this.utilityHandlers = new UtilityHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
   }
 
   // ==================== Utility Commands ====================
@@ -53,10 +58,6 @@ export class BotHandlers {
 
   async handleCheck(msg: Message): Promise<void> {
     return this.utilityHandlers.handleCheck(msg);
-  }
-
-  async handleDebug(msg: Message): Promise<void> {
-    return this.utilityHandlers.handleDebug(msg, this.taskHandlers);
   }
 
   // ==================== Task Commands ====================
@@ -86,25 +87,25 @@ export class BotHandlers {
     return this.statusHandlers.handleStatus(msg);
   }
 
-  async handleCancel(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    return this.statusHandlers.handleCancel(msg, match);
-  }
-
-  async handleLimits(msg: Message): Promise<void> {
-    return this.statusHandlers.handleLimits(msg);
-  }
-
   async handleConfig(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleConfig(msg, match);
   }
 
-  async handleLogs(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    return this.statusHandlers.handleLogs(msg, match);
+  // ==================== Mothership Bot Commands ====================
+
+  async handleBotCommand(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.mothershipHandlers.handleBot(msg, match);
   }
 
   // ==================== Callback Queries ====================
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
+    // Route bot-related callbacks to MothershipHandlers
+    if (query.data?.startsWith('bot_')) {
+      return this.mothershipHandlers.handleBotCallback(query);
+    }
+
+    // Route other callbacks to CallbackQueryHandler
     return this.callbackQueryHandler.handleCallbackQuery(query);
   }
 
