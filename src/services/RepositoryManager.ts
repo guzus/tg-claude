@@ -19,10 +19,7 @@ export class RepositoryManager {
     this.userConfigManager = userConfigManager;
 
     if (this.githubToken) {
-      logger.info('GitHub token found - will use for git operations', {
-        tokenLength: this.githubToken.length,
-        tokenPrefix: this.githubToken.substring(0, 4)
-      });
+      logger.info('GitHub token found - will use for git operations');
     } else {
       logger.warn('GITHUB_TOKEN not set - git operations may require manual authentication');
     }

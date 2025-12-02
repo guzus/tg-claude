@@ -6,6 +6,7 @@ import path from 'path';
 export class AuditLogger {
   private auditLogPath: string;
   private entries: AuditLogEntry[] = [];
+  private writeQueue: Promise<void> = Promise.resolve();
 
   constructor(auditLogPath: string = './logs/audit.log') {
     this.auditLogPath = auditLogPath;
@@ -20,7 +21,7 @@ export class AuditLogger {
   }
 
   /**
-   * Log a command execution
+   * Log a command execution (async, non-blocking)
    */
   logCommand(entry: Omit<AuditLogEntry, 'timestamp'>): void {
     const fullEntry: AuditLogEntry = {
@@ -30,9 +31,11 @@ export class AuditLogger {
 
     this.entries.push(fullEntry);
 
-    // Write to file
+    // Write to file asynchronously using a queue to maintain order
     const logLine = JSON.stringify(fullEntry) + '\n';
-    fs.appendFileSync(this.auditLogPath, logLine, 'utf-8');
+    this.writeQueue = this.writeQueue
+      .then(() => fs.promises.appendFile(this.auditLogPath, logLine, 'utf-8'))
+      .catch(err => { logger.error('Failed to write audit log', { error: err.message }); });
 
     logger.info('Audit log entry', fullEntry);
   }

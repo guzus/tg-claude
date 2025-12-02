@@ -439,7 +439,7 @@ Always commit and push your changes after completing the task unless explicitly 
         'Please set up a repository first:\n' +
         '• /repo clone <url> - Clone a repository\n' +
         '• /repo new <name> - Create new repository\n' +
-        '• /scan - Scan for existing repositories',
+        '• /repo list - List existing repositories',
         { parse_mode: 'Markdown' }
       );
       return;

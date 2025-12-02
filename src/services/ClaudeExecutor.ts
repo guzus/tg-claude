@@ -57,6 +57,7 @@ export class ClaudeExecutor {
 
   /**
    * Authenticate with GitHub CLI using GITHUB_TOKEN environment variable
+   * Uses stdin piping for secure token handling (avoids exposing token in process args)
    */
   private async authenticateGitHub(): Promise<void> {
     try {
@@ -67,7 +68,7 @@ export class ClaudeExecutor {
         return;
       }
 
-      logger.info('Authenticating with GitHub CLI using GITHUB_TOKEN');
+      logger.info('Authenticating with GitHub CLI');
 
       // Check if gh is installed
       try {
@@ -77,10 +78,35 @@ export class ClaudeExecutor {
         return;
       }
 
-      // Authenticate using the token
-      const authCommand = `echo "${githubToken}" | gh auth login --with-token`;
-      await execAsync(authCommand, {
-        timeout: 10000 // 10 second timeout
+      // Use spawn with stdin piping for secure token handling
+      await new Promise<void>((resolve, reject) => {
+        const ghProcess = spawn('gh', ['auth', 'login', '--with-token'], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: { ...process.env, GITHUB_TOKEN: undefined }
+        });
+
+        const timeout = setTimeout(() => {
+          ghProcess.kill();
+          reject(new Error('GitHub authentication timed out'));
+        }, 10000);
+
+        ghProcess.on('close', (code) => {
+          clearTimeout(timeout);
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`gh auth failed with code ${code}`));
+          }
+        });
+
+        ghProcess.on('error', (err) => {
+          clearTimeout(timeout);
+          reject(err);
+        });
+
+        // Write token to stdin securely
+        ghProcess.stdin.write(githubToken);
+        ghProcess.stdin.end();
       });
 
       logger.info('Successfully authenticated with GitHub CLI');

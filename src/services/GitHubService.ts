@@ -1,4 +1,4 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../utils/logger';
 
@@ -17,6 +17,7 @@ export class GitHubService {
 
   /**
    * Authenticate with GitHub CLI using token
+   * Uses stdin piping for secure token handling (avoids exposing token in process args)
    */
   async authenticate(): Promise<boolean> {
     if (!this.token) {
@@ -35,16 +36,31 @@ export class GitHubService {
         return true;
       }
 
-      // Unset GITHUB_TOKEN temporarily to allow gh auth login --with-token
-      // The gh CLI prioritizes env vars over stdin, which causes conflicts
-      const { stderr } = await execAsync(
-        `unset GITHUB_TOKEN && echo "${this.token}" | gh auth login --with-token`,
-        { shell: '/bin/bash' }
-      );
+      // Use spawn with stdin piping for secure token handling
+      // This avoids passing the token through shell where it could be logged
+      await new Promise<void>((resolve, reject) => {
+        const ghProcess = spawn('gh', ['auth', 'login', '--with-token'], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+          env: { ...process.env, GITHUB_TOKEN: undefined } // Unset to avoid conflicts
+        });
 
-      if (stderr && !stderr.includes('Logged in')) {
-        logger.warn('GitHub authentication warning', { stderr });
-      }
+        let stderr = '';
+        ghProcess.stderr.on('data', (data) => { stderr += data.toString(); });
+
+        ghProcess.on('close', (code) => {
+          if (code === 0) {
+            resolve();
+          } else {
+            reject(new Error(`gh auth failed with code ${code}: ${stderr}`));
+          }
+        });
+
+        ghProcess.on('error', reject);
+
+        // Write token to stdin securely (not visible in process listing)
+        ghProcess.stdin.write(this.token);
+        ghProcess.stdin.end();
+      });
 
       // Verify authentication
       const { stdout: statusOutput } = await execAsync('gh auth status');
