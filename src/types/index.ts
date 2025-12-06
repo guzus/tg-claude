@@ -161,6 +161,7 @@ export interface BeastModeState {
   iterations: BeastIteration[];
   config: BeastModeConfig;
   messageId?: number;             // Status message to update
+  cleanedUp?: boolean;            // Tracks if cleanup has been performed
 }
 
 export interface BeastIteration {

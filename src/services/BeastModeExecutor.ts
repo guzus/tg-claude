@@ -31,6 +31,12 @@ const SESSION_CLEANUP_DELAY_MS = 60 * 60 * 1000;
 // Polling interval for task completion check (3 seconds for efficiency)
 const TASK_POLL_INTERVAL_MS = 3000;
 
+// Maximum request length to prevent abuse
+const MAX_REQUEST_LENGTH = 10000;
+
+// Maximum output size to analyze (50KB for efficiency)
+const MAX_ANALYSIS_WINDOW = 50000;
+
 export class BeastModeExecutor {
   private bot: TelegramBot;
   private executor: ClaudeExecutor;
@@ -70,6 +76,34 @@ export class BeastModeExecutor {
   }
 
   /**
+   * Validate and sanitize user request to prevent prompt injection
+   */
+  private validateRequest(request: string): string {
+    if (!request || typeof request !== 'string') {
+      throw new Error('Request must be a non-empty string');
+    }
+
+    // Trim whitespace
+    let sanitized = request.trim();
+
+    // Enforce length limit
+    if (sanitized.length > MAX_REQUEST_LENGTH) {
+      sanitized = sanitized.substring(0, MAX_REQUEST_LENGTH);
+      logger.warn('Request truncated due to length limit', {
+        originalLength: request.length,
+        truncatedTo: MAX_REQUEST_LENGTH
+      });
+    }
+
+    // Check for empty after trim
+    if (sanitized.length === 0) {
+      throw new Error('Request cannot be empty');
+    }
+
+    return sanitized;
+  }
+
+  /**
    * Start a beast mode session
    */
   async startSession(
@@ -79,8 +113,9 @@ export class BeastModeExecutor {
     workingDir: string,
     config: Partial<BeastModeConfig> = {}
   ): Promise<BeastModeState> {
-    // Validate working directory first
+    // Validate inputs
     this.validateWorkingDirectory(workingDir);
+    const sanitizedRequest = this.validateRequest(request);
 
     // Check if user already has an active session
     const existingSessionId = this.userSessions.get(userId);
@@ -98,13 +133,14 @@ export class BeastModeExecutor {
       sessionId,
       userId,
       chatId,
-      originalRequest: request,
+      originalRequest: sanitizedRequest,
       workingDir,
       status: BeastModeStatus.RUNNING,
       iteration: 0,
       startTime: new Date(),
       iterations: [],
-      config: finalConfig
+      config: finalConfig,
+      cleanedUp: false
     };
 
     // IMPORTANT: Set both maps BEFORE starting async loop to prevent race condition
@@ -132,9 +168,16 @@ export class BeastModeExecutor {
   }
 
   /**
-   * Clean up session resources
+   * Clean up session resources (idempotent - safe to call multiple times)
    */
   private cleanupSession(state: BeastModeState): void {
+    // Prevent double cleanup
+    if (state.cleanedUp) {
+      logger.debug('Session already cleaned up, skipping', { sessionId: state.sessionId });
+      return;
+    }
+    state.cleanedUp = true;
+
     // Remove from user sessions immediately
     this.userSessions.delete(state.userId);
 
@@ -168,6 +211,12 @@ export class BeastModeExecutor {
       return false;
     }
 
+    // Check if already cleaned up
+    if (state.cleanedUp) {
+      logger.debug('Session already stopped/cleaned up', { sessionId });
+      return false;
+    }
+
     state.status = BeastModeStatus.STOPPED;
     state.endTime = new Date();
 
@@ -177,14 +226,8 @@ export class BeastModeExecutor {
       this.executor.cancelTask(activeIteration.taskId);
     }
 
-    // Remove from user sessions immediately
-    this.userSessions.delete(state.userId);
-
-    // Schedule removal from activeSessions after delay
-    setTimeout(() => {
-      this.activeSessions.delete(sessionId);
-      logger.debug('Stopped session removed from memory', { sessionId });
-    }, SESSION_CLEANUP_DELAY_MS);
+    // Use cleanupSession for consistent cleanup (it handles idempotency)
+    this.cleanupSession(state);
 
     logger.info('Beast mode session stopped', {
       sessionId,
@@ -396,6 +439,7 @@ export class BeastModeExecutor {
     return new Promise((resolve) => {
       const startTime = Date.now();
       let checkInterval: NodeJS.Timeout | null = null;
+      let resolved = false;
 
       const cleanup = () => {
         if (checkInterval) {
@@ -404,37 +448,50 @@ export class BeastModeExecutor {
         }
       };
 
+      const safeResolve = (value: string) => {
+        if (resolved) return;
+        resolved = true;
+        cleanup();
+        resolve(value);
+      };
+
       checkInterval = setInterval(() => {
-        // Check for timeout
-        if (Date.now() - startTime > timeoutMs) {
-          cleanup();
-          logger.warn('Task completion wait timed out', {
+        try {
+          // Check for timeout
+          if (Date.now() - startTime > timeoutMs) {
+            logger.warn('Task completion wait timed out', {
+              taskId,
+              sessionId: state.sessionId,
+              timeoutMs
+            });
+            safeResolve('Task timed out while waiting for completion');
+            return;
+          }
+
+          // Check if session was stopped
+          if (state.status !== BeastModeStatus.RUNNING) {
+            safeResolve('Session stopped by user');
+            return;
+          }
+
+          const task = this.executor.getTask(taskId);
+          if (!task) {
+            safeResolve('Task not found');
+            return;
+          }
+
+          if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
+            const output = task.output + (task.errorOutput ? '\n\nSTDERR:\n' + task.errorOutput : '');
+            safeResolve(output);
+          }
+        } catch (error) {
+          // Ensure cleanup happens even if an exception occurs in polling logic
+          logger.error('Error in task polling', {
             taskId,
             sessionId: state.sessionId,
-            timeoutMs
+            error: error instanceof Error ? error.message : String(error)
           });
-          resolve('Task timed out while waiting for completion');
-          return;
-        }
-
-        // Check if session was stopped
-        if (state.status !== BeastModeStatus.RUNNING) {
-          cleanup();
-          resolve('Session stopped by user');
-          return;
-        }
-
-        const task = this.executor.getTask(taskId);
-        if (!task) {
-          cleanup();
-          resolve('Task not found');
-          return;
-        }
-
-        if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
-          cleanup();
-          const output = task.output + (task.errorOutput ? '\n\nSTDERR:\n' + task.errorOutput : '');
-          resolve(output);
+          safeResolve('Error while waiting for task completion');
         }
       }, TASK_POLL_INTERVAL_MS);
     });
@@ -517,9 +574,14 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
 
   /**
    * Analyze output from an iteration
+   * Limits analysis window to MAX_ANALYSIS_WINDOW for efficiency with large outputs
    */
   private analyzeOutput(output: string): IterationAnalysis {
-    const lowerOutput = output.toLowerCase();
+    // Limit analysis to last 50KB for efficiency with large outputs
+    const analysisWindow = output.length > MAX_ANALYSIS_WINDOW
+      ? output.slice(-MAX_ANALYSIS_WINDOW)
+      : output;
+    const lowerOutput = analysisWindow.toLowerCase();
 
     // Check for test failures
     const hasTestFailures =
@@ -567,7 +629,7 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
       suggestedAction = 'Review and fix the failing test cases.';
 
       // Try to extract test failure details
-      const failureMatch = output.match(/(?:FAIL|FAILED|Error).*?(?:\n|$)/gi);
+      const failureMatch = analysisWindow.match(/(?:FAIL|FAILED|Error).*?(?:\n|$)/gi);
       if (failureMatch) {
         errorSummary += `Found ${failureMatch.length} failure(s). `;
       }
@@ -578,7 +640,7 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
       suggestedAction = suggestedAction || 'Fix the compilation/build errors.';
 
       // Try to extract error details
-      const errorMatch = output.match(/(?:error|Error)[\s:]+.*?(?:\n|$)/gi);
+      const errorMatch = analysisWindow.match(/(?:error|Error)[\s:]+.*?(?:\n|$)/gi);
       if (errorMatch) {
         errorSummary += `Found ${errorMatch.length} error(s). `;
       }
