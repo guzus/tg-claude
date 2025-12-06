@@ -85,15 +85,37 @@ export class BeastModeExecutor {
       config: finalConfig
     });
 
-    // Start the iteration loop
+    // Start the iteration loop (non-blocking)
     this.runIterationLoop(state).catch(error => {
       logger.error('Beast mode iteration loop failed', {
         sessionId,
         error: error instanceof Error ? error.message : String(error)
       });
+      // Ensure cleanup happens even on error
+      this.cleanupSession(state);
     });
 
     return state;
+  }
+
+  /**
+   * Clean up session resources
+   */
+  private cleanupSession(state: BeastModeState): void {
+    this.userSessions.delete(state.userId);
+    // Keep in activeSessions for a while for status queries, but mark as ended
+    if (!state.endTime) {
+      state.endTime = new Date();
+    }
+    if (state.status === BeastModeStatus.RUNNING) {
+      state.status = BeastModeStatus.FAILED;
+    }
+
+    logger.info('Beast mode session cleaned up', {
+      sessionId: state.sessionId,
+      status: state.status,
+      iterations: state.iteration
+    });
   }
 
   /**
@@ -152,95 +174,98 @@ export class BeastModeExecutor {
   }
 
   /**
-   * Main iteration loop
+   * Main iteration loop - wrapped in try-finally for guaranteed cleanup
    */
   private async runIterationLoop(state: BeastModeState): Promise<void> {
-    const statusMsg = await this.bot.sendMessage(
-      state.chatId,
-      this.formatStatusMessage(state),
-      {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '🛑 Stop Beast Mode', callback_data: `beast_stop:${state.sessionId}` }
-          ]]
+    try {
+      const statusMsg = await this.bot.sendMessage(
+        state.chatId,
+        this.formatStatusMessage(state),
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🛑 Stop Beast Mode', callback_data: `beast_stop:${state.sessionId}` }
+            ]]
+          }
         }
+      );
+      state.messageId = statusMsg.message_id;
+
+      const repository = this.repositoryManager.getCurrentRepository(state.userId) || null;
+
+      while (state.status === BeastModeStatus.RUNNING) {
+        // Check timeout
+        const elapsed = Date.now() - state.startTime.getTime();
+        if (elapsed >= state.config.maxDurationMs) {
+          state.status = BeastModeStatus.TIMEOUT;
+          state.endTime = new Date();
+          break;
+        }
+
+        // Check max iterations
+        if (state.iteration >= state.config.maxIterations) {
+          state.status = BeastModeStatus.MAX_ITERATIONS;
+          state.endTime = new Date();
+          break;
+        }
+
+        // Run iteration
+        state.iteration++;
+        const iteration = await this.runIteration(state, repository);
+        state.iterations.push(iteration);
+
+        // Update status message
+        await this.updateStatusMessage(state);
+
+        // Analyze result and decide next action
+        if (iteration.analysis.isComplete && state.config.stopOnSuccess) {
+          state.status = BeastModeStatus.COMPLETED;
+          state.endTime = new Date();
+          break;
+        }
+
+        // Check if we should continue
+        if (!iteration.analysis.hasErrors &&
+            !iteration.analysis.hasTestFailures &&
+            !iteration.analysis.hasBuildFailures) {
+          // No issues found - task might be complete
+          state.status = BeastModeStatus.COMPLETED;
+          state.endTime = new Date();
+          break;
+        }
+
+        // Auto-commit if enabled
+        if (state.config.autoCommitPerIteration) {
+          await this.executor.autoCommitChanges(state.workingDir);
+        }
+
+        // Small delay between iterations
+        await this.delay(2000);
       }
-    );
-    state.messageId = statusMsg.message_id;
 
-    const repository = this.repositoryManager.getCurrentRepository(state.userId) || null;
+      // Final status update
+      await this.sendFinalReport(state);
 
-    while (state.status === BeastModeStatus.RUNNING) {
-      // Check timeout
-      const elapsed = Date.now() - state.startTime.getTime();
-      if (elapsed >= state.config.maxDurationMs) {
-        state.status = BeastModeStatus.TIMEOUT;
-        state.endTime = new Date();
-        break;
+      // Final commit and push
+      if (state.status === BeastModeStatus.COMPLETED ||
+          state.status === BeastModeStatus.MAX_ITERATIONS) {
+        await this.finalCommitAndPush(state);
       }
 
-      // Check max iterations
-      if (state.iteration >= state.config.maxIterations) {
-        state.status = BeastModeStatus.MAX_ITERATIONS;
-        state.endTime = new Date();
-        break;
-      }
+    } finally {
+      // Guaranteed cleanup - always runs even if error thrown
+      this.cleanupSession(state);
 
-      // Run iteration
-      state.iteration++;
-      const iteration = await this.runIteration(state, repository);
-      state.iterations.push(iteration);
-
-      // Update status message
-      await this.updateStatusMessage(state);
-
-      // Analyze result and decide next action
-      if (iteration.analysis.isComplete && state.config.stopOnSuccess) {
-        state.status = BeastModeStatus.COMPLETED;
-        state.endTime = new Date();
-        break;
-      }
-
-      // Check if we should continue
-      if (!iteration.analysis.hasErrors &&
-          !iteration.analysis.hasTestFailures &&
-          !iteration.analysis.hasBuildFailures) {
-        // No issues found - task might be complete
-        state.status = BeastModeStatus.COMPLETED;
-        state.endTime = new Date();
-        break;
-      }
-
-      // Auto-commit if enabled
-      if (state.config.autoCommitPerIteration) {
-        await this.executor.autoCommitChanges(state.workingDir);
-      }
-
-      // Small delay between iterations
-      await this.delay(2000);
+      logger.info('Beast mode session ended', {
+        sessionId: state.sessionId,
+        status: state.status,
+        iterations: state.iteration,
+        duration: state.endTime
+          ? state.endTime.getTime() - state.startTime.getTime()
+          : 0
+      });
     }
-
-    // Final status update
-    await this.sendFinalReport(state);
-
-    // Final commit and push
-    if (state.status === BeastModeStatus.COMPLETED ||
-        state.status === BeastModeStatus.MAX_ITERATIONS) {
-      await this.finalCommitAndPush(state);
-    }
-
-    // Cleanup
-    this.userSessions.delete(state.userId);
-
-    logger.info('Beast mode session ended', {
-      sessionId: state.sessionId,
-      status: state.status,
-      iterations: state.iteration,
-      duration: state.endTime
-        ? state.endTime.getTime() - state.startTime.getTime()
-        : 0
-    });
   }
 
   /**
@@ -272,11 +297,15 @@ export class BeastModeExecutor {
       }
     );
 
-    // Wait for task to complete
-    const output = await this.waitForTaskCompletion(task.id, state);
+    // Wait for task to complete with timeout protection
+    const output = await this.waitForTaskCompletion(
+      task.id,
+      state,
+      state.config.iterationTimeoutMs
+    );
 
     // Analyze the output
-    const analysis = this.analyzeOutput(output, state);
+    const analysis = this.analyzeOutput(output);
 
     const iteration: BeastIteration = {
       number: state.iteration,
@@ -299,26 +328,53 @@ export class BeastModeExecutor {
 
   /**
    * Wait for a task to complete and return its output
+   * Fixed: Added timeout to prevent memory leaks from never-resolving intervals
    */
-  private async waitForTaskCompletion(taskId: string, state: BeastModeState): Promise<string> {
+  private async waitForTaskCompletion(
+    taskId: string,
+    state: BeastModeState,
+    timeoutMs: number
+  ): Promise<string> {
     return new Promise((resolve) => {
-      const checkInterval = setInterval(() => {
+      const startTime = Date.now();
+      let checkInterval: NodeJS.Timeout | null = null;
+
+      const cleanup = () => {
+        if (checkInterval) {
+          clearInterval(checkInterval);
+          checkInterval = null;
+        }
+      };
+
+      checkInterval = setInterval(() => {
+        // Check for timeout
+        if (Date.now() - startTime > timeoutMs) {
+          cleanup();
+          logger.warn('Task completion wait timed out', {
+            taskId,
+            sessionId: state.sessionId,
+            timeoutMs
+          });
+          resolve('Task timed out while waiting for completion');
+          return;
+        }
+
         // Check if session was stopped
         if (state.status !== BeastModeStatus.RUNNING) {
-          clearInterval(checkInterval);
+          cleanup();
           resolve('Session stopped by user');
           return;
         }
 
         const task = this.executor.getTask(taskId);
         if (!task) {
-          clearInterval(checkInterval);
+          cleanup();
           resolve('Task not found');
           return;
         }
 
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
-          clearInterval(checkInterval);
+          cleanup();
           const output = task.output + (task.errorOutput ? '\n\nSTDERR:\n' + task.errorOutput : '');
           resolve(output);
         }
@@ -404,7 +460,7 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
   /**
    * Analyze output from an iteration
    */
-  private analyzeOutput(output: string, _state: BeastModeState): IterationAnalysis {
+  private analyzeOutput(output: string): IterationAnalysis {
     const lowerOutput = output.toLowerCase();
 
     // Check for test failures
@@ -413,7 +469,7 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
       lowerOutput.includes('tests failed') ||
       lowerOutput.includes('failing tests') ||
       lowerOutput.includes('assertion failed') ||
-      lowerOutput.includes('expected') && lowerOutput.includes('received') ||
+      (lowerOutput.includes('expected') && lowerOutput.includes('received')) ||
       /\d+ failed/.test(lowerOutput) ||
       lowerOutput.includes('fail ');
 

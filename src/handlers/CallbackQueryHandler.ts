@@ -27,11 +27,14 @@ export class CallbackQueryHandler extends BaseHandler {
   // Static map to track pending repository creation requests
   private static pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
 
-  // Beast mode executor reference (set externally)
-  private static beastModeExecutor: BeastModeExecutor | null = null;
+  // Beast mode executor reference (instance-based for proper DI)
+  private beastModeExecutor: BeastModeExecutor | null = null;
 
-  static setBeastModeExecutor(executor: BeastModeExecutor): void {
-    CallbackQueryHandler.beastModeExecutor = executor;
+  /**
+   * Set the beast mode executor (should be called after construction)
+   */
+  setBeastModeExecutor(executor: BeastModeExecutor): void {
+    this.beastModeExecutor = executor;
   }
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
@@ -1422,12 +1425,12 @@ export class CallbackQueryHandler extends BaseHandler {
     if (subAction.startsWith('stop:')) {
       const sessionId = subAction.replace('stop:', '');
 
-      if (!CallbackQueryHandler.beastModeExecutor) {
+      if (!this.beastModeExecutor) {
         await this.bot.sendMessage(chatId, '❌ Beast mode executor not available');
         return;
       }
 
-      const stopped = CallbackQueryHandler.beastModeExecutor.stopSession(sessionId);
+      const stopped = this.beastModeExecutor.stopSession(sessionId);
 
       if (stopped) {
         await this.bot.editMessageText(
