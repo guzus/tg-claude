@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { RepositoryType } from '../types';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import { BeastModeExecutor } from '../services/BeastModeExecutor';
 
 const execAsync = promisify(exec);
 
@@ -25,6 +26,17 @@ interface PendingRepoCreation {
 export class CallbackQueryHandler extends BaseHandler {
   // Static map to track pending repository creation requests
   private static pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
+
+  // Beast mode executor reference (instance-based for proper DI)
+  private beastModeExecutor: BeastModeExecutor | null = null;
+
+  /**
+   * Set the beast mode executor (should be called after construction)
+   */
+  setBeastModeExecutor(executor: BeastModeExecutor): void {
+    this.beastModeExecutor = executor;
+  }
+
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
     const chatId = query.message?.chat.id;
     const userId = query.from.id;
@@ -92,6 +104,10 @@ export class CallbackQueryHandler extends BaseHandler {
 
         case 'view':
           await this.handleViewLog(chatId, messageId, userId, params.join('_'));
+          break;
+
+        case 'beast':
+          await this.handleBeastModeAction(chatId, messageId, userId, params.join('_'));
           break;
 
         default:
@@ -1393,6 +1409,53 @@ export class CallbackQueryHandler extends BaseHandler {
       });
 
       await this.bot.sendMessage(chatId, '❌ Error retrieving log. Please try again.');
+    }
+  }
+
+  /**
+   * Handle beast mode actions (stop, etc.)
+   */
+  private async handleBeastModeAction(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    subAction: string
+  ): Promise<void> {
+    // Format: beast_stop:sessionId
+    if (subAction.startsWith('stop:')) {
+      const sessionId = subAction.replace('stop:', '');
+
+      if (!this.beastModeExecutor) {
+        await this.bot.sendMessage(chatId, '❌ Beast mode executor not available');
+        return;
+      }
+
+      const stopped = this.beastModeExecutor.stopSession(sessionId);
+
+      if (stopped) {
+        await this.bot.editMessageText(
+          '🛑 **Beast Mode Stopped**\n\n' +
+          'The autonomous execution has been stopped.\n' +
+          'Any uncommitted changes remain in the working directory.',
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown'
+          }
+        );
+
+        logger.info('Beast mode session stopped via callback', {
+          sessionId,
+          userId
+        });
+      } else {
+        await this.bot.sendMessage(
+          chatId,
+          '❌ Could not stop beast mode. Session may have already completed.'
+        );
+      }
+    } else {
+      logger.warn('Unknown beast mode action', { subAction, userId });
     }
   }
 
