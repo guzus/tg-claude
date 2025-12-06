@@ -1,5 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { v4 as uuidv4 } from 'uuid';
+import * as fs from 'fs';
+import * as path from 'path';
 import { ClaudeExecutor } from './ClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
 import {
@@ -23,6 +25,12 @@ const DEFAULT_BEAST_CONFIG: BeastModeConfig = {
   autoCommitPerIteration: false
 };
 
+// Session cleanup delay (1 hour after completion)
+const SESSION_CLEANUP_DELAY_MS = 60 * 60 * 1000;
+
+// Polling interval for task completion check (3 seconds for efficiency)
+const TASK_POLL_INTERVAL_MS = 3000;
+
 export class BeastModeExecutor {
   private bot: TelegramBot;
   private executor: ClaudeExecutor;
@@ -41,6 +49,27 @@ export class BeastModeExecutor {
   }
 
   /**
+   * Validate working directory exists and is safe
+   */
+  private validateWorkingDirectory(workingDir: string): void {
+    // Check if path is absolute
+    if (!path.isAbsolute(workingDir)) {
+      throw new Error('Working directory must be an absolute path');
+    }
+
+    // Check if directory exists
+    if (!fs.existsSync(workingDir)) {
+      throw new Error(`Working directory does not exist: ${workingDir}`);
+    }
+
+    // Check if it's actually a directory
+    const stats = fs.statSync(workingDir);
+    if (!stats.isDirectory()) {
+      throw new Error(`Path is not a directory: ${workingDir}`);
+    }
+  }
+
+  /**
    * Start a beast mode session
    */
   async startSession(
@@ -50,6 +79,9 @@ export class BeastModeExecutor {
     workingDir: string,
     config: Partial<BeastModeConfig> = {}
   ): Promise<BeastModeState> {
+    // Validate working directory first
+    this.validateWorkingDirectory(workingDir);
+
     // Check if user already has an active session
     const existingSessionId = this.userSessions.get(userId);
     if (existingSessionId) {
@@ -75,8 +107,9 @@ export class BeastModeExecutor {
       config: finalConfig
     };
 
-    this.activeSessions.set(sessionId, state);
+    // IMPORTANT: Set both maps BEFORE starting async loop to prevent race condition
     this.userSessions.set(userId, sessionId);
+    this.activeSessions.set(sessionId, state);
 
     logger.info('Beast mode session started', {
       sessionId,
@@ -102,14 +135,22 @@ export class BeastModeExecutor {
    * Clean up session resources
    */
   private cleanupSession(state: BeastModeState): void {
+    // Remove from user sessions immediately
     this.userSessions.delete(state.userId);
-    // Keep in activeSessions for a while for status queries, but mark as ended
+
+    // Mark session as ended
     if (!state.endTime) {
       state.endTime = new Date();
     }
     if (state.status === BeastModeStatus.RUNNING) {
       state.status = BeastModeStatus.FAILED;
     }
+
+    // Schedule removal from activeSessions after delay (allows status queries)
+    setTimeout(() => {
+      this.activeSessions.delete(state.sessionId);
+      logger.debug('Session removed from memory', { sessionId: state.sessionId });
+    }, SESSION_CLEANUP_DELAY_MS);
 
     logger.info('Beast mode session cleaned up', {
       sessionId: state.sessionId,
@@ -136,7 +177,14 @@ export class BeastModeExecutor {
       this.executor.cancelTask(activeIteration.taskId);
     }
 
+    // Remove from user sessions immediately
     this.userSessions.delete(state.userId);
+
+    // Schedule removal from activeSessions after delay
+    setTimeout(() => {
+      this.activeSessions.delete(sessionId);
+      logger.debug('Stopped session removed from memory', { sessionId });
+    }, SESSION_CLEANUP_DELAY_MS);
 
     logger.info('Beast mode session stopped', {
       sessionId,
@@ -178,19 +226,29 @@ export class BeastModeExecutor {
    */
   private async runIterationLoop(state: BeastModeState): Promise<void> {
     try {
-      const statusMsg = await this.bot.sendMessage(
-        state.chatId,
-        this.formatStatusMessage(state),
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [[
-              { text: '🛑 Stop Beast Mode', callback_data: `beast_stop:${state.sessionId}` }
-            ]]
+      // Send initial status message with error handling
+      let statusMsg;
+      try {
+        statusMsg = await this.bot.sendMessage(
+          state.chatId,
+          this.formatStatusMessage(state),
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[
+                { text: '🛑 Stop Beast Mode', callback_data: `beast_stop:${state.sessionId}` }
+              ]]
+            }
           }
-        }
-      );
-      state.messageId = statusMsg.message_id;
+        );
+        state.messageId = statusMsg.message_id;
+      } catch (error) {
+        logger.error('Failed to send beast mode status message', {
+          sessionId: state.sessionId,
+          error: error instanceof Error ? error.message : String(error)
+        });
+        // Continue without status message updates
+      }
 
       const repository = this.repositoryManager.getCurrentRepository(state.userId) || null;
 
@@ -218,26 +276,26 @@ export class BeastModeExecutor {
         // Update status message
         await this.updateStatusMessage(state);
 
-        // Analyze result and decide next action
+        // Check if task is complete based on analysis
         if (iteration.analysis.isComplete && state.config.stopOnSuccess) {
           state.status = BeastModeStatus.COMPLETED;
           state.endTime = new Date();
           break;
         }
 
-        // Check if we should continue
-        if (!iteration.analysis.hasErrors &&
-            !iteration.analysis.hasTestFailures &&
-            !iteration.analysis.hasBuildFailures) {
-          // No issues found - task might be complete
-          state.status = BeastModeStatus.COMPLETED;
-          state.endTime = new Date();
-          break;
-        }
+        // If no issues found but not explicitly complete, continue one more iteration
+        // to verify (removed redundant completion check that could false-positive)
 
         // Auto-commit if enabled
         if (state.config.autoCommitPerIteration) {
-          await this.executor.autoCommitChanges(state.workingDir);
+          try {
+            await this.executor.autoCommitChanges(state.workingDir);
+          } catch (error) {
+            logger.warn('Auto-commit failed during iteration', {
+              sessionId: state.sessionId,
+              error: error instanceof Error ? error.message : String(error)
+            });
+          }
         }
 
         // Small delay between iterations
@@ -328,7 +386,7 @@ export class BeastModeExecutor {
 
   /**
    * Wait for a task to complete and return its output
-   * Fixed: Added timeout to prevent memory leaks from never-resolving intervals
+   * Uses configurable polling interval and timeout protection
    */
   private async waitForTaskCompletion(
     taskId: string,
@@ -378,7 +436,7 @@ export class BeastModeExecutor {
           const output = task.output + (task.errorOutput ? '\n\nSTDERR:\n' + task.errorOutput : '');
           resolve(output);
         }
-      }, 1000);
+      }, TASK_POLL_INTERVAL_MS);
     });
   }
 
@@ -491,13 +549,14 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
       lowerOutput.includes('fatal:') ||
       (lowerOutput.includes('error') && lowerOutput.includes('failed'));
 
-    // Determine if complete (no issues found)
-    const isComplete = !hasTestFailures && !hasBuildFailures && !hasErrors &&
-      (lowerOutput.includes('all tests passed') ||
-       lowerOutput.includes('tests passed') ||
-       lowerOutput.includes('success') ||
-       lowerOutput.includes('completed successfully') ||
-       /\d+ passed/.test(lowerOutput));
+    // Determine if complete (explicit success indicators AND no issues)
+    const hasSuccessIndicators =
+      lowerOutput.includes('all tests passed') ||
+      lowerOutput.includes('tests passed') ||
+      lowerOutput.includes('completed successfully') ||
+      /\d+ passed/.test(lowerOutput);
+
+    const isComplete = !hasTestFailures && !hasBuildFailures && !hasErrors && hasSuccessIndicators;
 
     // Build error summary
     let errorSummary = '';
@@ -533,6 +592,10 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
     if (isComplete) {
       errorSummary = 'All checks passed! Task appears complete.';
       suggestedAction = 'Verify the implementation meets requirements.';
+    } else if (!hasErrors && !hasTestFailures && !hasBuildFailures) {
+      // No errors but also no success indicators - need to run tests
+      errorSummary = 'No errors detected, but no explicit success confirmation.';
+      suggestedAction = 'Run tests to verify implementation works correctly.';
     }
 
     return {
@@ -569,7 +632,7 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
   }
 
   /**
-   * Update the status message
+   * Update the status message with error handling
    */
   private async updateStatusMessage(state: BeastModeState): Promise<void> {
     if (!state.messageId) return;
@@ -597,48 +660,55 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
   }
 
   /**
-   * Send final report
+   * Send final report with error handling
    */
   private async sendFinalReport(state: BeastModeState): Promise<void> {
-    const duration = state.endTime
-      ? Math.round((state.endTime.getTime() - state.startTime.getTime()) / 1000)
-      : 0;
+    try {
+      const duration = state.endTime
+        ? Math.round((state.endTime.getTime() - state.startTime.getTime()) / 1000)
+        : 0;
 
-    const statusEmoji =
-      state.status === BeastModeStatus.COMPLETED ? '✅' :
-      state.status === BeastModeStatus.MAX_ITERATIONS ? '⚠️' :
-      state.status === BeastModeStatus.TIMEOUT ? '⏰' :
-      state.status === BeastModeStatus.STOPPED ? '🛑' : '❌';
+      const statusEmoji =
+        state.status === BeastModeStatus.COMPLETED ? '✅' :
+        state.status === BeastModeStatus.MAX_ITERATIONS ? '⚠️' :
+        state.status === BeastModeStatus.TIMEOUT ? '⏰' :
+        state.status === BeastModeStatus.STOPPED ? '🛑' : '❌';
 
-    const statusText =
-      state.status === BeastModeStatus.COMPLETED ? 'Completed Successfully!' :
-      state.status === BeastModeStatus.MAX_ITERATIONS ? 'Max Iterations Reached' :
-      state.status === BeastModeStatus.TIMEOUT ? 'Timeout' :
-      state.status === BeastModeStatus.STOPPED ? 'Stopped by User' : 'Failed';
+      const statusText =
+        state.status === BeastModeStatus.COMPLETED ? 'Completed Successfully!' :
+        state.status === BeastModeStatus.MAX_ITERATIONS ? 'Max Iterations Reached' :
+        state.status === BeastModeStatus.TIMEOUT ? 'Timeout' :
+        state.status === BeastModeStatus.STOPPED ? 'Stopped by User' : 'Failed';
 
-    let report = `${statusEmoji} **Beast Mode ${statusText}**\n\n`;
-    report += `📋 **Task**: ${state.originalRequest.substring(0, 200)}\n\n`;
-    report += `📊 **Summary**:\n`;
-    report += `• Iterations: ${state.iteration}\n`;
-    report += `• Duration: ${UIHelpers.formatDuration(duration)}\n`;
+      let report = `${statusEmoji} **Beast Mode ${statusText}**\n\n`;
+      report += `📋 **Task**: ${state.originalRequest.substring(0, 200)}\n\n`;
+      report += `📊 **Summary**:\n`;
+      report += `• Iterations: ${state.iteration}\n`;
+      report += `• Duration: ${UIHelpers.formatDuration(duration)}\n`;
 
-    // Summarize iterations
-    if (state.iterations.length > 0) {
-      report += `\n📝 **Iteration Summary**:\n`;
-      for (const iter of state.iterations.slice(-5)) { // Show last 5
-        const emoji = iter.analysis.isComplete ? '✅' :
-                      iter.analysis.hasErrors ? '❌' : '🔄';
-        report += `${emoji} #${iter.number}: ${iter.analysis.errorSummary?.substring(0, 50) || 'Processed'}\n`;
+      // Summarize iterations
+      if (state.iterations.length > 0) {
+        report += `\n📝 **Iteration Summary**:\n`;
+        for (const iter of state.iterations.slice(-5)) { // Show last 5
+          const emoji = iter.analysis.isComplete ? '✅' :
+                        iter.analysis.hasErrors ? '❌' : '🔄';
+          report += `${emoji} #${iter.number}: ${iter.analysis.errorSummary?.substring(0, 50) || 'Processed'}\n`;
+        }
       }
-    }
 
-    // Get last iteration output preview
-    if (state.iterations.length > 0) {
-      const lastOutput = state.iterations[state.iterations.length - 1].output;
-      report += `\n📄 **Last Output (preview)**:\n\`\`\`\n${lastOutput.slice(-1000)}\n\`\`\``;
-    }
+      // Get last iteration output preview
+      if (state.iterations.length > 0) {
+        const lastOutput = state.iterations[state.iterations.length - 1].output;
+        report += `\n📄 **Last Output (preview)**:\n\`\`\`\n${lastOutput.slice(-1000)}\n\`\`\``;
+      }
 
-    await this.bot.sendMessage(state.chatId, report, { parse_mode: 'Markdown' });
+      await this.bot.sendMessage(state.chatId, report, { parse_mode: 'Markdown' });
+    } catch (error) {
+      logger.error('Failed to send beast mode final report', {
+        sessionId: state.sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
   }
 
   /**
@@ -658,7 +728,14 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
             ? '⚠️ No remote configured'
             : '⚠️ Push failed';
 
-        await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
+        try {
+          await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
+        } catch (sendError) {
+          logger.error('Failed to send commit notification', {
+            sessionId: state.sessionId,
+            error: sendError instanceof Error ? sendError.message : String(sendError)
+          });
+        }
       }
     } catch (error) {
       logger.error('Failed to commit/push beast mode changes', {
