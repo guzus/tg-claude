@@ -138,3 +138,55 @@ export interface UserConfig {
   createdAt: Date;
   updatedAt: Date;
 }
+
+// Beast Mode Types
+export interface BeastModeConfig {
+  maxIterations: number;          // Maximum iteration cycles (default: 10)
+  maxDurationMs: number;          // Maximum total duration (default: 30 min)
+  iterationTimeoutMs: number;     // Per-iteration timeout (default: 10 min)
+  stopOnSuccess: boolean;         // Stop when tests pass (default: true)
+  autoCommitPerIteration: boolean;// Commit after each iteration (default: false)
+}
+
+export interface BeastModeState {
+  sessionId: string;
+  userId: number;
+  chatId: number;
+  originalRequest: string;
+  workingDir: string;
+  status: BeastModeStatus;
+  iteration: number;
+  startTime: Date;
+  endTime?: Date;
+  iterations: BeastIteration[];
+  config: BeastModeConfig;
+  messageId?: number;             // Status message to update
+}
+
+export interface BeastIteration {
+  number: number;
+  startTime: Date;
+  endTime?: Date;
+  prompt: string;
+  output: string;
+  analysis: IterationAnalysis;
+  taskId: string;
+}
+
+export interface IterationAnalysis {
+  hasErrors: boolean;
+  hasTestFailures: boolean;
+  hasBuildFailures: boolean;
+  isComplete: boolean;
+  errorSummary?: string;
+  suggestedAction?: string;
+}
+
+export enum BeastModeStatus {
+  RUNNING = 'running',
+  COMPLETED = 'completed',
+  FAILED = 'failed',
+  STOPPED = 'stopped',           // User stopped manually
+  MAX_ITERATIONS = 'max_iterations',
+  TIMEOUT = 'timeout'
+}

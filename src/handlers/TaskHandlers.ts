@@ -1,14 +1,43 @@
-import { Message } from 'node-telegram-bot-api';
+import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { TaskStatus } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
+import { BeastModeExecutor } from '../services/BeastModeExecutor';
+import { ClaudeExecutor } from '../services/ClaudeExecutor';
+import { RateLimiter } from '../services/RateLimiter';
+import { AuditLogger } from '../services/AuditLogger';
+import { RepositoryManager } from '../services/RepositoryManager';
+import { ConversationManager } from '../services/ConversationManager';
+import { UserConfigManager } from '../services/UserConfigManager';
 
 /**
  * Handlers for task execution commands
  */
 export class TaskHandlers extends BaseHandler {
+  private beastModeExecutor: BeastModeExecutor;
+
+  constructor(
+    bot: TelegramBot,
+    executor: ClaudeExecutor,
+    rateLimiter: RateLimiter,
+    auditLogger: AuditLogger,
+    repositoryManager: RepositoryManager,
+    conversationManager?: ConversationManager,
+    userConfigManager?: UserConfigManager
+  ) {
+    super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
+    this.beastModeExecutor = new BeastModeExecutor(bot, executor, repositoryManager);
+  }
+
+  /**
+   * Get the beast mode executor (for callback handlers)
+   */
+  getBeastModeExecutor(): BeastModeExecutor {
+    return this.beastModeExecutor;
+  }
+
   /**
    * Execute a Claude task and stream output
    */
@@ -464,18 +493,33 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
-   * Execute task in beast mode (autonomous execution)
+   * Execute task in beast mode (autonomous execution loop)
    */
   async executeBeastMode(msg: Message, userRequest: string): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
 
     const userId = msg.from!.id;
+    const chatId = msg.chat.id;
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
     if (!currentRepo) {
       await this.bot.sendMessage(
-        msg.chat.id,
-        '❌ Beast mode requires an active repository'
+        chatId,
+        '❌ Beast mode requires an active repository.\n\n' +
+        'Set up a repository first with:\n' +
+        '• `/repo clone <url>` - Clone a repository\n' +
+        '• `/repo new <name>` - Create a new repository',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    if (!userRequest.trim()) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Usage: `/beast <task description>`\n\n' +
+        'Example: `/beast implement user authentication with JWT`',
+        { parse_mode: 'Markdown' }
       );
       return;
     }
@@ -483,17 +527,63 @@ Always commit and push your changes after completing the task unless explicitly 
     // Add to conversation
     this.conversationManager?.addUserMessage(userId, `[BEAST MODE] ${userRequest}`, currentRepo.id);
 
-    const context = this.conversationManager?.getContext(userId);
+    try {
+      // Start beast mode session
+      await this.bot.sendMessage(
+        chatId,
+        '🔥 **Starting Beast Mode**\n\n' +
+        `Task: ${userRequest.substring(0, 200)}${userRequest.length > 200 ? '...' : ''}\n\n` +
+        'Beast mode will autonomously:\n' +
+        '• Execute the task\n' +
+        '• Fix any errors or test failures\n' +
+        '• Iterate until complete\n\n' +
+        '_Starting autonomous execution..._',
+        { parse_mode: 'Markdown' }
+      );
 
-    // Build beast mode prompt
-    const beastPrompt = PromptBuilder.buildEnhancedPrompt(
-      userRequest,
-      currentRepo,
-      context,
-      true // Beast mode ON
-    );
+      await this.beastModeExecutor.startSession(
+        userId,
+        chatId,
+        userRequest,
+        currentRepo.path
+      );
 
-    await this.executeAndStream(msg, beastPrompt, undefined, userRequest);
+      logger.info('Beast mode session started', {
+        userId,
+        request: userRequest.substring(0, 100),
+        repository: currentRepo.name
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+
+      await this.bot.sendMessage(
+        chatId,
+        `❌ Failed to start beast mode: ${errorMessage}`
+      );
+
+      logger.error('Failed to start beast mode', {
+        userId,
+        error: errorMessage
+      });
+    }
+  }
+
+  /**
+   * Stop beast mode for a user
+   */
+  async stopBeastMode(userId: number, chatId: number): Promise<boolean> {
+    const stopped = this.beastModeExecutor.stopSessionByUser(userId);
+
+    if (stopped) {
+      await this.bot.sendMessage(
+        chatId,
+        '🛑 Beast mode stopped.',
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    return stopped;
   }
 
   /**

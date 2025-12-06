@@ -44,6 +44,9 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
+
+    // Connect beast mode executor to callback handler for stop functionality
+    CallbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
   }
 
   // ==================== Utility Commands ====================
