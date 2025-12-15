@@ -1,0 +1,227 @@
+name: Frontend Visual Self-Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - "**/*.html"
+      - "**/*.css"
+      - "**/*.tsx"
+      - "**/*.jsx"
+      - "**/*.vue"
+      - "**/*.svelte"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'URL to screenshot (leave empty for local dev server)'
+        required: false
+        default: ''
+
+jobs:
+  visual-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          if [ -f "pnpm-lock.yaml" ]; then
+            npm install -g pnpm
+            pnpm install
+          elif [ -f "yarn.lock" ]; then
+            yarn install
+          else
+            npm install
+          fi
+
+      - name: Install Playwright
+        run: npx playwright install chromium
+
+      - name: Start dev server and take screenshots
+        run: |
+          # Create screenshot script
+          cat > screenshot.mjs << 'EOF'
+          import { chromium } from 'playwright';
+          import { spawn } from 'child_process';
+          import fs from 'fs';
+
+          const TARGET_URL = process.env.TARGET_URL || 'http://localhost:3000';
+          const SCREENSHOTS_DIR = 'screenshots';
+
+          // Ensure screenshots directory exists
+          fs.mkdirSync(SCREENSHOTS_DIR, { recursive: true });
+
+          async function waitForServer(url, maxAttempts = 30) {
+            for (let i = 0; i < maxAttempts; i++) {
+              try {
+                const response = await fetch(url);
+                if (response.ok) return true;
+              } catch (e) {
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+            return false;
+          }
+
+          async function takeScreenshots() {
+            const browser = await chromium.launch();
+            const context = await browser.newContext();
+
+            // Viewport sizes to test
+            const viewports = [
+              { name: 'desktop', width: 1920, height: 1080 },
+              { name: 'tablet', width: 768, height: 1024 },
+              { name: 'mobile', width: 375, height: 667 }
+            ];
+
+            // Pages to screenshot (customize these)
+            const pages = [
+              { name: 'home', path: '/' },
+              // Add more pages as needed
+              // { name: 'about', path: '/about' },
+              // { name: 'dashboard', path: '/dashboard' },
+            ];
+
+            for (const viewport of viewports) {
+              const page = await context.newPage();
+              await page.setViewportSize({ width: viewport.width, height: viewport.height });
+
+              for (const pageConfig of pages) {
+                try {
+                  await page.goto(`${TARGET_URL}${pageConfig.path}`, { waitUntil: 'networkidle', timeout: 30000 });
+                  await page.waitForTimeout(1000); // Allow animations to settle
+
+                  const filename = `${SCREENSHOTS_DIR}/${pageConfig.name}-${viewport.name}.png`;
+                  await page.screenshot({ path: filename, fullPage: true });
+                  console.log(`✓ Captured: ${filename}`);
+                } catch (e) {
+                  console.error(`✗ Failed: ${pageConfig.name}-${viewport.name}: ${e.message}`);
+                }
+              }
+              await page.close();
+            }
+
+            await browser.close();
+          }
+
+          async function main() {
+            // Check if using external URL or need to start dev server
+            if (process.env.SKIP_DEV_SERVER === 'true') {
+              console.log(`Using external URL: ${TARGET_URL}`);
+            } else {
+              console.log('Waiting for dev server...');
+              const serverReady = await waitForServer(TARGET_URL);
+              if (!serverReady) {
+                console.error('Dev server failed to start');
+                process.exit(1);
+              }
+            }
+
+            await takeScreenshots();
+          }
+
+          main();
+          EOF
+
+          # Try to start dev server in background (adjust command as needed)
+          if [ -f "package.json" ]; then
+            # Common dev server commands
+            if grep -q '"dev"' package.json; then
+              npm run dev &
+            elif grep -q '"start"' package.json; then
+              npm start &
+            fi
+            DEV_PID=$!
+
+            # Give server time to start
+            sleep 5
+
+            # Run screenshot script
+            node screenshot.mjs
+
+            # Cleanup
+            kill $DEV_PID 2>/dev/null || true
+          elif [ -n "${{ github.event.inputs.url }}" ]; then
+            TARGET_URL="${{ github.event.inputs.url }}" SKIP_DEV_SERVER=true node screenshot.mjs
+          else
+            echo "No dev server found and no URL provided"
+            exit 1
+          fi
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-screenshots
+          path: screenshots/
+          retention-days: 7
+
+      - name: Create screenshots summary
+        run: |
+          echo "## Frontend Screenshots" > screenshots/SUMMARY.md
+          echo "" >> screenshots/SUMMARY.md
+          echo "Screenshots taken at $(date -u)" >> screenshots/SUMMARY.md
+          echo "" >> screenshots/SUMMARY.md
+          for file in screenshots/*.png; do
+            if [ -f "$file" ]; then
+              filename=$(basename "$file")
+              echo "- $filename" >> screenshots/SUMMARY.md
+            fi
+          done
+
+      - name: Run Claude Visual Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            ## Frontend Visual Review Task
+
+            I've captured screenshots of the frontend in the `screenshots/` directory.
+
+            Please review the screenshots and analyze:
+
+            1. **Visual Design Quality**
+               - Layout consistency and alignment
+               - Color scheme and contrast (accessibility)
+               - Typography hierarchy and readability
+               - Spacing and whitespace usage
+
+            2. **Responsive Design**
+               - Compare desktop vs tablet vs mobile views
+               - Check for layout breaks or overflow issues
+               - Verify touch-friendly element sizes on mobile
+
+            3. **UI/UX Issues**
+               - Missing visual feedback states
+               - Unclear call-to-action buttons
+               - Navigation clarity
+               - Form usability
+
+            4. **Accessibility Concerns**
+               - Color contrast ratios
+               - Text size readability
+               - Touch target sizes
+
+            After reviewing, if there are issues to fix:
+            1. List specific issues found with file locations
+            2. Suggest concrete CSS/component fixes
+            3. Apply fixes directly to the code if straightforward
+            4. Post a summary comment on the PR using `gh pr comment`
+
+            Use the screenshots in the `screenshots/` directory for your visual analysis.
+
+          claude_args: '--allowed-tools "Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Read,Edit,Write,Glob,Grep"'
