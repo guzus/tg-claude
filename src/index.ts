@@ -11,6 +11,7 @@ import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
 import { BotHandlers } from './handlers/BotHandlers';
+import { voiceCallService } from './services/VoiceCallService';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -122,6 +123,7 @@ bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
+  { command: 'vibe', description: '🎸 Vibe coding - Auto call me on problems' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
   { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
@@ -137,6 +139,7 @@ bot.setMyCommands([
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
+bot.onText(/\/vibe(.*)/, (msg) => handlers.handleVibe(msg));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
 bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
@@ -164,9 +167,13 @@ bot.on('polling_error', (error) => {
   });
 });
 
-// Health check endpoint
+// Health check endpoint and voice webhooks
 const app = express();
 const healthPort = process.env.HEALTH_PORT || 3000;
+
+// Parse URL-encoded bodies (for Twilio webhooks)
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
 
 app.get('/health', (_req, res) => {
   const stats = auditLogger.getStats();
@@ -177,6 +184,7 @@ app.get('/health', (_req, res) => {
     uptime: process.uptime(),
     activeTasks: activeTaskCount,
     stats,
+    voiceServiceConfigured: voiceCallService.isConfigured(),
     timestamp: new Date().toISOString()
   });
 });
@@ -191,8 +199,66 @@ app.get('/metrics', (_req, res) => {
   });
 });
 
+// Voice call TwiML endpoint - returns voice prompt for the call
+app.get('/voice/twiml', (req, res) => {
+  const problem = req.query.problem as string || 'Unknown problem';
+  const userId = parseInt(req.query.userId as string) || 0;
+
+  const twiml = voiceCallService.generateTwiML(problem, userId);
+
+  res.type('text/xml');
+  res.send(twiml);
+
+  logger.info('TwiML requested', { userId, problemLength: problem.length });
+});
+
+// Voice call response endpoint - processes user's speech
+app.post('/voice/response', async (req, res) => {
+  const userId = parseInt(req.query.userId as string) || 0;
+  const speechResult = req.body.SpeechResult || '';
+  const callSid = req.body.CallSid || '';
+
+  logger.info('Voice response received', {
+    userId,
+    callSid,
+    speechResult: speechResult.substring(0, 100)
+  });
+
+  // Process the response
+  const refinedResponse = await voiceCallService.processVoiceResponse(callSid, speechResult);
+
+  // Return TwiML to end the call with confirmation
+  const twiml = `<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Got it. I'll continue with: ${refinedResponse.substring(0, 100).replace(/"/g, '&quot;')}</Say>
+  <Pause length="1"/>
+  <Say voice="alice">Check Telegram for updates. Goodbye!</Say>
+  <Hangup/>
+</Response>`;
+
+  res.type('text/xml');
+  res.send(twiml);
+});
+
+// Voice call status webhook - updates call status
+app.post('/voice/status', (req, res) => {
+  const callSid = req.body.CallSid || '';
+  const status = req.body.CallStatus || '';
+
+  voiceCallService.updateCallStatus(callSid, status);
+
+  logger.info('Call status update', { callSid, status });
+
+  res.sendStatus(200);
+});
+
 app.listen(healthPort, () => {
   logger.info(`Health check endpoint listening on port ${healthPort}`);
+  if (voiceCallService.isConfigured()) {
+    logger.info('Voice call service is configured and ready');
+  } else {
+    logger.info('Voice call service not configured - set TWILIO_* and GEMINI_API_KEY env vars');
+  }
 });
 
 // Cleanup old tasks periodically (every hour)
@@ -200,12 +266,14 @@ setInterval(() => {
   const cleanedTasks = executor.cleanupOldTasks();
   const cleanedActivity = rateLimiter.cleanup();
   const cleanedConversations = conversationManager.cleanup();
+  const cleanedCalls = voiceCallService.cleanupOldSessions();
 
-  if (cleanedTasks > 0 || cleanedActivity > 0 || cleanedConversations > 0) {
+  if (cleanedTasks > 0 || cleanedActivity > 0 || cleanedConversations > 0 || cleanedCalls > 0) {
     logger.info('Periodic cleanup completed', {
       cleanedTasks,
       cleanedActivity,
-      cleanedConversations
+      cleanedConversations,
+      cleanedCalls
     });
   }
 }, 60 * 60 * 1000);

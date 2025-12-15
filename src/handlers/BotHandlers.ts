@@ -13,6 +13,7 @@ import { UtilityHandlers } from './UtilityHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
 import { MothershipHandlers } from './MothershipHandlers';
+import { VibeCodingHandlers } from './VibeCodingHandlers';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -25,6 +26,7 @@ export class BotHandlers {
   private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
   private mothershipHandlers: MothershipHandlers;
+  private vibeCodingHandlers: VibeCodingHandlers;
 
   constructor(
     bot: TelegramBot,
@@ -44,6 +46,7 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
+    this.vibeCodingHandlers = new VibeCodingHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
 
     // Connect beast mode executor to callback handler for stop functionality
     this.callbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
@@ -72,6 +75,10 @@ export class BotHandlers {
   async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
     const prompt = match?.[1] || '';
     return this.taskHandlers.executeBeastMode(msg, prompt);
+  }
+
+  async handleVibe(msg: Message): Promise<void> {
+    return this.vibeCodingHandlers.handleVibe(msg);
   }
 
   // ==================== Repository Commands ====================
@@ -108,6 +115,12 @@ export class BotHandlers {
       return this.mothershipHandlers.handleBotCallback(query);
     }
 
+    // Route vibe coding callbacks to VibeCodingHandlers
+    if (query.data?.startsWith('vibe_')) {
+      const handled = await this.vibeCodingHandlers.handleCallback(query);
+      if (handled) return;
+    }
+
     // Route other callbacks to CallbackQueryHandler
     return this.callbackQueryHandler.handleCallbackQuery(query);
   }
@@ -122,6 +135,12 @@ export class BotHandlers {
     // Check if user has a pending repository creation waiting for a name
     if (userId && text && CallbackQueryHandler.hasPendingRepoCreation(userId)) {
       return this.callbackQueryHandler.handleRepoNameResponse(userId, chatId, text);
+    }
+
+    // Check if user has an active vibe coding session awaiting response
+    if (userId && text) {
+      const handled = await this.vibeCodingHandlers.handleTextMessage(msg);
+      if (handled) return;
     }
 
     // Otherwise treat as task command
