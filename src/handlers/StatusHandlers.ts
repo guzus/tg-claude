@@ -18,16 +18,22 @@ export class StatusHandlers extends BaseHandler {
     const activeTasks = this.executor.getActiveTasksForUser(userId);
 
     if (activeTasks.length === 0) {
-      await this.bot.sendMessage(chatId, '✅ No active tasks');
+      await this.bot.sendMessage(
+        chatId,
+        '✅ No active tasks\n\n_Use /queue to view queued tasks_',
+        { parse_mode: 'Markdown' }
+      );
       return;
     }
 
-    let message = `📊 Active Tasks (${activeTasks.length}):\n\n`;
+    let message = `📊 *Active Tasks* (${activeTasks.length}):\n\n`;
 
     for (const task of activeTasks) {
       const elapsed = Math.round((Date.now() - task.startTime.getTime()) / 1000);
       message += `• \`${task.id.substring(0, 8)}\` - ${task.prompt.substring(0, 40)}... (${UIHelpers.formatDuration(elapsed)})\n`;
     }
+
+    message += '\n_Use /queue to view queued tasks_';
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   }

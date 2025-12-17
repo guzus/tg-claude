@@ -191,3 +191,22 @@ export enum BeastModeStatus {
   MAX_ITERATIONS = 'max_iterations',
   TIMEOUT = 'timeout'
 }
+
+// Task Queue Types
+export interface QueuedTask {
+  id: string;
+  userId: number;
+  chatId: number;
+  prompt: string;
+  originalUserRequest: string;
+  workingDir: string;
+  queuedAt: Date;
+  position: number;
+  messageId?: number;  // Status message ID for updates
+}
+
+export enum QueueStatus {
+  IDLE = 'idle',
+  PROCESSING = 'processing',
+  PAUSED = 'paused'
+}

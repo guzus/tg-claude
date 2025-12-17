@@ -6,6 +6,7 @@ import { RepositoryType } from '../types';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
+import { TaskQueue } from '../services/TaskQueue';
 
 const execAsync = promisify(exec);
 
@@ -30,11 +31,21 @@ export class CallbackQueryHandler extends BaseHandler {
   // Beast mode executor reference (instance-based for proper DI)
   private beastModeExecutor: BeastModeExecutor | null = null;
 
+  // Task queue reference
+  private taskQueue: TaskQueue | null = null;
+
   /**
    * Set the beast mode executor (should be called after construction)
    */
   setBeastModeExecutor(executor: BeastModeExecutor): void {
     this.beastModeExecutor = executor;
+  }
+
+  /**
+   * Set the task queue (should be called after construction)
+   */
+  setTaskQueue(queue: TaskQueue): void {
+    this.taskQueue = queue;
   }
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
@@ -108,6 +119,10 @@ export class CallbackQueryHandler extends BaseHandler {
 
         case 'beast':
           await this.handleBeastModeAction(chatId, messageId, userId, params.join('_'));
+          break;
+
+        case 'queue':
+          await this.handleQueueAction(chatId, messageId, userId, params.join('_'));
           break;
 
         default:
@@ -1457,6 +1472,80 @@ export class CallbackQueryHandler extends BaseHandler {
     } else {
       logger.warn('Unknown beast mode action', { subAction, userId });
     }
+  }
+
+  /**
+   * Handle queue-related actions
+   */
+  private async handleQueueAction(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    subAction: string
+  ): Promise<void> {
+    if (!this.taskQueue) {
+      await this.bot.sendMessage(chatId, '❌ Task queue not available');
+      return;
+    }
+
+    // Handle queue_cancel:<taskId>
+    if (subAction.startsWith('cancel:')) {
+      const taskId = subAction.replace('cancel:', '');
+      const cancelled = await this.taskQueue.cancelQueuedTask(taskId, chatId);
+
+      if (cancelled) {
+        logger.info('Queued task cancelled via callback', { taskId, userId });
+      } else {
+        await this.bot.sendMessage(chatId, '❌ Task not found in queue or already started');
+      }
+      return;
+    }
+
+    // Handle queue_clear
+    if (subAction === 'clear') {
+      const clearedCount = await this.taskQueue.clearQueueForUser(userId);
+
+      await this.bot.editMessageText(
+        clearedCount > 0
+          ? `✅ Cleared ${clearedCount} task${clearedCount > 1 ? 's' : ''} from queue`
+          : '✅ Queue is already empty',
+        {
+          chat_id: chatId,
+          message_id: messageId
+        }
+      );
+
+      logger.info('Queue cleared via callback', { userId, clearedCount });
+      return;
+    }
+
+    // Handle queue_refresh
+    if (subAction === 'refresh') {
+      const queueInfo = this.taskQueue.getQueueInfo(userId);
+      const userQueue = this.taskQueue.getQueueForUser(userId);
+
+      const keyboard = userQueue.length > 0
+        ? {
+            inline_keyboard: [
+              [{ text: '🗑️ Clear Queue', callback_data: 'queue_clear' }],
+              [{ text: '🔄 Refresh', callback_data: 'queue_refresh' }]
+            ]
+          }
+        : undefined;
+
+      await this.bot.editMessageText(
+        `📋 *Task Queue*\n\n${queueInfo}`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown',
+          reply_markup: keyboard
+        }
+      );
+      return;
+    }
+
+    logger.warn('Unknown queue action', { subAction, userId });
   }
 
   /**

@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus } from '../types';
+import { TaskStatus, QueuedTask } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
@@ -11,12 +11,14 @@ import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
+import { TaskQueue } from '../services/TaskQueue';
 
 /**
  * Handlers for task execution commands
  */
 export class TaskHandlers extends BaseHandler {
   private beastModeExecutor: BeastModeExecutor;
+  private taskQueue: TaskQueue;
 
   constructor(
     bot: TelegramBot,
@@ -29,6 +31,12 @@ export class TaskHandlers extends BaseHandler {
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
     this.beastModeExecutor = new BeastModeExecutor(bot, executor, repositoryManager);
+    this.taskQueue = new TaskQueue(bot, executor);
+
+    // Handle queued tasks when they're ready
+    this.taskQueue.on('task_ready', (task: QueuedTask) => {
+      this.executeQueuedTask(task);
+    });
   }
 
   /**
@@ -36,6 +44,125 @@ export class TaskHandlers extends BaseHandler {
    */
   getBeastModeExecutor(): BeastModeExecutor {
     return this.beastModeExecutor;
+  }
+
+  /**
+   * Get the task queue (for callback handlers and status)
+   */
+  getTaskQueue(): TaskQueue {
+    return this.taskQueue;
+  }
+
+  /**
+   * Execute a queued task (called when task becomes ready)
+   */
+  private async executeQueuedTask(queuedTask: QueuedTask): Promise<void> {
+    const fakeMsg = {
+      from: { id: queuedTask.userId },
+      chat: { id: queuedTask.chatId }
+    } as Message;
+
+    await this.executeAndStream(
+      fakeMsg,
+      queuedTask.prompt,
+      queuedTask.workingDir,
+      queuedTask.originalUserRequest
+    );
+  }
+
+  /**
+   * Handle /queue command - view and manage task queue
+   */
+  async handleQueue(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const userId = msg.from!.id;
+    const chatId = msg.chat.id;
+    const args = match?.[1]?.trim().split(/\s+/) || [];
+    const subCommand = args[0]?.toLowerCase();
+
+    switch (subCommand) {
+      case 'clear':
+        await this.handleQueueClear(chatId, userId);
+        break;
+
+      case 'cancel':
+        const taskId = args[1];
+        if (!taskId) {
+          await this.bot.sendMessage(chatId, '❌ Usage: /queue cancel <task-id>');
+          return;
+        }
+        await this.handleQueueCancel(chatId, userId, taskId);
+        break;
+
+      default:
+        await this.handleQueueStatus(chatId, userId);
+    }
+  }
+
+  /**
+   * Show queue status
+   */
+  private async handleQueueStatus(chatId: number, userId: number): Promise<void> {
+    const queueInfo = this.taskQueue.getQueueInfo(userId);
+    const userQueue = this.taskQueue.getQueueForUser(userId);
+
+    let keyboard;
+    if (userQueue.length > 0) {
+      keyboard = {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🗑️ Clear Queue', callback_data: 'queue_clear' }],
+            [{ text: '🔄 Refresh', callback_data: 'queue_refresh' }]
+          ]
+        }
+      };
+    }
+
+    await this.bot.sendMessage(
+      chatId,
+      `📋 *Task Queue*\n\n${queueInfo}`,
+      { parse_mode: 'Markdown', ...keyboard }
+    );
+  }
+
+  /**
+   * Clear queue for user
+   */
+  private async handleQueueClear(chatId: number, userId: number): Promise<void> {
+    const clearedCount = await this.taskQueue.clearQueueForUser(userId);
+
+    if (clearedCount > 0) {
+      await this.bot.sendMessage(
+        chatId,
+        `✅ Cleared ${clearedCount} task${clearedCount > 1 ? 's' : ''} from queue`
+      );
+    } else {
+      await this.bot.sendMessage(chatId, '✅ Queue is already empty');
+    }
+  }
+
+  /**
+   * Cancel a specific queued task
+   */
+  private async handleQueueCancel(chatId: number, userId: number, taskIdPrefix: string): Promise<void> {
+    const userQueue = this.taskQueue.getQueueForUser(userId);
+    const task = userQueue.find(t => t.id.startsWith(taskIdPrefix));
+
+    if (!task) {
+      await this.bot.sendMessage(chatId, '❌ Task not found in queue');
+      return;
+    }
+
+    const cancelled = await this.taskQueue.cancelQueuedTask(task.id, chatId);
+    if (cancelled) {
+      await this.bot.sendMessage(
+        chatId,
+        `✅ Cancelled task: ${task.originalUserRequest.substring(0, 50)}...`
+      );
+    } else {
+      await this.bot.sendMessage(chatId, '❌ Failed to cancel task');
+    }
   }
 
   /**
@@ -445,7 +572,29 @@ IMPORTANT: After completing the coding task:
 
 Always commit and push your changes after completing the task unless explicitly told not to.`;
 
-    await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
+    // Check if task should be queued or executed immediately
+    await this.executeOrQueue(msg, augmentedPrompt, currentRepo.path, taskDescription);
+  }
+
+  /**
+   * Either execute task immediately or queue it if there's an active task
+   */
+  private async executeOrQueue(
+    msg: Message,
+    prompt: string,
+    workingDir: string,
+    originalUserRequest: string
+  ): Promise<void> {
+    const userId = msg.from!.id;
+
+    // Check if user can process immediately (no active tasks)
+    if (this.taskQueue.canProcessImmediately(userId)) {
+      // Execute immediately
+      await this.executeAndStream(msg, prompt, workingDir, originalUserRequest);
+    } else {
+      // Queue the task
+      await this.taskQueue.enqueue(msg, prompt, originalUserRequest, workingDir);
+    }
   }
 
   /**
@@ -488,8 +637,8 @@ Always commit and push your changes after completing the task unless explicitly 
       false // Not beast mode for plain messages
     );
 
-    // Execute with enhanced prompt, passing original user message for commit messages
-    await this.executeAndStream(msg, enhancedPrompt, undefined, userMessage);
+    // Check if task should be queued or executed immediately
+    await this.executeOrQueue(msg, enhancedPrompt, currentRepo.path, userMessage);
   }
 
   /**
