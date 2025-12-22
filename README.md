@@ -38,11 +38,21 @@ Plain text messages are treated as `/task` commands.
 
 ## Architecture
 
-```
-Telegram → Bot (TypeScript) → Claude Code CLI → Git/Files
-```
+```mermaid
+flowchart LR
+    User([You]) <-->|Telegram| Bot
 
-**Services**: ClaudeExecutor, RateLimiter, RepositoryManager, BeastModeExecutor, MothershipService
+    subgraph Bot[Telegram Bot]
+        Handler[Handlers]
+        Handler --> Executor[ClaudeExecutor]
+        Handler --> Beast[BeastMode]
+        Handler --> Repo[RepoManager]
+    end
+
+    Executor -->|spawns| Claude[Claude Code CLI]
+    Beast -->|iterates| Claude
+    Claude <-->|read/write| FS[(Git & Files)]
+```
 
 ## Deployment
 
