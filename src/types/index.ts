@@ -191,3 +191,59 @@ export enum BeastModeStatus {
   MAX_ITERATIONS = 'max_iterations',
   TIMEOUT = 'timeout'
 }
+
+// PR Management Types
+export interface PullRequest {
+  number: number;
+  title: string;
+  url: string;
+  state: 'open' | 'closed' | 'merged';
+  author: string;
+  branch: string;
+  baseBranch: string;
+  ciStatus: CIStatus;
+  checks: CICheck[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CICheck {
+  name: string;
+  status: 'pending' | 'success' | 'failure' | 'cancelled' | 'skipped';
+  conclusion?: string;
+  url?: string;
+}
+
+export enum CIStatus {
+  PENDING = 'pending',
+  PASSING = 'passing',
+  FAILING = 'failing',
+  UNKNOWN = 'unknown'
+}
+
+// Memo/Notes Types
+export interface Memo {
+  id: string;
+  userId: number;
+  content: string;
+  type: MemoType;
+  status: MemoStatus;
+  createdAt: Date;
+  updatedAt: Date;
+  completedAt?: Date;
+  relatedTaskId?: string;
+  relatedPR?: number;
+}
+
+export enum MemoType {
+  TODO = 'todo',
+  DONE = 'done',
+  NOTE = 'note'
+}
+
+export enum MemoStatus {
+  PENDING = 'pending',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  CANCELLED = 'cancelled'
+}

@@ -10,6 +10,7 @@ import { ConversationManager } from './services/ConversationManager';
 import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
+import { MemoService } from './services/MemoService';
 import { BotHandlers } from './handlers/BotHandlers';
 
 // Initialize GitHub service and authenticate
@@ -37,12 +38,14 @@ const userConfigManager = new UserConfigManager();
 const repositoryManager = new RepositoryManager(undefined, userConfigManager);
 const conversationManager = new ConversationManager();
 const mothershipService = new MothershipService();
+const memoService = new MemoService();
 
-// Initialize repository manager and user config manager (discover existing repos and configs)
+// Initialize repository manager, user config manager, and memo service
 (async () => {
   await Promise.all([
     repositoryManager.initialize(),
-    userConfigManager.initialize()
+    userConfigManager.initialize(),
+    memoService.initialize()
   ]);
 
   const stats = repositoryManager.getStats();
@@ -61,7 +64,7 @@ const mothershipService = new MothershipService();
 
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
+const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService, memoService);
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
@@ -121,10 +124,12 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
-  { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
+  { command: 'beast', description: 'Beast mode - Autonomous AI execution' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
-  { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
+  { command: 'pr', description: 'PR management (list/view/merge with squash)' },
+  { command: 'memo', description: 'Track tasks done and to-do' },
+  { command: 'bot', description: 'Manage bots via Mothership (run/status/logs)' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'status', description: 'Check active tasks' },
   { command: 'config', description: 'Manage user configuration' },
@@ -139,6 +144,8 @@ bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
+bot.onText(/\/pr(.*)/, (msg, match) => handlers.handlePR(msg, match));
+bot.onText(/\/memo(.*)/, (msg, match) => handlers.handleMemo(msg, match));
 bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));

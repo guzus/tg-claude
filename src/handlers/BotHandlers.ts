@@ -6,6 +6,7 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { MothershipService } from '../services/MothershipService';
+import { MemoService } from '../services/MemoService';
 import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
@@ -13,6 +14,8 @@ import { UtilityHandlers } from './UtilityHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
 import { MothershipHandlers } from './MothershipHandlers';
+import { PRHandlers } from './PRHandlers';
+import { MemoHandlers } from './MemoHandlers';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -25,6 +28,8 @@ export class BotHandlers {
   private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
   private mothershipHandlers: MothershipHandlers;
+  private prHandlers: PRHandlers;
+  private memoHandlers: MemoHandlers;
 
   constructor(
     bot: TelegramBot,
@@ -34,7 +39,8 @@ export class BotHandlers {
     repositoryManager: RepositoryManager,
     conversationManager: ConversationManager,
     userConfigManager: UserConfigManager,
-    mothershipService: MothershipService
+    mothershipService: MothershipService,
+    memoService: MemoService
   ) {
     // Initialize all handler modules
     this.taskHandlers = new TaskHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
@@ -44,6 +50,8 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
+    this.prHandlers = new PRHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.memoHandlers = new MemoHandlers(bot, memoService, executor, rateLimiter, auditLogger, repositoryManager);
 
     // Connect beast mode executor to callback handler for stop functionality
     this.callbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
@@ -100,6 +108,18 @@ export class BotHandlers {
     return this.mothershipHandlers.handleBot(msg, match);
   }
 
+  // ==================== PR Commands ====================
+
+  async handlePR(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.prHandlers.handlePR(msg, match);
+  }
+
+  // ==================== Memo Commands ====================
+
+  async handleMemo(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.memoHandlers.handleMemo(msg, match);
+  }
+
   // ==================== Callback Queries ====================
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
@@ -108,8 +128,41 @@ export class BotHandlers {
       return this.mothershipHandlers.handleBotCallback(query);
     }
 
+    // Route PR-related callbacks
+    if (query.data?.startsWith('pr_')) {
+      const chatId = query.message?.chat.id;
+      const messageId = query.message?.message_id;
+      const userId = query.from.id;
+      if (chatId && messageId) {
+        await this.bot.answerCallbackQuery(query.id);
+        const action = query.data.replace('pr_', '');
+        // Re-execute the PR command with the action
+        const fakeMsg = { chat: { id: chatId }, from: { id: userId } } as any;
+        return this.prHandlers.handlePR(fakeMsg, [null, action] as any);
+      }
+      return;
+    }
+
+    // Route memo-related callbacks
+    if (query.data?.startsWith('memo_')) {
+      const chatId = query.message?.chat.id;
+      const messageId = query.message?.message_id;
+      const userId = query.from.id;
+      if (chatId && messageId) {
+        await this.bot.answerCallbackQuery(query.id);
+        const action = query.data.replace('memo_', '');
+        return this.memoHandlers.handleMemoCallback(chatId, messageId, userId, action);
+      }
+      return;
+    }
+
     // Route other callbacks to CallbackQueryHandler
     return this.callbackQueryHandler.handleCallbackQuery(query);
+  }
+
+  // Expose the bot instance for callback handling
+  private get bot(): TelegramBot {
+    return this.taskHandlers['bot'];
   }
 
   // ==================== Plain Messages ====================
