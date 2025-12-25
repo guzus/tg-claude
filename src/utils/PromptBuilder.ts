@@ -1,37 +1,69 @@
 import { Repository } from '../types';
 
+// Completion signal that Claude should emit when task is fully complete
+export const COMPLETION_SIGNAL = 'TASK_COMPLETE';
+export const COMPLETION_THRESHOLD = 2; // Need 2 signals for confidence
+
 export class PromptBuilder {
   /**
    * Build an enhanced prompt for Claude with context and best practices
-   * Based on Cursor Agent's approach to agentic coding
+   * Now includes memo context for persistence across runs
    */
   static buildEnhancedPrompt(
     userRequest: string,
     repository: Repository,
-    conversationContext?: string,
-    beastMode: boolean = false
+    options: {
+      conversationContext?: string;
+      memoContext?: string;
+      beastMode?: boolean;
+      iterationNumber?: number;
+      previousOutput?: string;
+      errorContext?: string;
+    } = {}
   ): string {
-    const systemPrompt = this.getSystemPrompt(beastMode);
-    const repoContext = this.getRepositoryContext(repository);
-    const conversationSection = conversationContext
-      ? `## Previous Conversation\n\n${conversationContext}\n\n`
-      : '';
+    const {
+      conversationContext,
+      memoContext,
+      beastMode = false,
+      iterationNumber,
+      previousOutput,
+      errorContext
+    } = options;
 
-    const prompt = `${systemPrompt}
+    const parts: string[] = [];
 
-${repoContext}
+    // System instructions
+    parts.push(this.getSystemPrompt(beastMode));
 
-${conversationSection}## Current Request
+    // Repository context
+    parts.push(this.getRepositoryContext(repository));
 
-${userRequest}
+    // Memo context (persistent notes from previous runs)
+    if (memoContext) {
+      parts.push(this.getMemoSection(memoContext));
+    }
 
-${beastMode ? this.getBeastModeInstructions() : this.getStandardInstructions()}`;
+    // Conversation context
+    if (conversationContext) {
+      parts.push(`## Previous Conversation\n\n${conversationContext}`);
+    }
 
-    return prompt;
+    // For beast mode iterations, add iteration context
+    if (beastMode && iterationNumber && iterationNumber > 1) {
+      parts.push(this.getIterationContext(iterationNumber, previousOutput, errorContext));
+    }
+
+    // Current request
+    parts.push(`## Current Request\n\n${userRequest}`);
+
+    // Instructions (including memo update and completion signal)
+    parts.push(beastMode ? this.getBeastModeInstructions() : this.getStandardInstructions());
+
+    return parts.join('\n\n');
   }
 
   /**
-   * Get system prompt with best practices from Cursor
+   * Get system prompt
    */
   private static getSystemPrompt(beastMode: boolean): string {
     return `# System Instructions
@@ -57,19 +89,11 @@ You are an expert software engineer with deep knowledge across all programming l
 - Debug issues and fix bugs
 - Implement new features end-to-end
 
-## How to Approach Tasks
-
-1. **Understand First**: Analyze the existing code structure before making changes
-2. **Plan**: Think through the implementation approach
-3. **Execute**: Make changes systematically
-4. **Verify**: Test your changes when possible
-5. **Document**: Add comments for complex logic
-
-${beastMode ? '## Beast Mode: ON\n\nYou are in autonomous mode. You should:\n- Take initiative to complete tasks fully\n- Make multiple related changes without asking\n- Run tests and fix issues automatically\n- Continue iterating until the task is complete\n- Only stop when you\'ve achieved the goal or hit a blocker' : ''}`;
+${beastMode ? '## Mode: AUTONOMOUS (Beast Mode)\n\nYou are in fully autonomous mode. Make decisions and execute without asking for permission.' : ''}`;
   }
 
   /**
-   * Get repository context information
+   * Get repository context
    */
   private static getRepositoryContext(repository: Repository): string {
     return `## Repository Context
@@ -81,6 +105,61 @@ ${beastMode ? '## Beast Mode: ON\n\nYou are in autonomous mode. You should:\n- T
 ${repository.gitUrl ? `**Remote**: ${repository.gitUrl}` : ''}
 
 The working directory is set to this repository. All file paths are relative to the repository root.`;
+  }
+
+  /**
+   * Get memo section for persistent context
+   */
+  private static getMemoSection(memoContext: string): string {
+    return `## Shared Notes (Context from Previous Runs)
+
+The following notes contain context, learnings, and decisions from previous sessions.
+Use this information to maintain continuity and avoid repeating mistakes.
+
+<shared_notes>
+${memoContext}
+</shared_notes>
+
+**Important**: After completing your task, update the SHARED_NOTES.md file with:
+- Key decisions made
+- Learnings or insights discovered
+- Any blockers encountered
+- Context that would help future runs`;
+  }
+
+  /**
+   * Get iteration context for beast mode
+   */
+  private static getIterationContext(
+    iterationNumber: number,
+    previousOutput?: string,
+    errorContext?: string
+  ): string {
+    let context = `## Iteration Context
+
+**Current Iteration**: #${iterationNumber}
+
+This is a continuation from previous iterations. Review the context below.`;
+
+    if (errorContext) {
+      context += `
+
+### Issues from Previous Iteration
+
+${errorContext}`;
+    }
+
+    if (previousOutput) {
+      context += `
+
+### Output from Previous Iteration (last 2000 chars)
+
+\`\`\`
+${previousOutput.slice(-2000)}
+\`\`\``;
+    }
+
+    return context;
   }
 
   /**
@@ -107,12 +186,12 @@ Be thorough but concise in your approach.`;
   }
 
   /**
-   * Get beast mode instructions for autonomous execution
+   * Get beast mode instructions with memo update and completion signal
    */
-  private static getBeastModeInstructions(): string {
+  static getBeastModeInstructions(): string {
     return `## Beast Mode Instructions
 
-You are operating in **autonomous mode**. This means:
+You are operating in **fully autonomous mode**. This means:
 
 ### Full Autonomy
 - Make ALL necessary changes without asking for permission
@@ -131,7 +210,6 @@ You are operating in **autonomous mode**. This means:
 - Implement the feature end-to-end
 - Add error handling
 - Write/update tests
-- Update documentation if needed
 - Ensure code quality and consistency
 
 ### Decision Making
@@ -140,21 +218,89 @@ You are operating in **autonomous mode**. This means:
 - Make reasonable assumptions when requirements are ambiguous
 - Prioritize working code over perfection
 
+### Updating Shared Notes
+
+After completing your work, update the \`SHARED_NOTES.md\` file with:
+- What you accomplished
+- Key decisions you made and why
+- Any learnings or insights
+- Blockers encountered and how you resolved them
+- Context that would help if you need to continue later
+
+### Completion Signal
+
+When the task is **fully complete** and verified:
+1. All tests pass
+2. Build succeeds
+3. Implementation is complete
+4. No known issues remain
+
+Output the completion signal: \`${COMPLETION_SIGNAL}\`
+
+Emit this signal **twice** to confirm completion:
+- Once after summarizing what was done
+- Once at the very end of your response
+
+Example:
+\`\`\`
+All tests passing. Implementation complete.
+${COMPLETION_SIGNAL}
+
+Summary: Implemented feature X with full test coverage.
+${COMPLETION_SIGNAL}
+\`\`\`
+
 ### Stopping Criteria
+
 Only stop when:
-- The task is fully complete and working
+- The task is fully complete and working (\`${COMPLETION_SIGNAL}\` emitted twice)
 - Tests are passing (if applicable)
 - You hit a genuine blocker requiring human input
 - You need clarification on requirements
 
-### Output
-Provide a summary of:
-- What you implemented
-- Changes made to which files
-- Any tests run and their results
-- Known limitations or areas for future improvement
-
 **Remember**: You have full autonomy. Be bold, make decisions, and get the job done!`;
+  }
+
+  /**
+   * Build self-review prompt
+   */
+  static buildSelfReviewPrompt(
+    task: string,
+    outputSummary: string,
+    repository: Repository
+  ): string {
+    return `# Self-Review Request
+
+You just completed a task. Review your work and provide an honest assessment.
+
+## Repository
+${repository.name} (${repository.path})
+
+## Original Task
+${task}
+
+## Work Performed
+${outputSummary}
+
+## Review Instructions
+
+Provide an honest self-review covering:
+
+1. **Completion Assessment**: Is the task fully complete? If not, what remains?
+2. **Quality Assessment**: Rate the code quality (1-10) and explain
+3. **Test Coverage**: Were appropriate tests added/updated?
+4. **Potential Issues**: Any bugs, edge cases, or improvements needed?
+5. **Learnings**: What insights would help with similar tasks?
+
+Be critical and honest. Identify areas for improvement.
+
+Format your review as:
+\`\`\`
+COMPLETION: [complete/partial/incomplete]
+QUALITY: [1-10]/10
+ISSUES: [list any issues]
+LEARNINGS: [key insights]
+\`\`\``;
   }
 
   /**
@@ -196,3 +342,5 @@ Perform a thorough code review focusing on:
 Provide actionable feedback and suggestions for improvement.`;
   }
 }
+
+export default PromptBuilder;

@@ -11,12 +11,14 @@ import { AuditLogger } from '../services/AuditLogger';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
+import { MemoService } from '../services/MemoService';
 
 /**
  * Handlers for task execution commands
  */
 export class TaskHandlers extends BaseHandler {
   private beastModeExecutor: BeastModeExecutor;
+  private memoService: MemoService;
 
   constructor(
     bot: TelegramBot,
@@ -29,6 +31,7 @@ export class TaskHandlers extends BaseHandler {
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
     this.beastModeExecutor = new BeastModeExecutor(bot, executor, repositoryManager);
+    this.memoService = new MemoService();
   }
 
   /**
@@ -478,14 +481,20 @@ Always commit and push your changes after completing the task unless explicitly 
     this.conversationManager?.addUserMessage(userId, userMessage, currentRepo.id);
 
     // Get conversation context
-    const context = this.conversationManager?.getContext(userId);
+    const conversationContext = this.conversationManager?.getContext(userId);
 
-    // Build enhanced prompt with context
+    // Get memo context for persistent notes
+    const memoContext = this.memoService.getMemoSummary(currentRepo.path);
+
+    // Build enhanced prompt with context and memo
     const enhancedPrompt = PromptBuilder.buildEnhancedPrompt(
       userMessage,
       currentRepo,
-      context,
-      false // Not beast mode for plain messages
+      {
+        conversationContext,
+        memoContext,
+        beastMode: false
+      }
     );
 
     // Execute with enhanced prompt, passing original user message for commit messages
