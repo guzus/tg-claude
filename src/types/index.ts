@@ -134,6 +134,11 @@ export interface UserConfig {
     maxConcurrentTasks?: number;
     taskTimeoutMs?: number;
   };
+  techStack?: {
+    languages?: string;
+    frameworks?: string;
+    tools?: string;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

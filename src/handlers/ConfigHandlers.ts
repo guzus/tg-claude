@@ -88,9 +88,13 @@ export class ConfigHandlers extends BaseHandler {
       `• \`preferences.notifyOnTaskComplete\` - Notifications (true/false)\n` +
       `• \`preferences.dangerModeEnabled\` - Danger mode (true/false)\n` +
       `• \`limits.maxConcurrentTasks\` - Max concurrent tasks (number)\n` +
-      `• \`limits.taskTimeoutMs\` - Task timeout in ms (number)\n\n` +
+      `• \`limits.taskTimeoutMs\` - Task timeout in ms (number)\n` +
+      `• \`techStack.languages\` - Preferred languages (e.g., TypeScript, Python)\n` +
+      `• \`techStack.frameworks\` - Preferred frameworks (e.g., React, FastAPI)\n` +
+      `• \`techStack.tools\` - Preferred tools (e.g., Bun, Docker)\n\n` +
       `Example:\n` +
-      `\`/config set git.userName "John Doe"\``;
+      `\`/config set git.userName "John Doe"\`\n` +
+      `\`/config set techStack.languages "TypeScript, Python"\``;
 
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
@@ -105,7 +109,8 @@ export class ConfigHandlers extends BaseHandler {
             { text: '⚙️ Preferences', callback_data: 'config_preferences' }
           ],
           [
-            { text: '📊 Limits', callback_data: 'config_limits' }
+            { text: '📊 Limits', callback_data: 'config_limits' },
+            { text: '🛠️ Tech Stack', callback_data: 'config_techstack' }
           ],
           [
             { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
@@ -143,6 +148,10 @@ export class ConfigHandlers extends BaseHandler {
       `*Limits:*\n` +
       `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
       `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
+      `*Tech Stack:*\n` +
+      `💻 Languages: \`${config.techStack?.languages || 'Not set'}\`\n` +
+      `📦 Frameworks: \`${config.techStack?.frameworks || 'Not set'}\`\n` +
+      `🛠️ Tools: \`${config.techStack?.tools || 'Not set'}\`\n\n` +
       `_Last updated: ${config.updatedAt.toLocaleString()}_`;
 
     await this.bot.sendMessage(chatId, message, {
@@ -154,7 +163,8 @@ export class ConfigHandlers extends BaseHandler {
             { text: '⚙️ Edit Preferences', callback_data: 'config_preferences' }
           ],
           [
-            { text: '📊 Edit Limits', callback_data: 'config_limits' }
+            { text: '📊 Edit Limits', callback_data: 'config_limits' },
+            { text: '🛠️ Edit Tech Stack', callback_data: 'config_techstack' }
           ],
           [
             { text: '🔙 Back to Config Menu', callback_data: 'config_menu' }
@@ -245,8 +255,11 @@ export class ConfigHandlers extends BaseHandler {
       case 'limits':
         update.limits = { [field]: parsedValue };
         break;
+      case 'techStack':
+        update.techStack = { [field]: parsedValue };
+        break;
       default:
-        throw new Error(`Unknown config category: ${category}. Valid: git, preferences, limits`);
+        throw new Error(`Unknown config category: ${category}. Valid: git, preferences, limits, techStack`);
     }
 
     return update;

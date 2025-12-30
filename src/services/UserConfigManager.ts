@@ -126,6 +126,11 @@ export class UserConfigManager {
         maxConcurrentTasks: 3,
         taskTimeoutMs: 1800000 // 30 minutes
       },
+      techStack: {
+        languages: '',
+        frameworks: '',
+        tools: ''
+      },
       createdAt: now,
       updatedAt: now
     };
@@ -146,6 +151,9 @@ export class UserConfigManager {
     }
     if (updates.limits) {
       config.limits = { ...config.limits, ...updates.limits };
+    }
+    if (updates.techStack) {
+      config.techStack = { ...config.techStack, ...updates.techStack };
     }
 
     config.updatedAt = new Date();
