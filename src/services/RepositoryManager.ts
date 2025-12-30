@@ -3,7 +3,7 @@ import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
-import { config } from '../config';
+import { WORKSPACE_PATH } from '../config';
 import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
 
@@ -13,7 +13,7 @@ export class RepositoryManager {
   private userConfigManager: UserConfigManager | undefined;
 
   constructor(baseWorkspacePath?: string, userConfigManager?: UserConfigManager) {
-    this.baseWorkspacePath = baseWorkspacePath || config.workspacePath;
+    this.baseWorkspacePath = baseWorkspacePath || WORKSPACE_PATH;
     this.userConfigManager = userConfigManager;
   }
 

@@ -2,7 +2,6 @@ export interface BotConfig {
   telegramToken: string;
   githubToken: string;
   allowedUserIds: number[];
-  workspacePath: string;
   maxConcurrentTasks: number;
   taskTimeoutMs: number;
   maxOutputSize: number;

@@ -225,7 +225,6 @@ process.on('SIGINT', () => {
 
 logger.info('🤖 Claude Code Telegram Bot started successfully', {
   allowedUsers: config.allowedUserIds.length,
-  workspacePath: config.workspacePath,
   maxConcurrentTasks: config.maxConcurrentTasks
 });
 

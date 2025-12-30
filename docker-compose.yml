@@ -1,0 +1,23 @@
+services:
+  tg-claude:
+    build: .
+    container_name: tg-claude
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./workspace:/workspace
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./config:/app/config
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - ALLOWED_USER_IDS=${ALLOWED_USER_IDS}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

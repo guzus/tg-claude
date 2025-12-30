@@ -12,17 +12,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        run: bun run build
-
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
@@ -35,31 +24,30 @@ jobs:
           rsync -avz --delete \
             --exclude '.env' \
             --exclude 'node_modules' \
+            --exclude 'workspace/' \
             --exclude 'data/' \
             --exclude 'logs/' \
+            --exclude 'config/' \
             --exclude '*.log' \
             -e "ssh -i ~/.ssh/deploy_key" \
             ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}
 
-      - name: Install dependencies and restart service
+      - name: Build and restart with Docker Compose
         run: |
           ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
             cd ${{ secrets.DEPLOY_PATH }}
 
-            # Create data directory if it doesn't exist (for persistent files)
-            mkdir -p data logs
+            # Create necessary directories
+            mkdir -p workspace data logs config
 
-            # Install production dependencies
-            bun install --frozen-lockfile --production
+            # Build and restart with Docker Compose
+            docker compose down --remove-orphans || true
+            docker compose build --no-cache
+            docker compose up -d
 
-            # Restart the service (using pm2)
-            if pm2 list | grep -q "tg-claude"; then
-              pm2 restart tg-claude
-            else
-              pm2 start dist/index.js --name tg-claude
-            fi
-
-            pm2 save
+            # Show status
+            docker compose ps
+            docker compose logs --tail=20
           EOF
 
       - name: Cleanup

@@ -4,33 +4,56 @@ Control Claude Code remotely via Telegram with your Claude subscription.
 
 ## Pre-requisites
 
-- **Claude CLI with active subscription**: Login to Claude on your remote server first:
-  ```bash
-  claude login
-  ```
+- **Claude subscription**: You need an active Claude Pro/Team subscription
+- **Docker & Docker Compose**: For deployment
 
-## Quick Start
+## Setup
+
+### 1. Get Claude OAuth Token
+
+Login to Claude and generate an OAuth token for headless environments:
 
 ```bash
-# Install dependencies
-bun install
+# Install Claude CLI locally first
+curl -fsSL https://claude.ai/install.sh | bash
 
-# Build and run
-bun run build && bun start
+# Login with your Claude subscription
+claude login
 
-# Development
-bun dev
+# Generate OAuth token for server use
+claude setup-token
 ```
 
-### Environment
+Copy the generated `CLAUDE_CODE_OAUTH_TOKEN` value.
 
-Copy `.env.example` to `.env` and configure:
+### 2. Configure Environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
-ALLOWED_USER_IDS=123456789             # Your Telegram ID
-WORKSPACE_PATH=/path/to/projects
+ALLOWED_USER_IDS=123456789             # Your Telegram ID (@userinfobot)
+CLAUDE_CODE_OAUTH_TOKEN=your_token     # From claude setup-token
 GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
+```
+
+### 3. Deploy with Docker Compose
+
+```bash
+docker compose up -d
+```
+
+The workspace is mounted at `./workspace` - all repositories will be stored there.
+
+## Development
+
+```bash
+bun install
+bun dev
 ```
 
 ## Commands
@@ -53,19 +76,13 @@ Plain text messages are treated as `/task` commands.
 ```
 src/
 ├── handlers/           # Telegram command handlers
-│   ├── BaseHandler     # Common utilities & auth
-│   ├── TaskHandlers    # /task command
-│   ├── RepoHandlers    # /repo command
-│   └── CallbackQuery   # Inline keyboard actions
 ├── services/           # Business logic
 │   ├── ClaudeExecutor  # Claude CLI process management
-│   ├── GitService      # Git operations (commit, push, clone)
-│   ├── RepoManager     # Repository discovery & switching
-│   ├── StateManager    # Centralized in-memory state
-│   └── BeastMode       # Autonomous iteration mode
-├── config/             # Configuration management
-├── types/              # TypeScript definitions
-└── utils/              # Logging, UI helpers
+│   ├── GitService      # Git operations
+│   ├── RepoManager     # Repository management
+│   └── BeastMode       # Autonomous iteration
+├── config/             # Configuration
+└── utils/              # Logging, helpers
 ```
 
 ```mermaid
