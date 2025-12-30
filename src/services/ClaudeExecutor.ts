@@ -161,16 +161,11 @@ export class ClaudeExecutor {
         taskId: task.id,
         command: 'claude',
         args: args.map(a => a.length > 50 ? a.substring(0, 50) + '...' : a),
-        cwd: workingDir,
-        hasApiKey: !!config.claudeApiKey
+        cwd: workingDir
       });
 
       // Build environment variables
-      // Claude CLI will use its own authentication if ANTHROPIC_API_KEY is not set
       const env = { ...process.env };
-      if (config.claudeApiKey && !config.claudeApiKey.includes('your_claude_api_key_here')) {
-        env.ANTHROPIC_API_KEY = config.claudeApiKey;
-      }
 
       // For root users, set environment to auto-approve (if Claude supports it)
       if (isRoot) {
@@ -772,11 +767,7 @@ Example format: "feat: Add user authentication system"`;
         `claude "${prompt.replace(/"/g, '\\"')}"`,
         {
           cwd: workingDir,
-          timeout: 30000,
-          env: {
-            ...process.env,
-            ANTHROPIC_API_KEY: config.claudeApiKey || process.env.ANTHROPIC_API_KEY
-          }
+          timeout: 30000
         }
       );
 
