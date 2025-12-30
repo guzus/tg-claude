@@ -1,0 +1,73 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy via rsync
+        run: |
+          rsync -avz --delete \
+            --exclude '.env' \
+            --exclude 'node_modules' \
+            --exclude 'data/' \
+            --exclude 'logs/' \
+            --exclude '*.log' \
+            -e "ssh -i ~/.ssh/deploy_key" \
+            ./ ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}
+
+      - name: Install dependencies and restart service
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << 'EOF'
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Create data directory if it doesn't exist (for persistent files)
+            mkdir -p data logs
+
+            # Install production dependencies
+            pnpm install --frozen-lockfile --prod
+
+            # Restart the service (using pm2)
+            if pm2 list | grep -q "tg-claude"; then
+              pm2 restart tg-claude
+            else
+              pm2 start dist/index.js --name tg-claude
+            fi
+
+            pm2 save
+          EOF
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key
