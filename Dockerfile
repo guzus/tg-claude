@@ -18,7 +18,7 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock* ./
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
-RUN apk add --no-cache git openssh-client curl bash
+RUN apk add --no-cache git openssh-client curl bash github-cli
 RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Create workspace and data directories
