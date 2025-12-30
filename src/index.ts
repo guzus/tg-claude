@@ -115,6 +115,30 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
   }
 
   logger.info('Completed pinned message initialization');
+
+  const { readFileSync, existsSync } = await import('fs');
+  const { join } = await import('path');
+  const { execSync } = await import('child_process');
+
+  let commitHash = 'unknown';
+  try {
+    const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
+    const versionFile = versionPaths.find(p => existsSync(p));
+    if (versionFile) {
+      commitHash = readFileSync(versionFile, 'utf-8').trim();
+    } else {
+      commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+    }
+  } catch {}
+
+  const shortHash = commitHash.substring(0, 8);
+  for (const userId of config.allowedUserIds) {
+    try {
+      await bot.sendMessage(userId, `🚀 *tg-claude deployed*\n\nCommit: \`${shortHash}\``, { parse_mode: 'Markdown' });
+    } catch {
+      logger.debug('Could not send deploy notification', { userId });
+    }
+  }
 })();
 
 // Set bot commands in Telegram UI
