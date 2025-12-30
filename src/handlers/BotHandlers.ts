@@ -47,6 +47,9 @@ export class BotHandlers {
 
     // Connect beast mode executor to callback handler for stop functionality
     this.callbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
+
+    // Connect task queue to callback handler for queue management
+    this.callbackQueryHandler.setTaskQueue(this.taskHandlers.getTaskQueue());
   }
 
   // ==================== Utility Commands ====================
@@ -72,6 +75,10 @@ export class BotHandlers {
   async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
     const prompt = match?.[1] || '';
     return this.taskHandlers.executeBeastMode(msg, prompt);
+  }
+
+  async handleQueue(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.taskHandlers.handleQueue(msg, match);
   }
 
   // ==================== Repository Commands ====================
