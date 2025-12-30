@@ -2,17 +2,15 @@
   "name": "claude-telegram-bot",
   "version": "1.0.0",
   "description": "TypeScript Telegram bot for controlling Claude Code remotely",
-  "main": "dist/index.js",
+  "main": "src/index.ts",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "watch": "tsc --watch",
-    "dev:watch": "nodemon --watch src --ext ts --exec ts-node src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target node",
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "clean": "rm -rf dist",
-    "prebuild": "npm run clean"
+    "prebuild": "bun run clean"
   },
   "keywords": [
     "telegram",
@@ -39,12 +37,6 @@
     "@typescript-eslint/eslint-plugin": "^6.17.0",
     "@typescript-eslint/parser": "^6.17.0",
     "eslint": "^8.56.0",
-    "nodemon": "^3.0.2",
-    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "packageManager": "pnpm@10.15.1+sha512.34e538c329b5553014ca8e8f4535997f96180a1d0f614339357449935350d924e22f8614682191264ec33d1462ac21561aff97f6bb18065351c162c7e8f6de67"
+  }
 }
