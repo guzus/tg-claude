@@ -70,19 +70,6 @@ flowchart LR
     Claude <-->|read/write| FS[(Git & Files)]
 ```
 
-## Deployment
-
-```bash
-# PM2
-pm2 start dist/index.js --name claude-bot
-
-# Health check
-curl localhost:3000/health
-
-# Metrics
-curl localhost:3000/metrics
-```
-
 ## Security
 
 - User whitelist via `ALLOWED_USER_IDS`
