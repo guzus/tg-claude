@@ -5,12 +5,19 @@ Control Claude Code remotely via Telegram with your Claude subscription.
 ## Quick Start
 
 ```bash
-# Install and run
-uv sync
-uv run python -m src  # or: npm install && npm run build && npm start
+# Install dependencies
+pnpm install  # or: npm install
+
+# Build and run
+pnpm build && pnpm start  # or: npm run build && npm start
+
+# Development
+pnpm dev  # or: npm run dev
 ```
 
-### Required Environment
+### Environment
+
+Copy `.env.example` to `.env` and configure:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
@@ -24,15 +31,16 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcome and help |
-| `/task <description>` | Execute a coding task |
-| `/beast <task>` | Autonomous AI mode (iterates until complete) |
+| `/start` | Welcome message and command list |
+| `/task <description>` | Execute a coding task with Claude AI |
+| `/beast <task>` | 🔥 Autonomous AI mode (iterates until complete) |
 | `/repo` | Manage repositories (clone/new/list/switch) |
 | `/remote` | Manage git remote (show/set/test/remove) |
-| `/bot` | Manage bots via Mothership |
+| `/bot` | 🤖 Manage bots via Mothership (run/status/logs) |
 | `/status` | Check active tasks |
-| `/config` | User configuration |
-| `/check` | Verify Claude CLI setup |
+| `/config` | Manage user configuration |
+| `/check` | Check Claude CLI installation and setup |
+| `/help` | Show help message |
 
 Plain text messages are treated as `/task` commands.
 
@@ -47,6 +55,7 @@ flowchart LR
         Handler --> Executor[ClaudeExecutor]
         Handler --> Beast[BeastMode]
         Handler --> Repo[RepoManager]
+        Handler --> Mothership[MothershipService]
     end
 
     Executor -->|spawns| Claude[Claude Code CLI]
@@ -62,13 +71,16 @@ pm2 start dist/index.js --name claude-bot
 
 # Health check
 curl localhost:3000/health
+
+# Metrics
+curl localhost:3000/metrics
 ```
 
 ## Security
 
 - User whitelist via `ALLOWED_USER_IDS`
-- Rate limiting (20/hour, 100/day)
-- Uses `--dangerously-skip-permission` - run only with trusted users
+- Rate limiting (20/hour, 100/day configurable)
+- Uses `--dangerously-skip-permissions` - run only with trusted users
 
 ---
 
