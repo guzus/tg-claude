@@ -21,8 +21,8 @@ COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock* ./
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
-RUN apk add --no-cache git openssh-client curl bash github-cli nodejs npm
-RUN npm install -g @anthropic-ai/claude-code
+RUN apk add --no-cache git openssh-client curl bash github-cli
+RUN bun install -g @anthropic-ai/claude-code
 
 RUN mkdir -p /workspace /app/data /app/logs /app/config
 
