@@ -1,0 +1,11 @@
+node_modules
+dist
+logs
+.git
+.gitignore
+.env
+.env.local
+*.md
+.github
+.husky
+.eslintrc.json
