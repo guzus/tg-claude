@@ -7,6 +7,7 @@ import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { isAuthorized } from '../middleware/security';
 import { logger } from '../utils/logger';
+import { UIHelpers } from '../utils/UIHelpers';
 
 /**
  * Base handler class with common dependencies and utility methods
@@ -85,7 +86,6 @@ export abstract class BaseHandler {
       const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
       // Build repository info message
-      const { UIHelpers } = require('../utils/UIHelpers');
       const webUrl = currentRepo?.gitUrl ? UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl) : null;
       const typeEmoji = currentRepo ? UIHelpers.getRepoTypeEmoji(currentRepo.type) : '📂';
 

@@ -14,7 +14,7 @@ export class MothershipHandlers {
     private mothership: MothershipService,
     private rateLimiter: RateLimiter,
     private auditLogger: AuditLogger
-  ) {}
+  ) { }
 
   /**
    * Check access permissions
@@ -137,7 +137,7 @@ export class MothershipHandlers {
       } else {
         status += '\n⚠️ Some systems are not available.';
         if (!mothershipOk) {
-          status += '\n\nInstall Mothership CLI:\n\`npm install -g @guzus/mothership-cli\`';
+          status += '\n\nInstall Mothership CLI:\n`npm install -g @guzus/mothership-cli`';
         }
       }
 
@@ -282,8 +282,8 @@ export class MothershipHandlers {
 
       for (const bot of bots) {
         const statusEmoji = bot.status === 'running' ? '✅' :
-                           bot.status === 'pending' ? '⏳' :
-                           bot.status === 'stopped' ? '⏸️' : '❌';
+          bot.status === 'pending' ? '⏳' :
+            bot.status === 'stopped' ? '⏸️' : '❌';
         message += `${statusEmoji} *${bot.name}*\n`;
         message += `   Status: ${bot.status}`;
         if (bot.running !== undefined && bot.desired !== undefined) {
@@ -618,8 +618,8 @@ export class MothershipHandlers {
 
       for (const bot of bots) {
         const statusEmoji = bot.status === 'running' ? '✅' :
-                           bot.status === 'pending' ? '⏳' :
-                           bot.status === 'stopped' ? '⏸️' : '❌';
+          bot.status === 'pending' ? '⏳' :
+            bot.status === 'stopped' ? '⏸️' : '❌';
         message += `${statusEmoji} *${bot.name}*\n`;
         message += `   Status: ${bot.status}`;
         if (bot.running !== undefined && bot.desired !== undefined) {

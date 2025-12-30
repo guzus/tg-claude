@@ -1,4 +1,5 @@
 import TelegramBot from 'node-telegram-bot-api';
+import path from 'path';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -63,7 +64,6 @@ export function validateArgs(args: string[], minArgs: number = 0, maxArgs?: numb
  * Check if path is within allowed workspace
  */
 export function isPathAllowed(targetPath: string): boolean {
-  const path = require('path');
   const normalizedWorkspace = path.resolve(config.workspacePath);
   const normalizedTarget = path.resolve(targetPath);
 

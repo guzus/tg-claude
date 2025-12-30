@@ -1,19 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(tree -I 'node_modules|dist' -L 3)",
-      "Bash(cat requirements.txt)",
-      "Bash(npm install)",
-      "Bash(pnpm install)",
-      "Bash(pnpm run build)",
-      "Bash(node dist/index.js)",
-      "Bash(pkill -f \"node dist/index.js\")",
-      "Bash(timeout 5 pnpm run dev)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push)",
-      "Bash(echo $GITHUB_TOKEN)",
-      "Bash(used for authentication\" error.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(cat:*)",
+      "Bash(bun update:*)",
+      "Bash(bun run lint:*)",
+      "Bash(bun run build:*)"
     ],
     "deny": [],
     "ask": []

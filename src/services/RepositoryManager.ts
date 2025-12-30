@@ -93,7 +93,6 @@ export class RepositoryManager {
 
     try {
       // Create base workspace if it doesn't exist
-      const fs = require('fs').promises;
       await fs.mkdir(this.baseWorkspacePath, { recursive: true });
 
       // Scan for existing repositories
@@ -157,9 +156,6 @@ export class RepositoryManager {
    */
   private async discoverRepositories(): Promise<void> {
     try {
-      const fs = require('fs').promises;
-      const path = require('path');
-
       // Read base workspace directory
       const entries = await fs.readdir(this.baseWorkspacePath, { withFileTypes: true });
 
@@ -190,9 +186,6 @@ export class RepositoryManager {
    */
   private async discoverUserRepositories(userId: number, userDir: string): Promise<void> {
     try {
-      const fs = require('fs').promises;
-      const path = require('path');
-
       const entries = await fs.readdir(userDir, { withFileTypes: true });
       let reposFound = 0;
 
@@ -828,7 +821,7 @@ export class RepositoryManager {
    * Extract repository name from Git URL
    */
   private extractRepoNameFromUrl(gitUrl: string): string {
-    const match = gitUrl.match(/\/([^\/]+?)(?:\.git)?$/);
+    const match = gitUrl.match(/\/([^/]+?)(?:\.git)?$/);
     return match ? match[1] : 'repository';
   }
 

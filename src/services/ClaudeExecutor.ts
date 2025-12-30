@@ -133,7 +133,6 @@ export class ClaudeExecutor {
       await this.authenticateGitHub();
 
       // Check if working directory exists
-      const fs = require('fs');
       if (!fs.existsSync(workingDir)) {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
       }
@@ -979,7 +978,6 @@ Example format: "feat: Add user authentication system"`;
   async createGitHubRepository(workingDir: string, isPrivate: boolean = false, customRepoName?: string): Promise<'success' | 'already_exists' | 'error'> {
     try {
       // Get repository name from working directory or use custom name
-      const path = require('path');
       const repoName = customRepoName || path.basename(workingDir);
 
       // Create repository using gh CLI
@@ -1003,7 +1001,7 @@ Example format: "feat: Add user authentication system"`;
       if (errorMessage.includes('Name already exists on this account')) {
         logger.info('Repository name already exists on GitHub', {
           workingDir,
-          attemptedName: customRepoName || require('path').basename(workingDir)
+          attemptedName: customRepoName || path.basename(workingDir)
         });
 
         // Return 'already_exists' so the caller can prompt for a new name

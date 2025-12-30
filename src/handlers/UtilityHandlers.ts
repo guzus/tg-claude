@@ -1,4 +1,5 @@
 import { Message } from 'node-telegram-bot-api';
+import { spawn } from 'child_process';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 
@@ -73,8 +74,6 @@ export class UtilityHandlers extends BaseHandler {
     await this.bot.sendMessage(chatId, '🔍 Checking Claude CLI setup...');
 
     try {
-      const { spawn } = require('child_process');
-
       // Check if claude command exists
       const whichClaude = spawn('which', ['claude']);
       let claudePath = '';

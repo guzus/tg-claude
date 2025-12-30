@@ -6,6 +6,7 @@ import { RepositoryType } from '../types';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
+import path from 'path';
 
 const execAsync = promisify(exec);
 
@@ -583,7 +584,7 @@ export class CallbackQueryHandler extends BaseHandler {
     subAction: string
   ): Promise<void> {
     switch (subAction) {
-      case 'dashboard':
+      case 'dashboard': {
         // Refresh the current repository info
         const currentRepo = this.repositoryManager.getCurrentRepository(userId);
         if (currentRepo) {
@@ -603,6 +604,7 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.showCurrentRepo(chatId, messageId, userId);
         }
         break;
+      }
 
       default:
         await this.handleMainMenu(chatId, messageId, userId);
@@ -651,7 +653,6 @@ export class CallbackQueryHandler extends BaseHandler {
 
     try {
       // Get original repository name
-      const path = require('path');
       const originalName = path.basename(workingDir);
 
       // Create repository

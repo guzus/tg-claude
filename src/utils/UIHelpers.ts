@@ -162,7 +162,7 @@ export class UIHelpers {
 
     // Remove any authentication tokens from HTTPS URLs
     // Pattern: https://token@github.com or https://user:token@github.com
-    let cleanUrl = gitUrl.replace(/https:\/\/[^@]+@/, 'https://');
+    const cleanUrl = gitUrl.replace(/https:\/\/[^@]+@/, 'https://');
 
     // Handle github.com URLs
     if (cleanUrl.includes('github.com')) {
@@ -261,7 +261,7 @@ export class UIHelpers {
   static escapeMarkdown(text: string): string {
     if (!text) return text;
     // Escape special characters used in Telegram Markdown
-    return text.replace(/([_*\[\]`])/g, '\\$1');
+    return text.replace(/([_*[\]`])/g, '\\$1');
   }
 
   /**

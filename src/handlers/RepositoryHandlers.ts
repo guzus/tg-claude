@@ -37,7 +37,7 @@ export class RepositoryHandlers extends BaseHandler {
         `/repo current - Show current repository\n` +
         `/repo delete <id> - Delete repository\n\n` +
         `Examples:\n` +
-        `\`/repo clone guzus/poly-mm\`\n` +
+        `\`/repo clone owner/repo\`\n` +
         `\`/repo clone https://github.com/user/repo.git\`\n` +
         `\`/repo new my-project\`\n` +
         `\`/repo list\``,
@@ -101,7 +101,7 @@ export class RepositoryHandlers extends BaseHandler {
         chatId,
         '❌ Usage: /repo clone <git-url|owner/repo> [name] [branch]\n\n' +
         'Examples:\n' +
-        '• `/repo clone guzus/poly-mm`\n' +
+        '• `/repo clone owner/repo`\n' +
         '• `/repo clone https://github.com/user/repo.git`',
         { parse_mode: 'Markdown' }
       );
@@ -125,7 +125,7 @@ export class RepositoryHandlers extends BaseHandler {
         await this.bot.sendMessage(
           chatId,
           '❌ Invalid format. Use either:\n' +
-          '• `owner/repo` (e.g., `guzus/poly-mm`)\n' +
+          '• `owner/repo` (e.g., `facebook/react`)\n' +
           '• Full URL (e.g., `https://github.com/owner/repo.git`)',
           { parse_mode: 'Markdown' }
         );
@@ -630,7 +630,7 @@ export class RepositoryHandlers extends BaseHandler {
         await this.bot.sendMessage(
           chatId,
           '❌ Invalid format. Use either:\n' +
-          '• `owner/repo` (e.g., `guzus/poly-mm`)\n' +
+          '• `owner/repo` (e.g., `facebook/react`)\n' +
           '• Full URL (e.g., `https://github.com/owner/repo.git`)',
           { parse_mode: 'Markdown' }
         );

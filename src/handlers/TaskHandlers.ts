@@ -79,7 +79,6 @@ export class TaskHandlers extends BaseHandler {
 
       // Track last update to avoid hitting rate limits
       let lastUpdateText = '';
-      let updateCount = 0;
 
       // Poll for updates
       const updateInterval = setInterval(async () => {
