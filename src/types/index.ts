@@ -1,6 +1,5 @@
 export interface BotConfig {
   telegramToken: string;
-  claudeApiKey: string;
   githubToken: string;
   allowedUserIds: number[];
   workspacePath: string;

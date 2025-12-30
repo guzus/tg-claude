@@ -1,18 +1,26 @@
-# Claude Code Telegram Bot
+# tg-claude: Telegram Client for Claude Code
 
 Control Claude Code remotely via Telegram with your Claude subscription.
+
+## Pre-requisites
+
+- **Claude CLI with active subscription**: Login to Claude on your remote server first:
+  ```bash
+  claude login
+  ```
+  Ensure your subscription is active and authenticated before running the bot.
 
 ## Quick Start
 
 ```bash
 # Install dependencies
-pnpm install  # or: npm install
+bun install
 
 # Build and run
-pnpm build && pnpm start  # or: npm run build && npm start
+bun run build && bun start
 
 # Development
-pnpm dev  # or: npm run dev
+bun dev
 ```
 
 ### Environment
@@ -21,7 +29,6 @@ Copy `.env.example` to `.env` and configure:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
-CLAUDE_API_KEY=your_claude_api_key     # From console.anthropic.com
 ALLOWED_USER_IDS=123456789             # Your Telegram ID (from @userinfobot)
 WORKSPACE_PATH=/path/to/projects
 GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos

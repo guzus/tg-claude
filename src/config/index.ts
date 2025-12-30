@@ -5,7 +5,6 @@ dotenv.config();
 
 export const config: BotConfig = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
-  claudeApiKey: process.env.CLAUDE_API_KEY || '',
   githubToken: process.env.GITHUB_TOKEN || '',
   allowedUserIds: process.env.ALLOWED_USER_IDS
     ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
@@ -25,11 +24,6 @@ export function validateConfig(): void {
 
   if (!config.telegramToken) {
     errors.push('TELEGRAM_BOT_TOKEN is required');
-  }
-
-  // Claude API key is optional - Claude CLI can use its own authentication
-  if (!config.claudeApiKey) {
-    console.log('⚠️  CLAUDE_API_KEY not set - Claude CLI will use its own authentication');
   }
 
   if (config.allowedUserIds.length === 0) {
