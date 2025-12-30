@@ -6,15 +6,18 @@ import { logger } from '../utils/logger';
 import { WORKSPACE_PATH } from '../config';
 import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
+import { ClaudeSettingsManager } from './ClaudeSettingsManager';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
   private baseWorkspacePath: string;
   private userConfigManager: UserConfigManager | undefined;
+  private claudeSettingsManager: ClaudeSettingsManager;
 
   constructor(baseWorkspacePath?: string, userConfigManager?: UserConfigManager) {
     this.baseWorkspacePath = baseWorkspacePath || WORKSPACE_PATH;
     this.userConfigManager = userConfigManager;
+    this.claudeSettingsManager = new ClaudeSettingsManager();
   }
 
   async initialize(): Promise<void> {
@@ -182,6 +185,7 @@ export class RepositoryManager {
       session.currentRepositoryId = repoId;
 
       await this.persistCurrentRepository(userId, repoId);
+      await this.syncClaudeSettings(userId, repoPath, repoId);
 
       logger.info('Repository cloned', { repoId, repoName });
       return repository;
@@ -213,20 +217,12 @@ export class RepositoryManager {
         await gitService.init(repoPath);
       }
 
-      // Create CLAUDE.md
-      const claudeMdContent = `# Guidelines for Claude
-
-1. The codebase should be focused, clean, and easy to understand.
-
-2. DO NOT create a new document. Purge unnecessary code and files.
-
-3. Only use UV to install dependencies and run the python application.
-
-4. Single Source of Truth: DO NOT place many variables in .env file. Place them in the code instead.
-
-5. Run and Debug yourself PROACTIVELY.
-`;
-      await fs.writeFile(path.join(repoPath, 'CLAUDE.md'), claudeMdContent, 'utf-8');
+      if (this.userConfigManager) {
+        const userConfig = await this.userConfigManager.getConfig(userId);
+        if (userConfig.claudeMdTemplate) {
+          await fs.writeFile(path.join(repoPath, 'CLAUDE.md'), userConfig.claudeMdTemplate, 'utf-8');
+        }
+      }
 
       const repository: Repository = {
         id: repoId,
@@ -241,6 +237,7 @@ export class RepositoryManager {
       session.currentRepositoryId = repoId;
 
       await this.persistCurrentRepository(userId, repoId);
+      await this.syncClaudeSettings(userId, repoPath, repoId);
 
       logger.info('Repository created', { repoId, name });
       return repository;
@@ -284,6 +281,7 @@ export class RepositoryManager {
     session.currentRepositoryId = repoId;
 
     await this.persistCurrentRepository(userId, repoId);
+    await this.syncClaudeSettings(userId, repoPath, repoId);
 
     logger.info('Existing repository added', { repoId, repoName, repoPath });
     return repository;
@@ -301,6 +299,7 @@ export class RepositoryManager {
     repository.lastUsed = new Date();
 
     await this.persistCurrentRepository(userId, repositoryId);
+    await this.syncClaudeSettings(userId, repository.path, repositoryId);
 
     logger.info('Switched repository', { userId, repositoryId, name: repository.name });
     return repository;
@@ -435,6 +434,39 @@ export class RepositoryManager {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  }
+
+  async syncClaudeSettings(userId: number, repoPath: string, repoId?: string): Promise<void> {
+    if (!this.userConfigManager) return;
+
+    try {
+      const userConfig = await this.userConfigManager.getConfig(userId);
+      
+      if (userConfig.techStack) {
+        await this.claudeSettingsManager.syncToRepository(repoPath, userConfig.techStack);
+      }
+      
+      const mcpConfigKey = repoId || this.findRepoIdByPath(userId, repoPath);
+      if (mcpConfigKey && userConfig.mcpConfigs?.[mcpConfigKey]) {
+        await this.claudeSettingsManager.syncMcpToRepository(repoPath, userConfig.mcpConfigs[mcpConfigKey]);
+      }
+    } catch (error) {
+      logger.warn('Failed to sync Claude settings', {
+        userId,
+        repoPath,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  }
+
+  private findRepoIdByPath(userId: number, repoPath: string): string | undefined {
+    const session = this.userSessions.get(userId);
+    if (!session) return undefined;
+    
+    for (const [id, repo] of session.repositories) {
+      if (repo.path === repoPath) return id;
+    }
+    return undefined;
   }
 
   private async isRepositoryDeleted(userId: number, gitUrl?: string, repoPath?: string): Promise<boolean> {

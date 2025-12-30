@@ -94,6 +94,10 @@ export class BotHandlers {
     return this.configHandlers.handleConfig(msg, match);
   }
 
+  async handleMcp(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.configHandlers.handleMcp(msg, match);
+  }
+
   // ==================== Mothership Bot Commands ====================
 
   async handleBotCommand(msg: Message, match: RegExpExecArray | null): Promise<void> {

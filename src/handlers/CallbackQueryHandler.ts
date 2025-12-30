@@ -352,7 +352,7 @@ export class CallbackQueryHandler extends BaseHandler {
       inline_keyboard: [
         [{ text: 'View Config', callback_data: 'config_show' }, { text: 'Reset', callback_data: 'config_reset_confirm' }],
         [{ text: 'Git Settings', callback_data: 'config_git' }, { text: 'Preferences', callback_data: 'config_preferences' }],
-        [{ text: 'Limits', callback_data: 'config_limits' }],
+        [{ text: 'Tech Stack', callback_data: 'config_techstack' }, { text: 'Limits', callback_data: 'config_limits' }],
         [{ text: 'Back', callback_data: 'main_menu' }]
       ]
     };
@@ -364,6 +364,14 @@ export class CallbackQueryHandler extends BaseHandler {
       show: () => this.editMessage(chatId, messageId, '*Your Configuration*\n\nUse `/config show` for details.', backToConfig),
       git: () => this.editMessage(chatId, messageId,
         '*Git Settings*\n\n`/config set git.userName "Name"`\n`/config set git.userEmail "email"`',
+        backToConfig
+      ),
+      techstack: () => this.editMessage(chatId, messageId,
+        '*Tech Stack*\n\n' +
+        'TypeScript: `bun` | `npm` | `pnpm` | `yarn`\n' +
+        'Python: `uv` | `pip` | `poetry` | `pipenv`\n\n' +
+        '`/config set techStack.typescript bun`\n' +
+        '`/config set techStack.python uv`',
         backToConfig
       ),
       preferences: () => this.editMessage(chatId, messageId,
