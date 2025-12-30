@@ -73,7 +73,6 @@ flowchart LR
 ## Security
 
 - User whitelist via `ALLOWED_USER_IDS`
-- Rate limiting (20/hour, 100/day configurable)
 - Uses `--dangerously-skip-permissions` - run only with trusted users
 
 ---
