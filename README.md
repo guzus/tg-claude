@@ -2,9 +2,54 @@
 
 Control Claude Code remotely via Telegram with your Claude subscription.
 
+## How It Works
+
+```mermaid
+flowchart TB
+    subgraph User
+        TG[Telegram App]
+    end
+
+    subgraph Docker Container
+        Bot[tg-claude Bot]
+        Claude[Claude Code CLI]
+        
+        subgraph Services
+            Executor[ClaudeExecutor]
+            Beast[BeastModeExecutor]
+            Git[GitService]
+            Repo[RepositoryManager]
+        end
+    end
+
+    subgraph Storage
+        Workspace[/workspace]
+        Data[/app/data]
+        Config[/app/config]
+    end
+
+    subgraph External
+        GitHub[GitHub]
+        ClaudeAPI[Claude API]
+    end
+
+    TG -->|Commands| Bot
+    Bot -->|Parse & Route| Executor
+    Bot -->|Autonomous Tasks| Beast
+    Executor -->|Execute| Claude
+    Beast -->|Iterate| Claude
+    Claude -->|OAuth| ClaudeAPI
+    Claude -->|Read/Write| Workspace
+    Git -->|Clone/Push| GitHub
+    Repo -->|Manage| Workspace
+    Bot -->|State| Data
+    Bot -->|Settings| Config
+    Bot -->|Response| TG
+```
+
 ## Pre-requisites
 
-- **Claude subscription**: You need an active Claude Pro/Team subscription
+- **Claude subscription**: Active Claude Pro/Team subscription
 - **Docker**: For deployment
 
 ## Setup
@@ -38,42 +83,6 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 ```
 
 ### 3. Deploy
-
-#### Option A: Docker Hub (Recommended)
-
-```bash
-# Pull and run
-docker run -d \
-  --name tg-claude \
-  --restart unless-stopped \
-  -p 5555:5555 \
-  -v $(pwd)/workspace:/workspace \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/logs:/app/logs \
-  -v $(pwd)/config:/app/config \
-  --env-file .env \
-  guzus/tg-claude:latest
-```
-
-#### Option B: Docker Compose
-
-```yaml
-# docker-compose.yml
-services:
-  tg-claude:
-    image: guzus/tg-claude:latest
-    container_name: tg-claude
-    restart: unless-stopped
-    ports:
-      - "5555:5555"
-    volumes:
-      - ./workspace:/workspace
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./config:/app/config
-    env_file:
-      - .env
-```
 
 ```bash
 docker compose up -d
@@ -138,25 +147,11 @@ bun install
 bun dev
 ```
 
-### Build Docker Image Locally
+### Build Locally
 
 ```bash
 docker compose build
 docker compose up -d
-```
-
-## Architecture
-
-```
-src/
-├── handlers/           # Telegram command handlers
-├── services/           # Business logic
-│   ├── ClaudeExecutor  # Claude CLI process management
-│   ├── GitService      # Git operations
-│   ├── RepoManager     # Repository management
-│   └── BeastMode       # Autonomous iteration
-├── config/             # Configuration
-└── utils/              # Logging, helpers
 ```
 
 ## Security
