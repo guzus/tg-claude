@@ -4,7 +4,8 @@
       "Bash(cat:*)",
       "Bash(bun update:*)",
       "Bash(bun run lint:*)",
-      "Bash(bun run build:*)"
+      "Bash(bun run build:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []
