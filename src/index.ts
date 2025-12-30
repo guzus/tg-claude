@@ -115,6 +115,30 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
   }
 
   logger.info('Completed pinned message initialization');
+
+  const { readFileSync, existsSync } = await import('fs');
+  const { join } = await import('path');
+  const { execSync } = await import('child_process');
+
+  let commitHash = 'unknown';
+  try {
+    const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
+    const versionFile = versionPaths.find(p => existsSync(p));
+    if (versionFile) {
+      commitHash = readFileSync(versionFile, 'utf-8').trim();
+    } else {
+      commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+    }
+  } catch {}
+
+  const shortHash = commitHash.substring(0, 8);
+  for (const userId of config.allowedUserIds) {
+    try {
+      await bot.sendMessage(userId, `🚀 *tg-claude deployed*\n\nCommit: \`${shortHash}\``, { parse_mode: 'Markdown' });
+    } catch {
+      logger.debug('Could not send deploy notification', { userId });
+    }
+  }
 })();
 
 // Set bot commands in Telegram UI
@@ -128,6 +152,8 @@ bot.setMyCommands([
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'status', description: 'Check active tasks' },
   { command: 'config', description: 'Manage user configuration' },
+  { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
+  { command: 'version', description: 'Show bot version/commit hash' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {
   logger.error('Failed to set bot commands', { error: error.message });
@@ -143,6 +169,8 @@ bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
+bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
+bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
 // Handle callback queries from inline keyboards
@@ -166,7 +194,7 @@ bot.on('polling_error', (error) => {
 
 // Health check endpoint
 const app = express();
-const healthPort = process.env.HEALTH_PORT || 3000;
+const healthPort = process.env.HEALTH_PORT || 5555;
 
 app.get('/health', (_req, res) => {
   const stats = auditLogger.getStats();
@@ -225,7 +253,6 @@ process.on('SIGINT', () => {
 
 logger.info('🤖 Claude Code Telegram Bot started successfully', {
   allowedUsers: config.allowedUserIds.length,
-  workspacePath: config.workspacePath,
   maxConcurrentTasks: config.maxConcurrentTasks
 });
 

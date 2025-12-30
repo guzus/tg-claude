@@ -1,0 +1,12 @@
+node_modules
+dist
+.env
+.git
+.gitignore
+*.log
+logs/
+data/
+config/
+workspace/
+.github/
+*.md

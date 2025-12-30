@@ -90,7 +90,6 @@ export class TaskHandlers extends BaseHandler {
 
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
-          updateCount++;
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
 
           // Get both stdout and stderr

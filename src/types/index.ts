@@ -2,7 +2,6 @@ export interface BotConfig {
   telegramToken: string;
   githubToken: string;
   allowedUserIds: number[];
-  workspacePath: string;
   maxConcurrentTasks: number;
   taskTimeoutMs: number;
   maxOutputSize: number;
@@ -115,6 +114,21 @@ export interface DeletedRepository {
   deletedAt: Date;
 }
 
+export interface TechStackPreferences {
+  typescript?: 'bun' | 'npm' | 'pnpm' | 'yarn';
+  python?: 'uv' | 'pip' | 'poetry' | 'pipenv';
+}
+
+export interface McpServer {
+  command: string;
+  args?: string[];
+  env?: Record<string, string>;
+}
+
+export interface McpConfig {
+  mcpServers: Record<string, McpServer>;
+}
+
 export interface UserConfig {
   userId: number;
   currentRepositoryId?: string;
@@ -130,6 +144,9 @@ export interface UserConfig {
     notifyOnTaskComplete?: boolean;
     dangerModeEnabled?: boolean;
   };
+  techStack?: TechStackPreferences;
+  claudeMdTemplate?: string;
+  mcpConfigs?: Record<string, McpConfig>;
   limits?: {
     maxConcurrentTasks?: number;
     taskTimeoutMs?: number;

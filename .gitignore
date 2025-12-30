@@ -42,3 +42,11 @@ config.json
 secrets/
 
 dist/
+
+# Docker volumes
+workspace/
+data/
+config/
+
+# Claude Code local settings
+.claude/settings.local.json

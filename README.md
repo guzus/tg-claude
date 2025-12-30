@@ -2,35 +2,90 @@
 
 Control Claude Code remotely via Telegram with your Claude subscription.
 
-## Pre-requisites
+## How It Works
 
-- **Claude CLI with active subscription**: Login to Claude on your remote server first:
-  ```bash
-  claude login
-  ```
+```mermaid
+flowchart TB
+    subgraph User
+        TG[Telegram App]
+    end
 
-## Quick Start
+    subgraph Docker Container
+        Bot[tg-claude Bot]
+        Claude[Claude Code CLI]
+        
+        subgraph Services
+            Executor[ClaudeExecutor]
+            Beast[BeastModeExecutor]
+            Git[GitService]
+            Repo[RepositoryManager]
+        end
+    end
 
-```bash
-# Install dependencies
-bun install
+    subgraph Storage
+        Workspace[/workspace]
+        Data[/app/data]
+        Config[/app/config]
+    end
 
-# Build and run
-bun run build && bun start
+    subgraph External
+        GitHub[GitHub]
+        ClaudeAPI[Claude API]
+    end
 
-# Development
-bun dev
+    TG -->|Commands| Bot
+    Bot -->|Parse & Route| Executor
+    Bot -->|Autonomous Tasks| Beast
+    Executor -->|Execute| Claude
+    Beast -->|Iterate| Claude
+    Claude -->|OAuth| ClaudeAPI
+    Claude -->|Read/Write| Workspace
+    Git -->|Clone/Push| GitHub
+    Repo -->|Manage| Workspace
+    Bot -->|State| Data
+    Bot -->|Settings| Config
+    Bot -->|Response| TG
 ```
 
-### Environment
+## Pre-requisites
 
-Copy `.env.example` to `.env` and configure:
+- **Claude subscription**: Active Claude Pro/Team subscription
+- **Docker**: For deployment
+
+## Setup
+
+### 1. Get Claude OAuth Token
+
+Login to Claude and generate an OAuth token for headless environments:
+
+```bash
+# Install Claude CLI locally first
+curl -fsSL https://claude.ai/install.sh | bash
+
+# Login with your Claude subscription
+claude login
+
+# Generate OAuth token for server use
+claude setup-token
+```
+
+Copy the generated `CLAUDE_CODE_OAUTH_TOKEN` value.
+
+### 2. Configure Environment
+
+Create a `.env` file on your server:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
-ALLOWED_USER_IDS=123456789             # Your Telegram ID
-WORKSPACE_PATH=/path/to/projects
+ALLOWED_USER_IDS=123456789             # Your Telegram ID (@userinfobot)
+CLAUDE_CODE_OAUTH_TOKEN=your_token     # From claude setup-token
 GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
+```
+
+### 3. Deploy
+
+```bash
+docker compose up -d
 ```
 
 ## Commands
@@ -44,45 +99,59 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 | `/bot` | Manage bots via Mothership |
 | `/status` | Check active tasks |
 | `/config` | User configuration |
+| `/mcp` | Manage MCP servers per repository |
 | `/help` | Show help |
 
 Plain text messages are treated as `/task` commands.
 
-## Architecture
+## User Configuration
+
+### Tech Stack Preferences
+
+Set your preferred package managers:
 
 ```
-src/
-├── handlers/           # Telegram command handlers
-│   ├── BaseHandler     # Common utilities & auth
-│   ├── TaskHandlers    # /task command
-│   ├── RepoHandlers    # /repo command
-│   └── CallbackQuery   # Inline keyboard actions
-├── services/           # Business logic
-│   ├── ClaudeExecutor  # Claude CLI process management
-│   ├── GitService      # Git operations (commit, push, clone)
-│   ├── RepoManager     # Repository discovery & switching
-│   ├── StateManager    # Centralized in-memory state
-│   └── BeastMode       # Autonomous iteration mode
-├── config/             # Configuration management
-├── types/              # TypeScript definitions
-└── utils/              # Logging, UI helpers
+/config techstack typescript bun    # Options: bun, npm, pnpm, yarn
+/config techstack python uv         # Options: uv, pip, poetry, pipenv
 ```
 
-```mermaid
-flowchart LR
-    User([You]) <-->|Telegram| Bot
+These preferences are synced to `.claude/settings.json` in each repository.
 
-    subgraph Bot[Telegram Bot]
-        Handler[Handlers]
-        Handler --> Executor[ClaudeExecutor]
-        Handler --> Beast[BeastMode]
-        Executor --> Git[GitService]
-        Handler --> Repo[RepoManager]
-        Repo --> Git
-    end
+### MCP Servers
 
-    Executor -->|spawns| Claude[Claude CLI]
-    Git -->|operations| FS[(Git & Files)]
+Configure Model Context Protocol servers per repository:
+
+```
+/mcp add <name> <command> [args...]  # Add MCP server
+/mcp remove <name>                   # Remove MCP server
+/mcp list                            # List configured servers
+/mcp clear                           # Remove all servers
+```
+
+MCP configs are stored in `.mcp.json` at the repository root.
+
+### CLAUDE.md Template
+
+Set a custom template for new repositories:
+
+```
+/config claudemd show    # View current template
+/config claudemd set     # Set new template (send content after)
+/config claudemd reset   # Reset to default
+```
+
+## Development
+
+```bash
+bun install
+bun dev
+```
+
+### Build Locally
+
+```bash
+docker compose build
+docker compose up -d
 ```
 
 ## Security

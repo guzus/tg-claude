@@ -3,6 +3,19 @@ import path from 'path';
 import { UserConfig } from '../types';
 import { logger } from '../utils/logger';
 
+const DEFAULT_CLAUDE_MD = `# Guidelines for Claude
+
+1. The codebase should be focused, clean, and easy to understand.
+
+2. DO NOT create a new document. Purge unnecessary code and files.
+
+3. Only use UV to install dependencies and run the python application.
+
+4. Single Source of Truth: DO NOT place many variables in .env file. Place them in the code instead.
+
+5. Run and Debug yourself PROACTIVELY.
+`;
+
 /**
  * Manages per-user configuration files
  */
@@ -104,9 +117,6 @@ export class UserConfigManager {
     return config;
   }
 
-  /**
-   * Create default config for a user
-   */
   private createDefaultConfig(userId: number): UserConfig {
     const now = new Date();
     return {
@@ -122,27 +132,37 @@ export class UserConfigManager {
         notifyOnTaskComplete: true,
         dangerModeEnabled: false
       },
+      techStack: {
+        typescript: 'bun',
+        python: 'uv'
+      },
+      claudeMdTemplate: DEFAULT_CLAUDE_MD,
       limits: {
         maxConcurrentTasks: 3,
-        taskTimeoutMs: 1800000 // 30 minutes
+        taskTimeoutMs: 1800000
       },
       createdAt: now,
       updatedAt: now
     };
   }
 
-  /**
-   * Update user config
-   */
   async updateConfig(userId: number, updates: Partial<UserConfig>): Promise<UserConfig> {
     const config = await this.getConfig(userId);
 
-    // Deep merge updates
     if (updates.git) {
       config.git = { ...config.git, ...updates.git };
     }
     if (updates.preferences) {
       config.preferences = { ...config.preferences, ...updates.preferences };
+    }
+    if (updates.techStack) {
+      config.techStack = { ...config.techStack, ...updates.techStack };
+    }
+    if (updates.claudeMdTemplate !== undefined) {
+      config.claudeMdTemplate = updates.claudeMdTemplate;
+    }
+    if (updates.mcpConfigs !== undefined) {
+      config.mcpConfigs = updates.mcpConfigs;
     }
     if (updates.limits) {
       config.limits = { ...config.limits, ...updates.limits };

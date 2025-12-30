@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { ClaudeTask, TaskStatus } from '../types';
-import { config } from '../config';
+import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { gitService } from './GitService';
 import { v4 as uuidv4 } from 'uuid';
@@ -64,7 +64,7 @@ export class ClaudeExecutor {
     options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number } = {}
   ): Promise<ClaudeTask> {
     const {
-      workingDir = config.workspacePath,
+      workingDir = WORKSPACE_PATH,
       dangerMode = true,
       additionalFlags = [],
       timeout = config.taskTimeoutMs

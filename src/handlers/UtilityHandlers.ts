@@ -1,5 +1,7 @@
 import { Message } from 'node-telegram-bot-api';
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 
@@ -7,6 +9,40 @@ import { UIHelpers } from '../utils/UIHelpers';
  * Handlers for utility and diagnostic commands
  */
 export class UtilityHandlers extends BaseHandler {
+  /**
+   * /version command - Show bot commit hash
+   */
+  async handleVersion(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+
+    try {
+      let commitHash: string;
+
+      // Try reading from VERSION file (Docker build), fallback to git
+      const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
+      const versionFile = versionPaths.find(p => existsSync(p));
+      if (versionFile) {
+        commitHash = readFileSync(versionFile, 'utf-8').trim();
+      } else {
+        commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+      }
+
+      const shortHash = commitHash.substring(0, 8);
+
+      await this.bot.sendMessage(
+        chatId,
+        `🤖 *tg-claude*\n\n` +
+        `Commit: \`${shortHash}\`\n` +
+        `Full: \`${commitHash}\``,
+        { parse_mode: 'Markdown' }
+      );
+    } catch {
+      await this.bot.sendMessage(chatId, '❌ Unable to get version info');
+    }
+  }
+
   /**
    * /start command
    */

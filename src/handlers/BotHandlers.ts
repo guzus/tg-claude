@@ -63,6 +63,10 @@ export class BotHandlers {
     return this.utilityHandlers.handleCheck(msg);
   }
 
+  async handleVersion(msg: Message): Promise<void> {
+    return this.utilityHandlers.handleVersion(msg);
+  }
+
   // ==================== Task Commands ====================
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -92,6 +96,10 @@ export class BotHandlers {
 
   async handleConfig(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleConfig(msg, match);
+  }
+
+  async handleMcp(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.configHandlers.handleMcp(msg, match);
   }
 
   // ==================== Mothership Bot Commands ====================

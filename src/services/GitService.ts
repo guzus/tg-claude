@@ -208,8 +208,8 @@ export class GitService {
       // Not configured, set defaults
     }
 
-    const userName = name || 'Claude Telegram Bot';
-    const userEmail = email || 'bot@claude-telegram.local';
+const userName = name || 'tg-claude';
+const userEmail = email || 'claude-code@remote.machine';
 
     await execAsync(`git config user.name "${userName}"`, { cwd: workingDir, timeout: 5000 });
     await execAsync(`git config user.email "${userEmail}"`, { cwd: workingDir, timeout: 5000 });

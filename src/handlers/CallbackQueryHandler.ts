@@ -1,9 +1,9 @@
-import { CallbackQuery } from 'node-telegram-bot-api';
+import { CallbackQuery, InlineKeyboardButton } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
 import { RepositoryType } from '../types';
-import { stateManager } from '../services/StateManager';
+import { stateManager, PendingRepoCreation } from '../services/StateManager';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
@@ -285,8 +285,8 @@ export class CallbackQueryHandler extends BaseHandler {
 
       try {
         await execAsync('git init', { cwd: repo.path, timeout: 5000 });
-        await execAsync('git config user.name "Claude Telegram Bot"', { cwd: repo.path, timeout: 5000 });
-        await execAsync('git config user.email "bot@claude-telegram.local"', { cwd: repo.path, timeout: 5000 });
+await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
+await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
 
         try {
           await execAsync('git log -1', { cwd: repo.path, timeout: 5000 });
@@ -352,7 +352,7 @@ export class CallbackQueryHandler extends BaseHandler {
       inline_keyboard: [
         [{ text: 'View Config', callback_data: 'config_show' }, { text: 'Reset', callback_data: 'config_reset_confirm' }],
         [{ text: 'Git Settings', callback_data: 'config_git' }, { text: 'Preferences', callback_data: 'config_preferences' }],
-        [{ text: 'Limits', callback_data: 'config_limits' }],
+        [{ text: 'Tech Stack', callback_data: 'config_techstack' }, { text: 'Limits', callback_data: 'config_limits' }],
         [{ text: 'Back', callback_data: 'main_menu' }]
       ]
     };
@@ -364,6 +364,14 @@ export class CallbackQueryHandler extends BaseHandler {
       show: () => this.editMessage(chatId, messageId, '*Your Configuration*\n\nUse `/config show` for details.', backToConfig),
       git: () => this.editMessage(chatId, messageId,
         '*Git Settings*\n\n`/config set git.userName "Name"`\n`/config set git.userEmail "email"`',
+        backToConfig
+      ),
+      techstack: () => this.editMessage(chatId, messageId,
+        '*Tech Stack*\n\n' +
+        'TypeScript: `bun` | `npm` | `pnpm` | `yarn`\n' +
+        'Python: `uv` | `pip` | `poetry` | `pipenv`\n\n' +
+        '`/config set techStack.typescript bun`\n' +
+        '`/config set techStack.python uv`',
         backToConfig
       ),
       preferences: () => this.editMessage(chatId, messageId,
@@ -446,7 +454,7 @@ export class CallbackQueryHandler extends BaseHandler {
     }
   }
 
-  private async editMessage(chatId: number, messageId: number, text: string, keyboard?: { inline_keyboard: any[][] }): Promise<void> {
+  private async editMessage(chatId: number, messageId: number, text: string, keyboard?: { inline_keyboard: InlineKeyboardButton[][] }): Promise<void> {
     await this.bot.editMessageText(text, {
       chat_id: chatId,
       message_id: messageId,
@@ -464,7 +472,7 @@ export class CallbackQueryHandler extends BaseHandler {
     return stateManager.getPendingRepoCreation(userId);
   }
 
-  static setPendingRepoCreation(userId: number, data: any): void {
+  static setPendingRepoCreation(userId: number, data: PendingRepoCreation): void {
     stateManager.setPendingRepoCreation(userId, data);
   }
 
