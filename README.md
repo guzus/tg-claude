@@ -8,7 +8,6 @@ Control Claude Code remotely via Telegram with your Claude subscription.
   ```bash
   claude login
   ```
-  Ensure your subscription is active and authenticated before running the bot.
 
 ## Quick Start
 
@@ -29,7 +28,7 @@ Copy `.env.example` to `.env` and configure:
 
 ```env
 TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
-ALLOWED_USER_IDS=123456789             # Your Telegram ID (from @userinfobot)
+ALLOWED_USER_IDS=123456789             # Your Telegram ID
 WORKSPACE_PATH=/path/to/projects
 GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 ```
@@ -38,20 +37,36 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcome message and command list |
 | `/task <description>` | Execute a coding task with Claude AI |
-| `/beast <task>` | 🔥 Autonomous AI mode (iterates until complete) |
+| `/beast <task>` | Autonomous mode (iterates until complete) |
 | `/repo` | Manage repositories (clone/new/list/switch) |
-| `/remote` | Manage git remote (show/set/test/remove) |
-| `/bot` | 🤖 Manage bots via Mothership (run/status/logs) |
+| `/remote` | Manage git remote (show/set/test) |
+| `/bot` | Manage bots via Mothership |
 | `/status` | Check active tasks |
-| `/config` | Manage user configuration |
-| `/check` | Check Claude CLI installation and setup |
-| `/help` | Show help message |
+| `/config` | User configuration |
+| `/help` | Show help |
 
 Plain text messages are treated as `/task` commands.
 
 ## Architecture
+
+```
+src/
+├── handlers/           # Telegram command handlers
+│   ├── BaseHandler     # Common utilities & auth
+│   ├── TaskHandlers    # /task command
+│   ├── RepoHandlers    # /repo command
+│   └── CallbackQuery   # Inline keyboard actions
+├── services/           # Business logic
+│   ├── ClaudeExecutor  # Claude CLI process management
+│   ├── GitService      # Git operations (commit, push, clone)
+│   ├── RepoManager     # Repository discovery & switching
+│   ├── StateManager    # Centralized in-memory state
+│   └── BeastMode       # Autonomous iteration mode
+├── config/             # Configuration management
+├── types/              # TypeScript definitions
+└── utils/              # Logging, UI helpers
+```
 
 ```mermaid
 flowchart LR
@@ -61,18 +76,19 @@ flowchart LR
         Handler[Handlers]
         Handler --> Executor[ClaudeExecutor]
         Handler --> Beast[BeastMode]
+        Executor --> Git[GitService]
         Handler --> Repo[RepoManager]
-        Handler --> Mothership[MothershipService]
+        Repo --> Git
     end
 
-    Executor -->|spawns| Claude[Claude Code CLI]
-    Beast -->|iterates| Claude
-    Claude <-->|read/write| FS[(Git & Files)]
+    Executor -->|spawns| Claude[Claude CLI]
+    Git -->|operations| FS[(Git & Files)]
 ```
 
 ## Security
 
 - User whitelist via `ALLOWED_USER_IDS`
+- Rate limiting per user
 - Uses `--dangerously-skip-permissions` - run only with trusted users
 
 ---
