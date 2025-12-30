@@ -12,22 +12,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
         with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
+          bun-version: latest
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: bun install --frozen-lockfile
 
       - name: Build
-        run: pnpm build
+        run: bun run build
 
       - name: Setup SSH
         run: |
@@ -56,7 +50,7 @@ jobs:
             mkdir -p data logs
 
             # Install production dependencies
-            pnpm install --frozen-lockfile --prod
+            bun install --frozen-lockfile --production
 
             # Restart the service (using pm2)
             if pm2 list | grep -q "tg-claude"; then
