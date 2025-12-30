@@ -285,8 +285,8 @@ export class CallbackQueryHandler extends BaseHandler {
 
       try {
         await execAsync('git init', { cwd: repo.path, timeout: 5000 });
-        await execAsync('git config user.name "Claude Telegram Bot"', { cwd: repo.path, timeout: 5000 });
-        await execAsync('git config user.email "bot@claude-telegram.local"', { cwd: repo.path, timeout: 5000 });
+await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
+await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
 
         try {
           await execAsync('git log -1', { cwd: repo.path, timeout: 5000 });
