@@ -1,4 +1,4 @@
-import TelegramBot, { Message, CallbackQuery } from 'node-telegram-bot-api';
+import TelegramBot, { Message, CallbackQuery, InlineKeyboardButton } from 'node-telegram-bot-api';
 import { MothershipService, BotDeploymentConfig } from '../services/MothershipService';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
@@ -292,8 +292,7 @@ export class MothershipHandlers {
         message += `\n\n`;
       }
 
-      // Create inline keyboard with bot actions
-      const keyboard: any[] = [];
+      const keyboard: InlineKeyboardButton[][] = [];
 
       for (const bot of bots) {
         const row = [
@@ -628,9 +627,9 @@ export class MothershipHandlers {
         message += `\n\n`;
       }
 
-      const keyboard: any[] = [];
+      const keyboard: InlineKeyboardButton[][] = [];
       for (const bot of bots) {
-        const row = [
+        const row: InlineKeyboardButton[] = [
           { text: `📊 ${bot.name}`, callback_data: `bot_status_${bot.name}` },
           { text: '📄 Logs', callback_data: `bot_logs_${bot.name}` },
           { text: '🔄 Restart', callback_data: `bot_restart_${bot.name}` },

@@ -1,21 +1,25 @@
-import { Message } from 'node-telegram-bot-api';
+import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
+import { ClaudeExecutor } from '../services/ClaudeExecutor';
+import { RateLimiter } from '../services/RateLimiter';
+import { AuditLogger } from '../services/AuditLogger';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
-import { McpConfig, McpServer } from '../types';
+import { ConversationManager } from '../services/ConversationManager';
+import { McpConfig, McpServer, UserConfig } from '../types';
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
 
   constructor(
-    bot: any,
-    executor: any,
-    rateLimiter: any,
-    auditLogger: any,
+    bot: TelegramBot,
+    executor: ClaudeExecutor,
+    rateLimiter: RateLimiter,
+    auditLogger: AuditLogger,
     repositoryManager: RepositoryManager,
     userConfigManager: UserConfigManager,
-    conversationManager?: any
+    conversationManager?: ConversationManager
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
     this.repoManager = repositoryManager;
@@ -225,7 +229,7 @@ export class ConfigHandlers extends BaseHandler {
     }
   }
 
-  private parseConfigUpdate(key: string, value: string): any {
+  private parseConfigUpdate(key: string, value: string): Partial<UserConfig> {
     const parts = key.split('.');
 
     if (parts.length !== 2) {
@@ -234,12 +238,12 @@ export class ConfigHandlers extends BaseHandler {
 
     const [category, field] = parts;
 
-    let parsedValue: any = value;
+    let parsedValue: string | boolean | number = value;
     if (value === 'true') parsedValue = true;
     else if (value === 'false') parsedValue = false;
     else if (!isNaN(Number(value))) parsedValue = Number(value);
 
-    const update: any = {};
+    const update: Partial<UserConfig> = {};
 
     switch (category) {
       case 'git':

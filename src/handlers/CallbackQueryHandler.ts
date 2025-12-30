@@ -1,9 +1,9 @@
-import { CallbackQuery } from 'node-telegram-bot-api';
+import { CallbackQuery, InlineKeyboardButton } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
 import { RepositoryType } from '../types';
-import { stateManager } from '../services/StateManager';
+import { stateManager, PendingRepoCreation } from '../services/StateManager';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
@@ -454,7 +454,7 @@ export class CallbackQueryHandler extends BaseHandler {
     }
   }
 
-  private async editMessage(chatId: number, messageId: number, text: string, keyboard?: { inline_keyboard: any[][] }): Promise<void> {
+  private async editMessage(chatId: number, messageId: number, text: string, keyboard?: { inline_keyboard: InlineKeyboardButton[][] }): Promise<void> {
     await this.bot.editMessageText(text, {
       chat_id: chatId,
       message_id: messageId,
@@ -472,7 +472,7 @@ export class CallbackQueryHandler extends BaseHandler {
     return stateManager.getPendingRepoCreation(userId);
   }
 
-  static setPendingRepoCreation(userId: number, data: any): void {
+  static setPendingRepoCreation(userId: number, data: PendingRepoCreation): void {
     stateManager.setPendingRepoCreation(userId, data);
   }
 
