@@ -5,7 +5,7 @@ services:
     container_name: tg-claude
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "5555:5555"
     volumes:
       - ./workspace:/workspace
       - ./data:/app/data
@@ -17,7 +17,7 @@ services:
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
       interval: 30s
       timeout: 10s
       retries: 3

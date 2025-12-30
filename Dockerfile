@@ -24,6 +24,6 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Create workspace and data directories
 RUN mkdir -p /workspace /app/data /app/logs /app/config
 
-EXPOSE 3000
+EXPOSE 5555
 
 CMD ["bun", "run", "dist/index.js"]

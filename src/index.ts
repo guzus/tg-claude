@@ -168,7 +168,7 @@ bot.on('polling_error', (error) => {
 
 // Health check endpoint
 const app = express();
-const healthPort = process.env.HEALTH_PORT || 3000;
+const healthPort = process.env.HEALTH_PORT || 5555;
 
 app.get('/health', (_req, res) => {
   const stats = auditLogger.getStats();
