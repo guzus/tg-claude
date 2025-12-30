@@ -16,7 +16,7 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/bun.lock* ./
-RUN bun install --frozen-lockfile --production
+RUN bun install --frozen-lockfile --production --ignore-scripts
 
 RUN apk add --no-cache git openssh-client curl bash
 RUN curl -fsSL https://claude.ai/install.sh | bash
