@@ -21,8 +21,9 @@ export class UtilityHandlers extends BaseHandler {
       let commitHash: string;
 
       // Try reading from VERSION file (Docker build), fallback to git
-      const versionFile = join(__dirname, '..', 'VERSION');
-      if (existsSync(versionFile)) {
+      const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
+      const versionFile = versionPaths.find(p => existsSync(p));
+      if (versionFile) {
         commitHash = readFileSync(versionFile, 'utf-8').trim();
       } else {
         commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
