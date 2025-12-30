@@ -1,5 +1,7 @@
 import { Message } from 'node-telegram-bot-api';
 import { spawn, execSync } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
+import { join } from 'path';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 
@@ -16,7 +18,16 @@ export class UtilityHandlers extends BaseHandler {
     const chatId = msg.chat.id;
 
     try {
-      const commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+      let commitHash: string;
+
+      // Try reading from VERSION file (Docker build), fallback to git
+      const versionFile = join(__dirname, '..', 'VERSION');
+      if (existsSync(versionFile)) {
+        commitHash = readFileSync(versionFile, 'utf-8').trim();
+      } else {
+        commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
+      }
+
       const shortHash = commitHash.substring(0, 8);
 
       await this.bot.sendMessage(
