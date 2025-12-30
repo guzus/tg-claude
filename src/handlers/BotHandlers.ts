@@ -63,6 +63,10 @@ export class BotHandlers {
     return this.utilityHandlers.handleCheck(msg);
   }
 
+  async handleVersion(msg: Message): Promise<void> {
+    return this.utilityHandlers.handleVersion(msg);
+  }
+
   // ==================== Task Commands ====================
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {

@@ -129,6 +129,7 @@ bot.setMyCommands([
   { command: 'status', description: 'Check active tasks' },
   { command: 'config', description: 'Manage user configuration' },
   { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
+  { command: 'version', description: 'Show bot version/commit hash' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {
   logger.error('Failed to set bot commands', { error: error.message });
@@ -145,6 +146,7 @@ bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
+bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
 
 // Handle callback queries from inline keyboards
