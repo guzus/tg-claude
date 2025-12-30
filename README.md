@@ -23,9 +23,9 @@ flowchart TB
     end
 
     subgraph Storage
-        Workspace[/workspace]
-        Data[/app/data]
-        Config[/app/config]
+        Workspace["/workspace"]
+        Data["/app/data"]
+        Config["/app/config"]
     end
 
     subgraph External
