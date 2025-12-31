@@ -1,6 +1,10 @@
 # tg-claude: Telegram Client for Claude Code
 
+<img src="./assets/claude.svg" width="48" alt="Claude">
+
 Control Claude Code remotely via Telegram with your Claude subscription.
+
+**[Demo Video](https://x.com/uncanny_guzus/status/2006073533252919361)**
 
 ## How It Works
 
