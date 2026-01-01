@@ -192,8 +192,6 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
     let errorOutput = '';
     const toolCalls: ToolCall[] = [];
     let finalText = '';
-    let currentToolName = '';
-    let currentToolInput = '';
 
     claudeProcess.stdout?.on('data', (data: Buffer) => {
       rawOutput += data.toString();
@@ -203,40 +201,23 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
         try {
           const event = JSON.parse(line);
           
-          if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
-            currentToolName = event.content_block.name || '';
-            currentToolInput = '';
+          if (event.type === 'assistant' && event.message?.content) {
+            for (const block of event.message.content) {
+              if (block.type === 'tool_use') {
+                toolCalls.push({
+                  name: block.name || '',
+                  input: typeof block.input === 'string' ? block.input : JSON.stringify(block.input || {}),
+                  output: ''
+                });
+              }
+              if (block.type === 'text') {
+                finalText += block.text || '';
+              }
+            }
           }
           
-          if (event.type === 'content_block_delta') {
-            if (event.delta?.type === 'input_json_delta') {
-              currentToolInput += event.delta.partial_json || '';
-            }
-            if (event.delta?.type === 'text_delta') {
-              finalText += event.delta.text || '';
-            }
-          }
-          
-          if (event.type === 'result' && currentToolName) {
-            toolCalls.push({
-              name: currentToolName,
-              input: currentToolInput,
-              output: typeof event.result === 'string' ? event.result : JSON.stringify(event.result)
-            });
-            currentToolName = '';
-            currentToolInput = '';
-          }
-          
-          if (event.type === 'message_stop' || event.type === 'content_block_stop') {
-            if (currentToolName && currentToolInput) {
-              toolCalls.push({
-                name: currentToolName,
-                input: currentToolInput,
-                output: ''
-              });
-              currentToolName = '';
-              currentToolInput = '';
-            }
+          if (event.type === 'result') {
+            finalText += typeof event.result === 'string' ? event.result : '';
           }
         } catch { /* non-JSON line */ }
       }
