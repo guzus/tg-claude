@@ -9,10 +9,11 @@ import { ConversationManager } from '../services/ConversationManager';
 import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS } from '../types';
 
 // Default Anthropic models used by Claude Code
+// Per docs: https://docs.claude.com/en/docs/claude-code/model-config
 const ANTHROPIC_MODELS = {
-  haiku: 'claude-3-5-haiku',
-  sonnet: 'claude-sonnet-4',
-  opus: 'claude-opus-4'
+  haiku: 'Haiku 3.5',
+  sonnet: 'Sonnet 4.5',
+  opus: 'Opus 4.5'
 };
 import { logger } from '../utils/logger';
 
