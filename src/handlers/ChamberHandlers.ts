@@ -74,6 +74,7 @@ export class ChamberHandlers {
 
   private async createPrivateGitHubRepo(repoPath: string, repoName: string): Promise<boolean> {
     try {
+      await execAsync('echo "# Chamber Conversation" > README.md && git add . && git commit -m "init"', { cwd: repoPath });
       await execAsync(
         `gh repo create ${repoName} --private --source=. --remote=origin --push`,
         { cwd: repoPath, timeout: 30000 }
