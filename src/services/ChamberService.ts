@@ -6,6 +6,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import TelegramBot from 'node-telegram-bot-api';
 
+function remoteUrlToHttps(remoteUrl: string | null): string | null {
+  if (!remoteUrl) return null;
+  if (remoteUrl.startsWith('https://')) return remoteUrl.replace(/\.git$/, '');
+  const match = remoteUrl.match(/git@github\.com:(.+?)(?:\.git)?$/);
+  if (match) return `https://github.com/${match[1]}`;
+  return null;
+}
+
 const BROADCAST_CHAT_ID = '@claude_glm';
 const CONVERSATION_LOG_FILE = 'CONVERSATION.md';
 
@@ -135,28 +143,49 @@ ${content}
     const emoji = role === 'glm' ? '🤖' : '🧠';
     const providerName = role === 'glm' ? 'GLM' : 'Claude';
     const toolSummary = this.formatToolCallsForTelegram(toolCalls);
-    
-    const maxLength = 3800;
     const fullContent = content + toolSummary;
-    const displayContent = fullContent.length > maxLength 
-      ? fullContent.substring(0, maxLength) + '\n\n... (truncated)'
-      : fullContent;
     
-    try {
-      await this.bot.sendMessage(BROADCAST_CHAT_ID, `${emoji} *${providerName}*:\n\n${displayContent}`, { 
-        parse_mode: 'Markdown',
-        disable_web_page_preview: true 
-      });
-    } catch {
+    const header = `${emoji} *${providerName}*:\n\n`;
+    const maxChunkSize = 4000;
+    const chunks: string[] = [];
+    
+    let remaining = fullContent;
+    while (remaining.length > 0) {
+      if (remaining.length <= maxChunkSize) {
+        chunks.push(remaining);
+        break;
+      }
+      let splitAt = remaining.lastIndexOf('\n', maxChunkSize);
+      if (splitAt === -1 || splitAt < maxChunkSize / 2) {
+        splitAt = remaining.lastIndexOf(' ', maxChunkSize);
+      }
+      if (splitAt === -1 || splitAt < maxChunkSize / 2) {
+        splitAt = maxChunkSize;
+      }
+      chunks.push(remaining.substring(0, splitAt));
+      remaining = remaining.substring(splitAt).trimStart();
+    }
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const prefix = i === 0 ? header : `${emoji} *(cont.)*\n\n`;
+      const text = prefix + chunks[i];
       try {
-        await this.bot.sendMessage(BROADCAST_CHAT_ID, `${emoji} ${providerName}:\n\n${displayContent}`, { 
+        await this.bot.sendMessage(BROADCAST_CHAT_ID, text, { 
+          parse_mode: 'Markdown',
           disable_web_page_preview: true 
         });
-      } catch (error) {
-        logger.error('Failed to broadcast to Telegram', { 
-          error: error instanceof Error ? error.message : String(error) 
-        });
+      } catch {
+        try {
+          await this.bot.sendMessage(BROADCAST_CHAT_ID, text.replace(/\*/g, ''), { 
+            disable_web_page_preview: true 
+          });
+        } catch (error) {
+          logger.error('Failed to broadcast to Telegram', { 
+            error: error instanceof Error ? error.message : String(error) 
+          });
+        }
       }
+      if (i < chunks.length - 1) await delay(500);
     }
   }
 
@@ -181,11 +210,16 @@ ${content}
 
     await this.initializeConversationLog(topic);
 
-    await this.bot.sendMessage(
+    const remoteUrl = await gitService.getRemoteUrl(repoPath);
+    const repoLink = remoteUrlToHttps(remoteUrl);
+    const repoDisplay = repoLink ? `[${repoName}](${repoLink})` : `\`${repoName}\``;
+    
+    const startMsg = await this.bot.sendMessage(
       BROADCAST_CHAT_ID,
-      `🏛️ *Chamber Mode Started*\n\nRepo: \`${repoName}\`\nTopic: ${topic}\n\nGLM 🤖 ↔️ 🧠 Anthropic`,
+      `🏛️ *Chamber Mode Started*\n\nRepo: ${repoDisplay}\nTopic: ${topic}\n\nGLM 🤖 ↔️ 🧠 Claude`,
       { parse_mode: 'Markdown' }
     );
+    await this.bot.pinChatMessage(BROADCAST_CHAT_ID, startMsg.message_id).catch(() => {});
 
     logger.info('Starting chamber mode', { 
       sessionId: this.currentSession.id, 
@@ -365,11 +399,16 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
       aiProvider,
     };
 
-    await this.bot.sendMessage(
+    const remoteUrl = await gitService.getRemoteUrl(repoPath);
+    const repoLink = remoteUrlToHttps(remoteUrl);
+    const repoDisplay = repoLink ? `[${repoName}](${repoLink})` : `\`${repoName}\``;
+
+    const resumeMsg = await this.bot.sendMessage(
       BROADCAST_CHAT_ID,
-      `🏛️ *Chamber Resumed*\n\nRepo: \`${repoName}\`\nTopic: ${parsed.topic}\nContinuing from turn ${parsed.turnCount + 1} (${nextRole === 'glm' ? 'GLM 🤖' : 'Claude 🧠'})`,
+      `🏛️ *Chamber Resumed*\n\nRepo: ${repoDisplay}\nTopic: ${parsed.topic}\nContinuing from turn ${parsed.turnCount + 1} (${nextRole === 'glm' ? 'GLM 🤖' : 'Claude 🧠'})`,
       { parse_mode: 'Markdown' }
     );
+    await this.bot.pinChatMessage(BROADCAST_CHAT_ID, resumeMsg.message_id).catch(() => {});
 
     logger.info('Resuming chamber mode', { 
       sessionId: this.currentSession.id, 
