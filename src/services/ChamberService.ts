@@ -52,7 +52,7 @@ export class ChamberService {
   private async appendToLog(role: 'glm' | 'anthropic', content: string): Promise<void> {
     const logPath = this.getLogFilePath();
     const timestamp = new Date().toISOString();
-    const roleName = role === 'glm' ? 'GLM' : 'Anthropic';
+    const roleName = role === 'glm' ? 'GLM' : 'Claude';
     const emoji = role === 'glm' ? '🤖' : '🧠';
     
     const entry = `
@@ -110,7 +110,7 @@ ${content}
 
   private async broadcastToTelegram(role: string, content: string): Promise<void> {
     const emoji = role === 'glm' ? '🤖' : '🧠';
-    const providerName = role === 'glm' ? 'GLM' : 'Anthropic';
+    const providerName = role === 'glm' ? 'GLM' : 'Claude';
     
     const maxLength = 3800;
     const displayContent = content.length > maxLength 
@@ -178,8 +178,8 @@ ${content}
 
   private buildPrompt(role: 'glm' | 'anthropic'): string {
     const roleNames = {
-      glm: 'GLM (a Chinese AI developed by Zhipu AI)',
-      anthropic: 'Claude (Anthropic\'s AI)'
+      glm: 'GLM (developed by Zhipu AI)',
+      anthropic: 'Claude (developed by Anthropic)'
     };
     const otherRole = role === 'glm' ? 'anthropic' : 'glm';
 
@@ -206,7 +206,7 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
   private async runConversationLoop(): Promise<void> {
     let currentRole: 'glm' | 'anthropic' = 'glm';
 
-    const firstPrompt = `You are GLM (a Chinese AI developed by Zhipu AI), starting a conversation with Claude (Anthropic's AI).
+    const firstPrompt = `You are GLM (developed by Zhipu AI), starting a conversation with Claude (developed by Anthropic).
 
 Read ${CONVERSATION_LOG_FILE} to see the topic for discussion.
 
