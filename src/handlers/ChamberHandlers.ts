@@ -1,6 +1,7 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { ChamberService } from '../services/ChamberService';
 import { RepositoryManager } from '../services/RepositoryManager';
+import { UserConfigManager } from '../services/UserConfigManager';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
@@ -9,7 +10,8 @@ export class ChamberHandlers {
 
   constructor(
     private bot: TelegramBot,
-    private repositoryManager: RepositoryManager
+    private repositoryManager: RepositoryManager,
+    private userConfigManager: UserConfigManager
   ) {
     this.chamberService = new ChamberService(bot);
   }
@@ -64,10 +66,14 @@ export class ChamberHandlers {
       return;
     }
 
+    const userConfig = await this.userConfigManager.getConfig(userId);
+    const aiProvider = userConfig?.aiProvider;
+
     const result = await this.chamberService.startConversation(
       currentRepo.path,
       currentRepo.name,
-      topic || undefined
+      topic || undefined,
+      aiProvider
     );
     await this.bot.sendMessage(chatId, `🏛️ ${result}`, { parse_mode: 'Markdown' });
   }

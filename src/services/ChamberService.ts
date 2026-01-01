@@ -1,6 +1,7 @@
 import { logger } from '../utils/logger';
 import { runClaude, delay } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
+import { AIProviderConfig } from '../types';
 import * as fs from 'fs';
 import * as path from 'path';
 import TelegramBot from 'node-telegram-bot-api';
@@ -16,6 +17,7 @@ interface ConversationSession {
   startTime: Date;
   turnCount: number;
   isRunning: boolean;
+  aiProvider?: AIProviderConfig;
 }
 
 export class ChamberService {
@@ -93,6 +95,7 @@ ${content}
     const result = await runClaude({
       prompt,
       provider,
+      apiKey: this.currentSession.aiProvider?.apiKey,
       workingDir: this.currentSession.repoPath,
       timeout: 300000,
       dangerMode: true
@@ -132,7 +135,7 @@ ${content}
     }
   }
 
-  async startConversation(repoPath: string, repoName: string, initialTopic?: string): Promise<string> {
+  async startConversation(repoPath: string, repoName: string, initialTopic?: string, aiProvider?: AIProviderConfig): Promise<string> {
     if (this.currentSession?.isRunning) {
       return 'A conversation is already running. Use /chamber stop first.';
     }
@@ -148,6 +151,7 @@ ${content}
       startTime: new Date(),
       turnCount: 0,
       isRunning: true,
+      aiProvider,
     };
 
     await this.initializeConversationLog(topic);

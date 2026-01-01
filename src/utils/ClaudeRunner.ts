@@ -7,6 +7,7 @@ export interface ClaudeRunOptions {
   prompt: string;
   workingDir?: string;
   provider?: AIProvider;
+  apiKey?: string;
   timeout?: number;
   dangerMode?: boolean;
 }
@@ -50,12 +51,13 @@ export function runClaude(options: ClaudeRunOptions): Promise<ClaudeRunResult> {
     prompt,
     workingDir = process.cwd(),
     provider = 'anthropic',
+    apiKey,
     timeout = 300000,
     dangerMode = true
   } = options;
 
   return new Promise((resolve, reject) => {
-    const env = configureProviderEnv(provider);
+    const env = configureProviderEnv(provider, apiKey);
     const isRoot = process.getuid && process.getuid() === 0;
     
     // Set sandbox env vars when running as root to allow --dangerously-skip-permissions
