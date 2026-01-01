@@ -126,6 +126,10 @@ export class ClaudeExecutor {
         } else if (aiProvider.apiKey) {
           env.ANTHROPIC_API_KEY = aiProvider.apiKey;
         }
+      } else {
+        // Default to Anthropic with Opus model
+        env.ANTHROPIC_MODEL = 'opus';
+        logger.info('Using Anthropic provider', { model: 'opus' });
       }
 
       const claudeProcess = spawn('claude', args, {
