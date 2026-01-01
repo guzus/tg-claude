@@ -124,9 +124,16 @@ Switch between Anthropic Claude and GLM (Z.ai) as your AI provider:
 ```
 
 GLM-4.7 is available through Z.ai's Anthropic-compatible endpoint. To use it:
-1. Get a Z.ai API key from [z.ai](https://z.ai)
+1. Get a Z.ai API key from [z.ai](https://z.ai/manage-apikey/apikey-list)
 2. Set the provider to `glm`
 3. Set your API key
+
+When using GLM, the following model mappings are applied automatically:
+- Haiku → GLM-4.5-Air
+- Sonnet → GLM-4.7
+- Opus → GLM-4.7
+
+See [Z.ai docs](https://docs.z.ai/devpack/tool/claude) for more details.
 
 ### Tech Stack Preferences
 
