@@ -134,6 +134,14 @@ export const AI_PROVIDER_ENDPOINTS: Record<AIProvider, string | undefined> = {
   glm: 'https://api.z.ai/api/anthropic'  // Z.ai GLM endpoint
 };
 
+// GLM model mappings for Claude Code's internal model slots (Haiku/Sonnet/Opus)
+// Per Z.ai docs: https://docs.z.ai/devpack/tool/claude
+export const GLM_MODEL_MAPPINGS = {
+  haiku: 'GLM-4.5-Air',
+  sonnet: 'GLM-4.7',
+  opus: 'GLM-4.7'
+};
+
 export interface McpServer {
   command: string;
   args?: string[];
