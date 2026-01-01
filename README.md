@@ -35,6 +35,7 @@ flowchart TB
     subgraph External
         GitHub[GitHub]
         ClaudeAPI[Claude API]
+        ZaiAPI[Z.ai GLM API]
     end
 
     TG -->|Commands| Bot
@@ -43,6 +44,7 @@ flowchart TB
     Executor -->|Execute| Claude
     Beast -->|Iterate| Claude
     Claude -->|OAuth| ClaudeAPI
+    Claude -->|API Key| ZaiAPI
     Claude -->|Read/Write| Workspace
     Git -->|Clone/Push| GitHub
     Repo -->|Manage| Workspace
@@ -109,6 +111,22 @@ docker compose up -d
 Plain text messages are treated as `/task` commands.
 
 ## User Configuration
+
+### AI Provider (GLM Support)
+
+Switch between Anthropic Claude and GLM (Z.ai) as your AI provider:
+
+```
+/config set aiProvider.provider glm        # Switch to GLM
+/config set aiProvider.apiKey <your-key>   # Set your Z.ai API key
+/config set aiProvider.provider anthropic  # Switch back to Claude
+/config show                               # View current provider
+```
+
+GLM-4.7 is available through Z.ai's Anthropic-compatible endpoint. To use it:
+1. Get a Z.ai API key from [z.ai](https://z.ai)
+2. Set the provider to `glm`
+3. Set your API key
 
 ### Tech Stack Preferences
 
