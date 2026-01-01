@@ -11,7 +11,7 @@ import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS } from
 // Default Anthropic models used by Claude Code
 // Per docs: https://docs.claude.com/en/docs/claude-code/model-config
 const ANTHROPIC_MODELS = {
-  haiku: 'Haiku 3.5',
+  haiku: 'Haiku 4.5',
   sonnet: 'Sonnet 4.5',
   opus: 'Opus 4.5'
 };
