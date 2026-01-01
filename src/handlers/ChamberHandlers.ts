@@ -1,12 +1,16 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { ChamberService } from '../services/ChamberService';
+import { RepositoryManager } from '../services/RepositoryManager';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
 export class ChamberHandlers {
   private chamberService: ChamberService;
 
-  constructor(private bot: TelegramBot) {
+  constructor(
+    private bot: TelegramBot,
+    private repositoryManager: RepositoryManager
+  ) {
     this.chamberService = new ChamberService(bot);
   }
 
@@ -26,7 +30,7 @@ export class ChamberHandlers {
     try {
       switch (subcommand) {
         case 'start':
-          await this.handleStart(chatId, topic);
+          await this.handleStart(chatId, userId, topic);
           break;
 
         case 'stop':
@@ -48,8 +52,23 @@ export class ChamberHandlers {
     }
   }
 
-  private async handleStart(chatId: number, topic?: string): Promise<void> {
-    const result = await this.chamberService.startConversation(topic || undefined);
+  private async handleStart(chatId: number, userId: number, topic?: string): Promise<void> {
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        '❌ No repository selected.\n\nCreate one first:\n`/repo new chamber-1`',
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const result = await this.chamberService.startConversation(
+      currentRepo.path,
+      currentRepo.name,
+      topic || undefined
+    );
     await this.bot.sendMessage(chatId, `🏛️ ${result}`, { parse_mode: 'Markdown' });
   }
 
@@ -66,8 +85,9 @@ export class ChamberHandlers {
         chatId,
         `🏛️ *Chamber Mode*\n\n` +
         `Status: 🟢 Running\n` +
-        `Session: \`${status.sessionId}\`\n` +
-        `Messages: ${status.messageCount}\n\n` +
+        `Repo: \`${status.repoName}\`\n` +
+        `Topic: ${status.topic}\n` +
+        `Turns: ${status.turnCount}\n\n` +
         `Commands:\n` +
         `/chamber stop - Stop the conversation`,
         { parse_mode: 'Markdown' }
@@ -77,11 +97,14 @@ export class ChamberHandlers {
         chatId,
         `🏛️ *Chamber Mode*\n\n` +
         `Status: 🔴 Stopped\n\n` +
-        `An endless conversation between GLM and Anthropic models, broadcast to @claude_glm.\n\n` +
+        `Both AIs share the current repo. They read CONVERSATION.md, respond, commit & push.\n\n` +
+        `Usage:\n` +
+        `1. \`/repo new chamber-1\` - Create a repo\n` +
+        `2. \`/chamber start [topic]\` - Start conversation\n\n` +
         `Commands:\n` +
-        `/chamber start [topic] - Start conversation\n` +
-        `/chamber stop - Stop conversation\n` +
-        `/chamber status - Check status`,
+        `/chamber start [topic]\n` +
+        `/chamber stop\n` +
+        `/chamber status`,
         { parse_mode: 'Markdown' }
       );
     }

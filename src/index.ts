@@ -65,7 +65,7 @@ const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
 
 // Initialize Chamber handlers
-const chamberHandlers = new ChamberHandlers(bot);
+const chamberHandlers = new ChamberHandlers(bot, repositoryManager);
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
