@@ -6,7 +6,14 @@ import { AuditLogger } from '../services/AuditLogger';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
-import { McpConfig, McpServer, UserConfig, AIProvider } from '../types';
+import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS } from '../types';
+
+// Default Anthropic models used by Claude Code
+const ANTHROPIC_MODELS = {
+  haiku: 'claude-3-5-haiku',
+  sonnet: 'claude-sonnet-4',
+  opus: 'claude-opus-4'
+};
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
@@ -137,6 +144,10 @@ export class ConfigHandlers extends BaseHandler {
     const providerDisplay = config.aiProvider?.provider || 'anthropic';
     const hasApiKey = config.aiProvider?.apiKey ? '✅ Set' : '❌ Not set';
 
+    // Get model mappings based on provider
+    const isGlm = providerDisplay === 'glm';
+    const models = isGlm ? GLM_MODEL_MAPPINGS : ANTHROPIC_MODELS;
+
     const message =
       `⚙️ *Your Configuration*\n\n` +
       `*Git Settings:*\n` +
@@ -145,7 +156,11 @@ export class ConfigHandlers extends BaseHandler {
       `🌿 Default Branch: \`${config.git?.defaultBranch || 'main'}\`\n\n` +
       `*AI Provider:*\n` +
       `🤖 Provider: \`${providerDisplay}\`\n` +
-      `🔑 API Key: ${hasApiKey}\n\n` +
+      `🔑 API Key: ${hasApiKey}\n` +
+      `📊 Models:\n` +
+      `   Haiku → \`${models.haiku}\`\n` +
+      `   Sonnet → \`${models.sonnet}\`\n` +
+      `   Opus → \`${models.opus}\`\n\n` +
       `*Tech Stack:*\n` +
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
