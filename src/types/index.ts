@@ -40,6 +40,7 @@ export interface ClaudeExecutionOptions {
   dangerMode?: boolean;
   additionalFlags?: string[];
   timeout?: number;
+  aiProvider?: AIProviderConfig;
 }
 
 export interface UserActivity {
@@ -119,6 +120,28 @@ export interface TechStackPreferences {
   python?: 'uv' | 'pip' | 'poetry' | 'pipenv';
 }
 
+// AI Provider Types
+export type AIProvider = 'anthropic' | 'glm';
+
+export interface AIProviderConfig {
+  provider: AIProvider;
+  apiKey?: string;        // Provider-specific API key (stored separately from Anthropic)
+  model?: string;         // Optional model override
+}
+
+export const AI_PROVIDER_ENDPOINTS: Record<AIProvider, string | undefined> = {
+  anthropic: undefined,   // Uses default Anthropic endpoint
+  glm: 'https://api.z.ai/api/anthropic'  // Z.ai GLM endpoint
+};
+
+// GLM model mappings for Claude Code's internal model slots (Haiku/Sonnet/Opus)
+// Per Z.ai docs: https://docs.z.ai/devpack/tool/claude
+export const GLM_MODEL_MAPPINGS = {
+  haiku: 'GLM-4.5-Air',
+  sonnet: 'GLM-4.7',
+  opus: 'GLM-4.7'
+};
+
 export interface McpServer {
   command: string;
   args?: string[];
@@ -145,6 +168,7 @@ export interface UserConfig {
     dangerModeEnabled?: boolean;
   };
   techStack?: TechStackPreferences;
+  aiProvider?: AIProviderConfig;
   claudeMdTemplate?: string;
   mcpConfigs?: Record<string, McpConfig>;
   limits?: {
@@ -178,6 +202,7 @@ export interface BeastModeState {
   config: BeastModeConfig;
   messageId?: number;             // Status message to update
   cleanedUp?: boolean;            // Tracks if cleanup has been performed
+  aiProvider?: AIProviderConfig;  // AI provider configuration
 }
 
 export interface BeastIteration {

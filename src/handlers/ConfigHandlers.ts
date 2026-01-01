@@ -6,7 +6,15 @@ import { AuditLogger } from '../services/AuditLogger';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
-import { McpConfig, McpServer, UserConfig } from '../types';
+import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS } from '../types';
+
+// Default Anthropic models used by Claude Code
+// Per docs: https://docs.claude.com/en/docs/claude-code/model-config
+const ANTHROPIC_MODELS = {
+  haiku: 'Haiku 4.5',
+  sonnet: 'Sonnet 4.5',
+  opus: 'Opus 4.5'
+};
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
@@ -92,10 +100,12 @@ export class ConfigHandlers extends BaseHandler {
       `• \`git.userEmail\` - Git user email\n` +
       `• \`techStack.typescript\` - TS (bun/npm/pnpm/yarn)\n` +
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
+      `• \`aiProvider.provider\` - AI provider (anthropic/glm)\n` +
+      `• \`aiProvider.apiKey\` - Provider API key\n` +
       `• \`preferences.dangerModeEnabled\` - Danger mode\n` +
       `• \`limits.maxConcurrentTasks\` - Max tasks\n\n` +
       `Example:\n` +
-      `\`/config set techStack.typescript bun\``;
+      `\`/config set aiProvider.provider glm\``;
 
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
@@ -111,9 +121,10 @@ export class ConfigHandlers extends BaseHandler {
           ],
           [
             { text: '🛠️ Tech Stack', callback_data: 'config_techstack' },
-            { text: '📊 Limits', callback_data: 'config_limits' }
+            { text: '🤖 AI Provider', callback_data: 'config_aiprovider' }
           ],
           [
+            { text: '📊 Limits', callback_data: 'config_limits' },
             { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
           ]
         ]
@@ -131,6 +142,12 @@ export class ConfigHandlers extends BaseHandler {
     }
 
     const config = await this.userConfigManager.getConfig(userId);
+    const providerDisplay = config.aiProvider?.provider || 'anthropic';
+    const hasApiKey = config.aiProvider?.apiKey ? '✅ Set' : '❌ Not set';
+
+    // Get model mappings based on provider
+    const isGlm = providerDisplay === 'glm';
+    const models = isGlm ? GLM_MODEL_MAPPINGS : ANTHROPIC_MODELS;
 
     const message =
       `⚙️ *Your Configuration*\n\n` +
@@ -138,6 +155,13 @@ export class ConfigHandlers extends BaseHandler {
       `👤 User Name: \`${config.git?.userName || 'Not set'}\`\n` +
       `📧 User Email: \`${config.git?.userEmail || 'Not set'}\`\n` +
       `🌿 Default Branch: \`${config.git?.defaultBranch || 'main'}\`\n\n` +
+      `*AI Provider:*\n` +
+      `🤖 Provider: \`${providerDisplay}\`\n` +
+      `🔑 API Key: ${hasApiKey}\n` +
+      `📊 Models:\n` +
+      `   Haiku → \`${models.haiku}\`\n` +
+      `   Sonnet → \`${models.sonnet}\`\n` +
+      `   Opus → \`${models.opus}\`\n\n` +
       `*Tech Stack:*\n` +
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
@@ -161,9 +185,10 @@ export class ConfigHandlers extends BaseHandler {
           ],
           [
             { text: '🛠️ Edit Tech Stack', callback_data: 'config_techstack' },
-            { text: '📊 Edit Limits', callback_data: 'config_limits' }
+            { text: '🤖 Edit AI Provider', callback_data: 'config_aiprovider' }
           ],
           [
+            { text: '📊 Edit Limits', callback_data: 'config_limits' },
             { text: '🔙 Back to Config Menu', callback_data: 'config_menu' }
           ]
         ]
@@ -253,6 +278,10 @@ export class ConfigHandlers extends BaseHandler {
         this.validateTechStackValue(field, value);
         update.techStack = { [field]: value };
         break;
+      case 'aiProvider':
+        this.validateAIProviderValue(field, value);
+        update.aiProvider = { [field]: value } as any;
+        break;
       case 'preferences':
         update.preferences = { [field]: parsedValue };
         break;
@@ -260,7 +289,7 @@ export class ConfigHandlers extends BaseHandler {
         update.limits = { [field]: parsedValue };
         break;
       default:
-        throw new Error(`Unknown config category: ${category}. Valid: git, techStack, preferences, limits`);
+        throw new Error(`Unknown config category: ${category}. Valid: git, techStack, aiProvider, preferences, limits`);
     }
 
     return update;
@@ -278,6 +307,25 @@ export class ConfigHandlers extends BaseHandler {
     }
     if (!allowed.includes(value)) {
       throw new Error(`Invalid value for techStack.${field}. Valid: ${allowed.join(', ')}`);
+    }
+  }
+
+  private validateAIProviderValue(field: string, value: string): void {
+    const validProviders: AIProvider[] = ['anthropic', 'glm'];
+
+    if (field === 'provider') {
+      if (!validProviders.includes(value as AIProvider)) {
+        throw new Error(`Invalid AI provider: ${value}. Valid: ${validProviders.join(', ')}`);
+      }
+    } else if (field === 'apiKey') {
+      // API key can be any non-empty string
+      if (!value || value.trim() === '') {
+        throw new Error('API key cannot be empty');
+      }
+    } else if (field === 'model') {
+      // Model can be any string
+    } else {
+      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, apiKey, model`);
     }
   }
 

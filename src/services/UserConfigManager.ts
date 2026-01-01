@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { UserConfig } from '../types';
+import { UserConfig, AIProviderConfig } from '../types';
 import { logger } from '../utils/logger';
 
 const DEFAULT_CLAUDE_MD = `# Guidelines for Claude
@@ -136,6 +136,9 @@ export class UserConfigManager {
         typescript: 'bun',
         python: 'uv'
       },
+      aiProvider: {
+        provider: 'anthropic'
+      },
       claudeMdTemplate: DEFAULT_CLAUDE_MD,
       limits: {
         maxConcurrentTasks: 3,
@@ -157,6 +160,9 @@ export class UserConfigManager {
     }
     if (updates.techStack) {
       config.techStack = { ...config.techStack, ...updates.techStack };
+    }
+    if (updates.aiProvider) {
+      config.aiProvider = { ...config.aiProvider, ...updates.aiProvider };
     }
     if (updates.claudeMdTemplate !== undefined) {
       config.claudeMdTemplate = updates.claudeMdTemplate;
