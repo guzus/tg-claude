@@ -18,6 +18,19 @@ export interface ClaudeRunResult {
   exitCode: number;
 }
 
+export interface ToolCall {
+  name: string;
+  input: string;
+  output: string;
+}
+
+export interface ClaudeStreamResult {
+  output: string;
+  errorOutput: string;
+  exitCode: number;
+  toolCalls: ToolCall[];
+}
+
 /**
  * Configure environment variables for the specified AI provider
  */
@@ -135,4 +148,123 @@ export function createLogFile(logsDir: string, prefix: string): fs.WriteStream {
  */
 export function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Run Claude CLI with stream-json output to capture tool calls
+ */
+export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStreamResult> {
+  const {
+    prompt,
+    workingDir = process.cwd(),
+    provider = 'anthropic',
+    apiKey,
+    timeout = 300000,
+    dangerMode = true
+  } = options;
+
+  return new Promise((resolve, reject) => {
+    const env = configureProviderEnv(provider, apiKey);
+    const isRoot = process.getuid && process.getuid() === 0;
+    
+    if (isRoot) {
+      env.IS_SANDBOX = '1';
+      env.CLAUDE_AUTO_APPROVE = '1';
+      env.CI = 'true';
+    }
+    
+    const args = [
+      '--print',
+      '--output-format', 'stream-json',
+      ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
+      prompt
+    ];
+
+    const claudeProcess = spawn('claude', args, {
+      cwd: workingDir,
+      env,
+      shell: false,
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let rawOutput = '';
+    let errorOutput = '';
+    const toolCalls: ToolCall[] = [];
+    let finalText = '';
+    let currentToolName = '';
+    let currentToolInput = '';
+
+    claudeProcess.stdout?.on('data', (data: Buffer) => {
+      rawOutput += data.toString();
+      
+      const lines = data.toString().split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        try {
+          const event = JSON.parse(line);
+          
+          if (event.type === 'content_block_start' && event.content_block?.type === 'tool_use') {
+            currentToolName = event.content_block.name || '';
+            currentToolInput = '';
+          }
+          
+          if (event.type === 'content_block_delta') {
+            if (event.delta?.type === 'input_json_delta') {
+              currentToolInput += event.delta.partial_json || '';
+            }
+            if (event.delta?.type === 'text_delta') {
+              finalText += event.delta.text || '';
+            }
+          }
+          
+          if (event.type === 'result' && currentToolName) {
+            toolCalls.push({
+              name: currentToolName,
+              input: currentToolInput,
+              output: typeof event.result === 'string' ? event.result : JSON.stringify(event.result)
+            });
+            currentToolName = '';
+            currentToolInput = '';
+          }
+          
+          if (event.type === 'message_stop' || event.type === 'content_block_stop') {
+            if (currentToolName && currentToolInput) {
+              toolCalls.push({
+                name: currentToolName,
+                input: currentToolInput,
+                output: ''
+              });
+              currentToolName = '';
+              currentToolInput = '';
+            }
+          }
+        } catch { /* non-JSON line */ }
+      }
+    });
+
+    claudeProcess.stderr?.on('data', (data: Buffer) => {
+      errorOutput += data.toString();
+    });
+
+    claudeProcess.stdin?.end();
+
+    const timeoutHandle = setTimeout(() => {
+      claudeProcess.kill('SIGTERM');
+      reject(new Error('Execution timeout'));
+    }, timeout);
+
+    claudeProcess.on('close', (code: number | null) => {
+      clearTimeout(timeoutHandle);
+      resolve({
+        output: finalText.trim() || rawOutput.trim(),
+        errorOutput: errorOutput.trim(),
+        exitCode: code ?? 1,
+        toolCalls
+      });
+    });
+
+    claudeProcess.on('error', (error: Error) => {
+      clearTimeout(timeoutHandle);
+      reject(error);
+    });
+  });
 }

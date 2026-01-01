@@ -1,5 +1,5 @@
 import { logger } from '../utils/logger';
-import { runClaude, delay } from '../utils/ClaudeRunner';
+import { runClaudeWithTools, delay, ToolCall } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
 import { AIProviderConfig } from '../types';
 import * as fs from 'fs';
@@ -49,16 +49,39 @@ export class ChamberService {
     await this.commitAndPush('Start new conversation');
   }
 
-  private async appendToLog(role: 'glm' | 'anthropic', content: string): Promise<void> {
+  private formatToolCalls(toolCalls: ToolCall[]): string {
+    if (toolCalls.length === 0) return '';
+    
+    let formatted = '\n<details>\n<summary>🔧 Tool Usage</summary>\n\n';
+    for (const tool of toolCalls) {
+      formatted += `**${tool.name}**\n`;
+      if (tool.input) {
+        const inputPreview = tool.input.length > 200 ? tool.input.substring(0, 200) + '...' : tool.input;
+        formatted += `\`\`\`\n${inputPreview}\n\`\`\`\n`;
+      }
+    }
+    formatted += '</details>\n';
+    return formatted;
+  }
+
+  private formatToolCallsForTelegram(toolCalls: ToolCall[]): string {
+    if (toolCalls.length === 0) return '';
+    
+    const toolNames = toolCalls.map(t => t.name).join(', ');
+    return `\n\n🔧 Tools: ${toolNames}`;
+  }
+
+  private async appendToLog(role: 'glm' | 'anthropic', content: string, toolCalls: ToolCall[]): Promise<void> {
     const logPath = this.getLogFilePath();
     const timestamp = new Date().toISOString();
     const roleName = role === 'glm' ? 'GLM' : 'Claude';
     const emoji = role === 'glm' ? '🤖' : '🧠';
+    const toolSection = this.formatToolCalls(toolCalls);
     
     const entry = `
 ### ${emoji} ${roleName}
 *${timestamp}*
-
+${toolSection}
 ${content}
 
 ---
@@ -89,10 +112,10 @@ ${content}
     }
   }
 
-  private async executeWithProvider(provider: 'glm' | 'anthropic', prompt: string): Promise<string> {
+  private async executeWithProvider(provider: 'glm' | 'anthropic', prompt: string): Promise<{ output: string; toolCalls: ToolCall[] }> {
     if (!this.currentSession) throw new Error('No active session');
 
-    const result = await runClaude({
+    const result = await runClaudeWithTools({
       prompt,
       provider,
       apiKey: provider === 'glm' ? this.currentSession.aiProvider?.apiKey : undefined,
@@ -105,17 +128,19 @@ ${content}
       throw new Error(result.errorOutput || `Process exited with code ${result.exitCode}`);
     }
 
-    return result.output;
+    return { output: result.output, toolCalls: result.toolCalls };
   }
 
-  private async broadcastToTelegram(role: string, content: string): Promise<void> {
+  private async broadcastToTelegram(role: string, content: string, toolCalls: ToolCall[]): Promise<void> {
     const emoji = role === 'glm' ? '🤖' : '🧠';
     const providerName = role === 'glm' ? 'GLM' : 'Claude';
+    const toolSummary = this.formatToolCallsForTelegram(toolCalls);
     
     const maxLength = 3800;
-    const displayContent = content.length > maxLength 
-      ? content.substring(0, maxLength) + '\n\n... (truncated)'
-      : content;
+    const fullContent = content + toolSummary;
+    const displayContent = fullContent.length > maxLength 
+      ? fullContent.substring(0, maxLength) + '\n\n... (truncated)'
+      : fullContent;
     
     try {
       await this.bot.sendMessage(BROADCAST_CHAT_ID, `${emoji} *${providerName}*:\n\n${displayContent}`, { 
@@ -219,18 +244,15 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
         logger.info(`Executing ${currentRole} turn`, { turn: this.currentSession.turnCount });
         
         const prompt = this.currentSession.turnCount === 0 ? firstPrompt : this.buildPrompt(currentRole);
-        const response = await this.executeWithProvider(currentRole, prompt);
+        const { output, toolCalls } = await this.executeWithProvider(currentRole, prompt);
         
         if (this.stopRequested) break;
 
-        // Append response to log, commit and push
-        await this.appendToLog(currentRole, response);
+        await this.appendToLog(currentRole, output, toolCalls);
         this.currentSession.turnCount++;
 
-        // Broadcast to Telegram
-        await this.broadcastToTelegram(currentRole, response);
+        await this.broadcastToTelegram(currentRole, output, toolCalls);
 
-        // Switch roles
         currentRole = currentRole === 'glm' ? 'anthropic' : 'glm';
 
         await delay(this.delayBetweenMessages);
