@@ -315,6 +315,118 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
     return `Conversation stopped. Session ID: ${this.currentSession.id}`;
   }
 
+  private parseConversationLog(repoPath: string): { topic: string; lastSpeaker: 'glm' | 'anthropic' | null; turnCount: number } | null {
+    const logPath = path.join(repoPath, CONVERSATION_LOG_FILE);
+    
+    if (!fs.existsSync(logPath)) return null;
+    
+    const content = fs.readFileSync(logPath, 'utf-8');
+    
+    const topicMatch = content.match(/\*\*Topic:\*\*\s*(.+)/);
+    const topic = topicMatch?.[1]?.trim() || 'Continuing conversation';
+    
+    const speakerMatches = content.match(/### (🤖|🧠)/g) || [];
+    const turnCount = speakerMatches.length;
+    
+    if (turnCount === 0) return { topic, lastSpeaker: null, turnCount: 0 };
+    
+    const lastEmoji = speakerMatches[speakerMatches.length - 1];
+    const lastSpeaker = lastEmoji.includes('🤖') ? 'glm' : 'anthropic';
+    
+    return { topic, lastSpeaker, turnCount };
+  }
+
+  async resumeConversation(repoPath: string, repoName: string, aiProvider?: AIProviderConfig): Promise<string> {
+    if (this.currentSession?.isRunning) {
+      return 'A conversation is already running. Use /chamber stop first.';
+    }
+
+    const parsed = this.parseConversationLog(repoPath);
+    
+    if (!parsed) {
+      return 'No CONVERSATION.md found. Use /chamber start to begin a new conversation.';
+    }
+
+    if (parsed.turnCount === 0) {
+      return 'Conversation log is empty. Use /chamber start to begin.';
+    }
+
+    const nextRole: 'glm' | 'anthropic' = parsed.lastSpeaker === 'glm' ? 'anthropic' : 'glm';
+
+    this.stopRequested = false;
+    this.currentSession = {
+      id: Date.now().toString(),
+      topic: parsed.topic,
+      repoPath,
+      repoName,
+      startTime: new Date(),
+      turnCount: parsed.turnCount,
+      isRunning: true,
+      aiProvider,
+    };
+
+    await this.bot.sendMessage(
+      BROADCAST_CHAT_ID,
+      `🏛️ *Chamber Resumed*\n\nRepo: \`${repoName}\`\nTopic: ${parsed.topic}\nContinuing from turn ${parsed.turnCount + 1} (${nextRole === 'glm' ? 'GLM 🤖' : 'Claude 🧠'})`,
+      { parse_mode: 'Markdown' }
+    );
+
+    logger.info('Resuming chamber mode', { 
+      sessionId: this.currentSession.id, 
+      repoPath, 
+      repoName, 
+      topic: parsed.topic,
+      nextRole,
+      turnCount: parsed.turnCount
+    });
+
+    this.runConversationLoopFrom(nextRole).catch(error => {
+      logger.error('Conversation loop error', { error: error.message });
+    });
+
+    return `Resumed conversation in \`${repoName}\`\nSession: \`${this.currentSession.id}\``;
+  }
+
+  private async runConversationLoopFrom(startRole: 'glm' | 'anthropic'): Promise<void> {
+    let currentRole = startRole;
+
+    while (this.currentSession?.isRunning && !this.stopRequested) {
+      try {
+        logger.info(`Executing ${currentRole} turn`, { turn: this.currentSession.turnCount });
+        
+        const prompt = this.buildPrompt(currentRole);
+        const { output, toolCalls } = await this.executeWithProvider(currentRole, prompt);
+        
+        if (this.stopRequested) break;
+
+        await this.appendToLog(currentRole, output, toolCalls);
+        this.currentSession.turnCount++;
+
+        await this.broadcastToTelegram(currentRole, output, toolCalls);
+
+        currentRole = currentRole === 'glm' ? 'anthropic' : 'glm';
+
+        await delay(this.delayBetweenMessages);
+
+      } catch (error) {
+        logger.error('Error in conversation turn', { 
+          role: currentRole, 
+          error: error instanceof Error ? error.message : String(error) 
+        });
+        
+        await this.bot.sendMessage(
+          BROADCAST_CHAT_ID,
+          `⚠️ *Error in ${currentRole} response*\n\n\`${error instanceof Error ? error.message : String(error)}\`\n\nRetrying in 10 seconds...`,
+          { parse_mode: 'Markdown' }
+        );
+        
+        await delay(10000);
+      }
+    }
+
+    await this.finalizeSession();
+  }
+
   getStatus(): { 
     isRunning: boolean; 
     sessionId?: string; 

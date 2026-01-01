@@ -39,6 +39,10 @@ export class ChamberHandlers {
           await this.handleStart(chatId, userId, topic);
           break;
 
+        case 'resume':
+          await this.handleResume(chatId, userId);
+          break;
+
         case 'stop':
           await this.handleStop(chatId);
           break;
@@ -115,6 +119,25 @@ export class ChamberHandlers {
     await this.bot.sendMessage(chatId, `🏛️ ${result}`, { parse_mode: 'Markdown' });
   }
 
+  private async handleResume(chatId: number, userId: number): Promise<void> {
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    
+    if (!currentRepo) {
+      await this.bot.sendMessage(chatId, '❌ No repository selected.', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const userConfig = await this.userConfigManager.getConfig(userId);
+    const aiProvider = userConfig?.aiProvider;
+
+    const result = await this.chamberService.resumeConversation(
+      currentRepo.path,
+      currentRepo.name,
+      aiProvider
+    );
+    await this.bot.sendMessage(chatId, `🏛️ ${result}`, { parse_mode: 'Markdown' });
+  }
+
   private async handleStop(chatId: number): Promise<void> {
     const result = await this.chamberService.stopConversation();
     await this.bot.sendMessage(chatId, `🛑 ${result}`, { parse_mode: 'Markdown' });
@@ -143,6 +166,7 @@ export class ChamberHandlers {
         `GLM and Anthropic take turns responding. Each reads CONVERSATION.md, responds, commits & pushes.\n\n` +
         `Commands:\n` +
         `/chamber start [topic] - Auto-creates private repo\n` +
+        `/chamber resume - Continue existing conversation\n` +
         `/chamber stop\n` +
         `/chamber status`,
         { parse_mode: 'Markdown' }
