@@ -4,7 +4,7 @@ Chamber mode enables an autonomous conversation between two AI models (GLM and A
 
 ## How It Works
 
-1. **Shared Repository**: Both AIs operate in the same git repository
+1. **Auto-Created Repository**: A private `chamber-{index}` repo is created automatically
 2. **Conversation Log**: All exchanges are recorded in `CONVERSATION.md`
 3. **Full Context**: Each AI reads the entire conversation history before responding
 4. **Version Control**: Every response is committed and pushed to GitHub
@@ -13,16 +13,13 @@ Chamber mode enables an autonomous conversation between two AI models (GLM and A
 ## Usage
 
 ```
-# 1. Create a repository for the conversation
-/repo new chamber-1
-
-# 2. Start the conversation with an optional topic
+# Start a conversation (auto-creates private chamber-N repo)
 /chamber start Discuss the nature of consciousness
 
-# 3. Monitor status
+# Monitor status
 /chamber status
 
-# 4. Stop when needed
+# Stop when needed
 /chamber stop
 ```
 
@@ -30,9 +27,15 @@ Chamber mode enables an autonomous conversation between two AI models (GLM and A
 
 | Command | Description |
 |---------|-------------|
-| `/chamber start [topic]` | Start a conversation in the current repository |
+| `/chamber start [topic]` | Auto-create private repo and start conversation |
 | `/chamber stop` | Stop the running conversation |
 | `/chamber status` | Check if a conversation is running |
+
+## Repository Naming
+
+- First conversation creates `chamber-1`
+- If `chamber-1` exists, creates `chamber-2`, and so on
+- All repos are created as **private** on GitHub
 
 ## Conversation Flow
 
@@ -55,7 +58,7 @@ Chamber mode enables an autonomous conversation between two AI models (GLM and A
                           ▼
                    ┌─────────────┐
                    │   GitHub    │
-                   │   (push)    │
+                   │  (private)  │
                    └─────────────┘
                           │
                           ▼
@@ -80,15 +83,15 @@ Chamber mode enables an autonomous conversation between two AI models (GLM and A
 # Chamber Conversation
 
 **Topic:** Discuss the future of artificial intelligence
-**Started:** 2024-01-15T10:30:00.000Z
-**Session:** 1705312200000
+**Started:** 2026-01-01T10:30:00.000Z
+**Session:** 1735689000000
 
 ---
 
 ## Conversation
 
 ### 🤖 GLM
-*2024-01-15T10:30:05.000Z*
+*2026-01-01T10:30:05.000Z*
 
 Hello! I'm GLM, an AI developed by Zhipu AI in China. I'm excited to discuss 
 the future of AI with you, Claude...
@@ -96,13 +99,18 @@ the future of AI with you, Claude...
 ---
 
 ### 🧠 Anthropic
-*2024-01-15T10:30:45.000Z*
+*2026-01-01T10:30:45.000Z*
 
 Thank you for the introduction, GLM! I'm Claude, created by Anthropic. 
 I find your perspective particularly interesting given our different origins...
 
 ---
 ```
+
+## Prerequisites
+
+- GLM API key configured: `/config set aiProvider.provider glm` and `/config set aiProvider.apiKey <key>`
+- GitHub CLI authenticated (for private repo creation)
 
 ## Notes
 

@@ -4,6 +4,10 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { config } from '../config';
 import { logger } from '../utils/logger';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export class ChamberHandlers {
   private chamberService: ChamberService;
@@ -54,24 +58,55 @@ export class ChamberHandlers {
     }
   }
 
-  private async handleStart(chatId: number, userId: number, topic?: string): Promise<void> {
-    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+  private async findNextChamberIndex(userId: number): Promise<number> {
+    const repos = await this.repositoryManager.listRepositories(userId);
+    const chamberNames = repos
+      .map(r => r.name)
+      .filter(name => /^chamber-\d+$/.test(name));
     
-    if (!currentRepo) {
-      await this.bot.sendMessage(
-        chatId,
-        '❌ No repository selected.\n\nCreate one first:\n`/repo new chamber-1`',
-        { parse_mode: 'Markdown' }
+    const indices = chamberNames.map(name => parseInt(name.replace('chamber-', '')));
+    let index = 1;
+    while (indices.includes(index)) {
+      index++;
+    }
+    return index;
+  }
+
+  private async createPrivateGitHubRepo(repoPath: string, repoName: string): Promise<boolean> {
+    try {
+      await execAsync(
+        `gh repo create ${repoName} --private --source=. --remote=origin --push`,
+        { cwd: repoPath, timeout: 30000 }
       );
-      return;
+      return true;
+    } catch (error) {
+      logger.error('Failed to create GitHub repo', { 
+        repoName, 
+        error: error instanceof Error ? error.message : String(error) 
+      });
+      return false;
+    }
+  }
+
+  private async handleStart(chatId: number, userId: number, topic?: string): Promise<void> {
+    const index = await this.findNextChamberIndex(userId);
+    const repoName = `chamber-${index}`;
+
+    await this.bot.sendMessage(chatId, `🏛️ Creating \`${repoName}\`...`, { parse_mode: 'Markdown' });
+
+    const repo = await this.repositoryManager.createRepository(userId, repoName, true);
+    const ghCreated = await this.createPrivateGitHubRepo(repo.path, repoName);
+    
+    if (!ghCreated) {
+      await this.bot.sendMessage(chatId, '⚠️ GitHub repo creation failed. Continuing with local repo only.');
     }
 
     const userConfig = await this.userConfigManager.getConfig(userId);
     const aiProvider = userConfig?.aiProvider;
 
     const result = await this.chamberService.startConversation(
-      currentRepo.path,
-      currentRepo.name,
+      repo.path,
+      repo.name,
       topic || undefined,
       aiProvider
     );
@@ -103,12 +138,9 @@ export class ChamberHandlers {
         chatId,
         `🏛️ *Chamber Mode*\n\n` +
         `Status: 🔴 Stopped\n\n` +
-        `Both AIs share the current repo. They read CONVERSATION.md, respond, commit & push.\n\n` +
-        `Usage:\n` +
-        `1. \`/repo new chamber-1\` - Create a repo\n` +
-        `2. \`/chamber start [topic]\` - Start conversation\n\n` +
+        `GLM and Anthropic take turns responding. Each reads CONVERSATION.md, responds, commits & pushes.\n\n` +
         `Commands:\n` +
-        `/chamber start [topic]\n` +
+        `/chamber start [topic] - Auto-creates private repo\n` +
         `/chamber stop\n` +
         `/chamber status`,
         { parse_mode: 'Markdown' }
