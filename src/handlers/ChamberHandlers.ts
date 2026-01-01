@@ -74,7 +74,7 @@ export class ChamberHandlers {
 
   private async createPrivateGitHubRepo(repoPath: string, repoName: string): Promise<boolean> {
     try {
-      await execAsync('git config user.email "chamber@tg-claude" && git config user.name "Chamber"', { cwd: repoPath });
+      await execAsync('git config user.email "clerk@chamber" && git config user.name "Clerk"', { cwd: repoPath });
       await execAsync('echo "# Chamber Conversation" > README.md && git add . && git commit -m "init"', { cwd: repoPath });
       await execAsync(
         `gh repo create ${repoName} --private --source=. --remote=origin --push`,
