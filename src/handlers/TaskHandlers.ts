@@ -69,10 +69,15 @@ export class TaskHandlers extends BaseHandler {
       // Get user-specific timeout if available
       const userTimeout = await this.getUserTimeout(userId);
 
+      // Get user's AI provider configuration
+      const userConfig = await this.userConfigManager?.getConfig(userId);
+      const aiProvider = userConfig?.aiProvider;
+
       // Execute task
       const task = await this.executor.executeTask(userId, chatId, prompt, {
         workingDir: actualWorkingDir,
-        timeout: userTimeout
+        timeout: userTimeout,
+        aiProvider
       });
 
       task.messageId = statusMsg.message_id;
@@ -539,11 +544,17 @@ Always commit and push your changes after completing the task unless explicitly 
         { parse_mode: 'Markdown' }
       );
 
+      // Get user's AI provider configuration
+      const userConfig = await this.userConfigManager?.getConfig(userId);
+      const aiProvider = userConfig?.aiProvider;
+
       await this.beastModeExecutor.startSession(
         userId,
         chatId,
         userRequest,
-        currentRepo.path
+        currentRepo.path,
+        {},
+        aiProvider
       );
 
       logger.info('Beast mode session started', {

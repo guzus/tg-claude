@@ -11,7 +11,8 @@ import {
   BeastIteration,
   IterationAnalysis,
   TaskStatus,
-  Repository
+  Repository,
+  AIProviderConfig
 } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
@@ -111,7 +112,8 @@ export class BeastModeExecutor {
     chatId: number,
     request: string,
     workingDir: string,
-    config: Partial<BeastModeConfig> = {}
+    config: Partial<BeastModeConfig> = {},
+    aiProvider?: AIProviderConfig
   ): Promise<BeastModeState> {
     // Validate inputs
     this.validateWorkingDirectory(workingDir);
@@ -140,7 +142,8 @@ export class BeastModeExecutor {
       startTime: new Date(),
       iterations: [],
       config: finalConfig,
-      cleanedUp: false
+      cleanedUp: false,
+      aiProvider
     };
 
     // IMPORTANT: Set both maps BEFORE starting async loop to prevent race condition
@@ -394,7 +397,8 @@ export class BeastModeExecutor {
       prompt,
       {
         workingDir: state.workingDir,
-        timeout: state.config.iterationTimeoutMs
+        timeout: state.config.iterationTimeoutMs,
+        aiProvider: state.aiProvider
       }
     );
 

@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { ClaudeTask, TaskStatus } from '../types';
+import { ClaudeTask, TaskStatus, AIProviderConfig, AI_PROVIDER_ENDPOINTS } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { gitService } from './GitService';
@@ -61,13 +61,14 @@ export class ClaudeExecutor {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number } = {}
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
   ): Promise<ClaudeTask> {
     const {
       workingDir = WORKSPACE_PATH,
       dangerMode = true,
       additionalFlags = [],
-      timeout = config.taskTimeoutMs
+      timeout = config.taskTimeoutMs,
+      aiProvider
     } = options;
 
     const task: ClaudeTask = {
@@ -99,6 +100,18 @@ export class ClaudeExecutor {
         env.IS_SANDBOX = '1';
         env.CLAUDE_AUTO_APPROVE = '1';
         env.CI = 'true';
+      }
+
+      // Configure AI provider environment variables
+      if (aiProvider?.provider && aiProvider.provider !== 'anthropic') {
+        const baseUrl = AI_PROVIDER_ENDPOINTS[aiProvider.provider];
+        if (baseUrl) {
+          env.ANTHROPIC_BASE_URL = baseUrl;
+          logger.info('Using AI provider', { provider: aiProvider.provider, baseUrl });
+        }
+        if (aiProvider.apiKey) {
+          env.ANTHROPIC_API_KEY = aiProvider.apiKey;
+        }
       }
 
       const claudeProcess = spawn('claude', args, {
