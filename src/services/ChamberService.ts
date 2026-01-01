@@ -95,7 +95,7 @@ ${content}
     const result = await runClaude({
       prompt,
       provider,
-      apiKey: this.currentSession.aiProvider?.apiKey,
+      apiKey: provider === 'glm' ? this.currentSession.aiProvider?.apiKey : undefined,
       workingDir: this.currentSession.repoPath,
       timeout: 300000,
       dangerMode: true
