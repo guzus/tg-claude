@@ -175,6 +175,7 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
     
     const args = [
       '--print',
+      '--verbose',
       '--output-format', 'stream-json',
       ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
       prompt
