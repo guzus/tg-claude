@@ -595,16 +595,16 @@ Always commit and push your changes after completing the task unless explicitly 
 
     // Header with timing and step count
     const stepCount = task.actions.length;
-    lines.push(`🔄 *Running...* (${UIHelpers.formatDuration(elapsed)})`);
+    lines.push(`Running... (${UIHelpers.formatDuration(elapsed)})`);
 
     if (stepCount > 0) {
-      lines.push(`📊 Steps: ${stepCount}`);
+      lines.push(`Steps: ${stepCount}`);
     }
 
     // Current action indicator
     if (task.currentAction) {
       lines.push('');
-      lines.push(`⏳ ${this.formatAction(task.currentAction)}`);
+      lines.push(`> ${this.formatAction(task.currentAction)}`);
     }
 
     // Recent completed actions (last 5)
@@ -618,7 +618,7 @@ Always commit and push your changes after completing the task unless explicitly 
       lines.push('');
       lines.push('*Recent:*');
       for (const event of recentEvents) {
-        const icon = event.ok === false ? '✗' : '✓';
+        const icon = event.ok === false ? 'x' : '-';
         const actionTitle = this.formatAction(event.action);
         lines.push(`${icon} ${actionTitle}`);
       }
@@ -627,7 +627,7 @@ Always commit and push your changes after completing the task unless explicitly 
     // If no events yet, show waiting message
     if (task.events.length === 0) {
       lines.push('');
-      lines.push('⏳ Waiting for Claude...');
+      lines.push('Waiting for Claude...');
     }
 
     return lines.join('\n');
@@ -637,18 +637,6 @@ Always commit and push your changes after completing the task unless explicitly 
    * Format an action for display
    */
   private formatAction(action: StreamAction): string {
-    const kindIcons: Record<string, string> = {
-      command: '💻',
-      file_change: '📝',
-      tool: '🔧',
-      web_search: '🔍',
-      note: '📌',
-      turn: '💬',
-      warning: '⚠️',
-      telemetry: '📈'
-    };
-
-    const icon = kindIcons[action.kind] || '•';
     let title = action.title;
 
     // Truncate long titles
@@ -659,7 +647,7 @@ Always commit and push your changes after completing the task unless explicitly 
     // Escape markdown special characters
     title = title.replace(/[_*`[\]]/g, '\\$&');
 
-    return `${icon} ${title}`;
+    return title;
   }
 
   /**
