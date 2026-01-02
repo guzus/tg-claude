@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus } from '../types';
+import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
@@ -87,7 +87,7 @@ export class TaskHandlers extends BaseHandler {
 
       // Poll for updates
       const updateInterval = setInterval(async () => {
-        const currentTask = this.executor.getTask(task.id);
+        const currentTask = this.executor.getTask(task.id) as ClaudeTaskWithStreaming | undefined;
         if (!currentTask) {
           clearInterval(updateInterval);
           return;
@@ -97,34 +97,8 @@ export class TaskHandlers extends BaseHandler {
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
 
-          // Get both stdout and stderr
-          const output = this.executor.getTaskOutput(task.id);
-          const errorOutput = currentTask.errorOutput || '';
-
-          // Combine outputs
-          let combinedOutput = '';
-          if (output) {
-            combinedOutput += output;
-          }
-          if (errorOutput) {
-            combinedOutput += (combinedOutput ? '\n---STDERR---\n' : '') + errorOutput;
-          }
-
-          // Parse output to extract current action
-          const currentAction = this.parseCurrentAction(combinedOutput);
-
-          // Build status message
-          let newUpdateText;
-          const preview = combinedOutput.slice(-1500).trim();
-
-          if (!preview) {
-            // No output yet - just show waiting message
-            newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
-          } else {
-            // Has output - show it with current action
-            const actionLine = currentAction ? `📌 ${currentAction}\n\n` : '';
-            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n${actionLine}\`\`\`\n${preview}\n\`\`\``;
-          }
+          // Build status message using streaming events
+          const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed);
 
           // Create control buttons
           const controlButtons = {
@@ -265,11 +239,29 @@ export class TaskHandlers extends BaseHandler {
           const currentRepo = this.repositoryManager.getCurrentRepository(userId);
           const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
 
+          // Build streaming stats line
+          const streamingTask = currentTask as ClaudeTaskWithStreaming;
+          let statsLine = `Time: ${UIHelpers.formatDuration(executionTime)}`;
+          if (streamingTask.actions && streamingTask.actions.length > 0) {
+            statsLine += ` | Steps: ${streamingTask.actions.length}`;
+          }
+          if (streamingTask.costUsd && streamingTask.costUsd > 0) {
+            statsLine += ` | Cost: $${streamingTask.costUsd.toFixed(4)}`;
+          }
+
+          // Get final answer from streaming events (if available)
+          const completedEvent = streamingTask.events?.find(e => e.type === 'completed');
+          let answerPreview = '';
+          if (completedEvent && completedEvent.type === 'completed' && completedEvent.answer) {
+            const answer = completedEvent.answer;
+            answerPreview = answer.length > 500 ? answer.substring(0, 500) + '...' : answer;
+          }
+
           const finalMessage =
             `${statusEmoji} ${statusText}${commitInfo}\n` +
             `Exit code: ${currentTask.exitCode || 0}\n` +
-            `Time: ${UIHelpers.formatDuration(executionTime)}\n\n` +
-            `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\`` +
+            `${statsLine}\n` +
+            (answerPreview ? `\n*Result:*\n${answerPreview}\n` : '') +
             repoFooter;
 
           try {
@@ -291,10 +283,10 @@ export class TaskHandlers extends BaseHandler {
               });
             }
 
-            // Send simple notification message
+            // Send simple notification message with streaming stats
             await this.bot.sendMessage(
               chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
+              `${statusEmoji} *Task ${statusText}!*\n\n${statsLine}`,
               { parse_mode: 'Markdown' }
             );
           } catch (error) {
@@ -319,10 +311,10 @@ export class TaskHandlers extends BaseHandler {
               });
             }
 
-            // Send simple notification message
+            // Send simple notification message with streaming stats
             await this.bot.sendMessage(
               chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
+              `${statusEmoji} *Task ${statusText}!*\n\n${statsLine}`,
               { parse_mode: 'Markdown' }
             );
           }
@@ -596,7 +588,83 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
+   * Build a status message from streaming events
+   */
+  private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number): string {
+    const lines: string[] = [];
+
+    // Header with timing and step count
+    const stepCount = task.actions.length;
+    lines.push(`🔄 *Running...* (${UIHelpers.formatDuration(elapsed)})`);
+
+    if (stepCount > 0) {
+      lines.push(`📊 Steps: ${stepCount}`);
+    }
+
+    // Current action indicator
+    if (task.currentAction) {
+      lines.push('');
+      lines.push(`⏳ ${this.formatAction(task.currentAction)}`);
+    }
+
+    // Recent completed actions (last 5)
+    const recentEvents = task.events
+      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'completed'; ok?: boolean; message?: string } =>
+        e.type === 'action' && e.phase === 'completed'
+      )
+      .slice(-5);
+
+    if (recentEvents.length > 0) {
+      lines.push('');
+      lines.push('*Recent:*');
+      for (const event of recentEvents) {
+        const icon = event.ok === false ? '✗' : '✓';
+        const actionTitle = this.formatAction(event.action);
+        lines.push(`${icon} ${actionTitle}`);
+      }
+    }
+
+    // If no events yet, show waiting message
+    if (task.events.length === 0) {
+      lines.push('');
+      lines.push('⏳ Waiting for Claude...');
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Format an action for display
+   */
+  private formatAction(action: StreamAction): string {
+    const kindIcons: Record<string, string> = {
+      command: '💻',
+      file_change: '📝',
+      tool: '🔧',
+      web_search: '🔍',
+      note: '📌',
+      turn: '💬',
+      warning: '⚠️',
+      telemetry: '📈'
+    };
+
+    const icon = kindIcons[action.kind] || '•';
+    let title = action.title;
+
+    // Truncate long titles
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
+    }
+
+    // Escape markdown special characters
+    title = title.replace(/[_*`[\]]/g, '\\$&');
+
+    return `${icon} ${title}`;
+  }
+
+  /**
    * Parse Claude's output to extract current action/file being worked on
+   * @deprecated Use streaming events instead
    */
   private parseCurrentAction(output: string): string | null {
     if (!output) return null;

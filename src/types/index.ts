@@ -232,3 +232,101 @@ export enum BeastModeStatus {
   MAX_ITERATIONS = 'max_iterations',
   TIMEOUT = 'timeout'
 }
+
+// Claude Code Streaming Event Types (from --output-format stream-json)
+export type StreamActionKind = 'command' | 'tool' | 'file_change' | 'web_search' | 'note' | 'turn' | 'warning' | 'telemetry';
+export type StreamActionPhase = 'started' | 'updated' | 'completed';
+export type StreamActionLevel = 'debug' | 'info' | 'warning' | 'error';
+
+export interface StreamAction {
+  id: string;
+  kind: StreamActionKind;
+  title: string;
+  detail?: Record<string, unknown>;
+}
+
+export interface StreamResumeToken {
+  engine: string;
+  value: string;
+}
+
+// Raw Claude Code JSON event types
+export interface ClaudeSystemEvent {
+  type: 'system';
+  subtype?: 'init';
+  session_id?: string;
+  message?: string;
+}
+
+export interface ClaudeAssistantEvent {
+  type: 'assistant';
+  message: {
+    content: Array<{
+      type: string;
+      tool_use_id?: string;
+      name?: string;
+      input?: Record<string, unknown>;
+      text?: string;
+    }>;
+  };
+}
+
+export interface ClaudeUserEvent {
+  type: 'user';
+  message: {
+    content: Array<{
+      type: string;
+      tool_use_id?: string;
+      content?: string;
+      is_error?: boolean;
+    }>;
+  };
+}
+
+export interface ClaudeResultEvent {
+  type: 'result';
+  result?: string;
+  cost_usd?: number;
+  is_error?: boolean;
+  duration_ms?: number;
+  session_id?: string;
+}
+
+export type ClaudeStreamEvent = ClaudeSystemEvent | ClaudeAssistantEvent | ClaudeUserEvent | ClaudeResultEvent;
+
+// Parsed/normalized streaming events (similar to takopi's TakopieEvent)
+export interface StreamStartedEvent {
+  type: 'started';
+  sessionId: string;
+  title?: string;
+}
+
+export interface StreamActionEvent {
+  type: 'action';
+  action: StreamAction;
+  phase: StreamActionPhase;
+  ok?: boolean;
+  message?: string;
+  level?: StreamActionLevel;
+}
+
+export interface StreamCompletedEvent {
+  type: 'completed';
+  ok: boolean;
+  answer: string;
+  sessionId?: string;
+  error?: string;
+  costUsd?: number;
+  durationMs?: number;
+}
+
+export type StreamEvent = StreamStartedEvent | StreamActionEvent | StreamCompletedEvent;
+
+// Extended ClaudeTask with streaming support
+export interface ClaudeTaskWithStreaming extends ClaudeTask {
+  sessionId?: string;
+  actions: StreamAction[];
+  currentAction?: StreamAction;
+  costUsd?: number;
+  events: StreamEvent[];
+}

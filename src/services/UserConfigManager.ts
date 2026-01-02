@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { UserConfig, AIProviderConfig } from '../types';
+import { UserConfig } from '../types';
 import { logger } from '../utils/logger';
 
 const DEFAULT_CLAUDE_MD = `# Guidelines for Claude

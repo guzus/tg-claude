@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { ClaudeTask, TaskStatus, AIProviderConfig, AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS } from '../types';
+import { TaskStatus, AIProviderConfig, AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { gitService } from './GitService';
@@ -8,16 +8,20 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { StreamingOutputParser } from './StreamingOutputParser';
+import { EventEmitter } from 'events';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(process.cwd(), 'logs', 'tasks');
 
-export class ClaudeExecutor {
+export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
-  private taskHistory: Map<string, ClaudeTask> = new Map();
+  private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
+  private taskParsers: Map<string, StreamingOutputParser> = new Map();
 
   constructor() {
+    super();
     if (!fs.existsSync(TASK_LOGS_DIR)) {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
@@ -62,7 +66,7 @@ export class ClaudeExecutor {
     chatId: number,
     prompt: string,
     options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
-  ): Promise<ClaudeTask> {
+  ): Promise<ClaudeTaskWithStreaming> {
     const {
       workingDir = WORKSPACE_PATH,
       dangerMode = true,
@@ -71,7 +75,7 @@ export class ClaudeExecutor {
       aiProvider
     } = options;
 
-    const task: ClaudeTask = {
+    const task: ClaudeTaskWithStreaming = {
       id: uuidv4(),
       userId,
       chatId,
@@ -80,7 +84,9 @@ export class ClaudeExecutor {
       status: TaskStatus.PENDING,
       startTime: new Date(),
       output: '',
-      errorOutput: ''
+      errorOutput: '',
+      actions: [],
+      events: []
     };
 
     logger.info('Starting task', { taskId: task.id, userId, prompt: prompt.substring(0, 100) });
@@ -93,7 +99,16 @@ export class ClaudeExecutor {
       }
 
       const isRoot = process.getuid && process.getuid() === 0;
-      const args = [prompt, ...(dangerMode ? ['--dangerously-skip-permissions'] : []), ...additionalFlags];
+      // Use --output-format stream-json for structured streaming output
+      const args = [
+        '-p',  // Print mode (non-interactive)
+        '--output-format', 'stream-json',  // Enable JSON streaming
+        '--verbose',  // Include detailed events
+        ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
+        ...additionalFlags,
+        '--',  // Separator before prompt
+        prompt
+      ];
 
       const env = { ...process.env };
       if (isRoot) {
@@ -157,6 +172,10 @@ export class ClaudeExecutor {
       task.status = TaskStatus.RUNNING;
       this.taskHistory.set(task.id, task);
 
+      // Create streaming parser for this task
+      const parser = new StreamingOutputParser();
+      this.taskParsers.set(task.id, parser);
+
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
       logStream.write(`Prompt: ${prompt}\nWorkingDir: ${workingDir}\n\n`);
@@ -182,6 +201,32 @@ export class ClaudeExecutor {
         task.output += chunk;
         this.taskLogFiles.get(task.id)?.write(chunk);
 
+        // Parse streaming JSON events
+        const taskParser = this.taskParsers.get(task.id);
+        if (taskParser) {
+          const events = taskParser.processChunk(chunk);
+          for (const event of events) {
+            task.events.push(event);
+
+            // Update task metadata based on events
+            if (event.type === 'started') {
+              task.sessionId = event.sessionId;
+            } else if (event.type === 'action') {
+              if (event.phase === 'started') {
+                task.currentAction = event.action;
+                task.actions.push(event.action);
+              } else if (event.phase === 'completed') {
+                task.currentAction = undefined;
+              }
+            } else if (event.type === 'completed') {
+              task.costUsd = event.costUsd;
+            }
+
+            // Emit event for real-time listeners
+            this.emit('streamEvent', task.id, event);
+          }
+        }
+
         if (task.output.length > config.maxOutputSize * 10) {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
@@ -201,6 +246,7 @@ export class ClaudeExecutor {
       claudeProcess.on('close', (code: number | null) => {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         this.activeTasks.delete(task.id);
+        this.taskParsers.delete(task.id);
 
         task.exitCode = code || 0;
         task.endTime = new Date();
@@ -216,12 +262,22 @@ export class ClaudeExecutor {
           this.taskLogFiles.delete(task.id);
         }
 
-        logger.info('Task completed', { taskId: task.id, status: task.status, exitCode: code });
+        // Emit completion event
+        this.emit('taskComplete', task.id, task);
+
+        logger.info('Task completed', {
+          taskId: task.id,
+          status: task.status,
+          exitCode: code,
+          actionsCount: task.actions.length,
+          costUsd: task.costUsd
+        });
       });
 
       claudeProcess.on('error', (error: Error) => {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         this.activeTasks.delete(task.id);
+        this.taskParsers.delete(task.id);
 
         task.status = TaskStatus.FAILED;
         task.errorOutput += error.message.includes('ENOENT')
@@ -231,6 +287,9 @@ export class ClaudeExecutor {
 
         this.taskLogFiles.get(task.id)?.end();
         this.taskLogFiles.delete(task.id);
+
+        // Emit error event
+        this.emit('taskError', task.id, error);
       });
 
       return task;
@@ -242,18 +301,43 @@ export class ClaudeExecutor {
     }
   }
 
-  getTask(taskId: string): ClaudeTask | undefined {
+  getTask(taskId: string): ClaudeTaskWithStreaming | undefined {
     return this.taskHistory.get(taskId);
   }
 
-  getActiveTasks(): ClaudeTask[] {
+  getActiveTasks(): ClaudeTaskWithStreaming[] {
     return Array.from(this.taskHistory.values()).filter(
       task => task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING
     );
   }
 
-  getActiveTasksForUser(userId: number): ClaudeTask[] {
+  getActiveTasksForUser(userId: number): ClaudeTaskWithStreaming[] {
     return this.getActiveTasks().filter(task => task.userId === userId);
+  }
+
+  /**
+   * Get current action being executed for a task
+   */
+  getCurrentAction(taskId: string): StreamAction | undefined {
+    const task = this.taskHistory.get(taskId);
+    return task?.currentAction;
+  }
+
+  /**
+   * Get all actions completed for a task
+   */
+  getTaskActions(taskId: string): StreamAction[] {
+    const task = this.taskHistory.get(taskId);
+    return task?.actions || [];
+  }
+
+  /**
+   * Get recent events for a task
+   */
+  getRecentEvents(taskId: string, limit: number = 10): StreamEvent[] {
+    const task = this.taskHistory.get(taskId);
+    if (!task) return [];
+    return task.events.slice(-limit);
   }
 
   cancelTask(taskId: string): boolean {
