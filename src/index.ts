@@ -11,6 +11,7 @@ import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
 import { BotHandlers } from './handlers/BotHandlers';
+import { ChamberHandlers } from './handlers/ChamberHandlers';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -62,6 +63,9 @@ const mothershipService = new MothershipService();
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
+
+// Initialize Chamber handlers
+const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigManager);
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
@@ -149,6 +153,7 @@ bot.setMyCommands([
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
   { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
+  { command: 'chamber', description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'status', description: 'Check active tasks' },
   { command: 'config', description: 'Manage user configuration' },
@@ -172,6 +177,9 @@ bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
 bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
+
+// Chamber mode commands
+bot.onText(/\/chamber(.*)/, (msg, match) => chamberHandlers.handleChamber(msg, match));
 
 // Handle callback queries from inline keyboards
 bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
