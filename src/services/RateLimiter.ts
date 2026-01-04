@@ -135,5 +135,3 @@ export class RateLimiter {
     return cleanedCount;
   }
 }
-
-export default RateLimiter;

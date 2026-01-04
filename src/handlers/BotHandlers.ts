@@ -146,5 +146,3 @@ export class BotHandlers {
     return this.taskHandlers.handlePlainMessage(msg);
   }
 }
-
-export default BotHandlers;

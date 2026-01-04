@@ -247,5 +247,3 @@ export class UserConfigManager {
     return this.configs.has(userId);
   }
 }
-
-export default UserConfigManager;

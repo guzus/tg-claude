@@ -5,7 +5,7 @@ import { logger } from '../utils/logger';
 
 const execAsync = promisify(exec);
 
-export interface GitStatus {
+interface GitStatus {
   hasUncommittedChanges: boolean;
   hasUnpushedCommits: boolean;
   hasRemote: boolean;
@@ -13,18 +13,18 @@ export interface GitStatus {
   remoteUrl: string | null;
 }
 
-export interface CommitResult {
+interface CommitResult {
   success: boolean;
   hash: string | null;
   message: string;
 }
 
-export interface PushResult {
+interface PushResult {
   status: 'success' | 'no_remote' | 'no_changes' | 'failed';
   error?: string;
 }
 
-export class GitService {
+class GitService {
   private githubToken: string | undefined;
 
   constructor() {
@@ -335,4 +335,3 @@ const userEmail = email || 'claude-code@remote.machine';
 }
 
 export const gitService = new GitService();
-export default GitService;

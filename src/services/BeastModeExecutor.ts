@@ -818,5 +818,3 @@ ${lastIteration.analysis.hasErrors ? '**Focus**: Resolve all errors!' : ''}
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
-
-export default BeastModeExecutor;

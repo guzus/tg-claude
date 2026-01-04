@@ -14,7 +14,7 @@ export interface PendingRepoCreation {
 /**
  * Pending /new_repo command state (waiting for name input)
  */
-export interface PendingNewRepoName {
+interface PendingNewRepoName {
   userId: number;
   chatId: number;
   messageId: number;  // Message to update
@@ -23,7 +23,7 @@ export interface PendingNewRepoName {
 /**
  * Centralized state manager for all in-memory state
  */
-export class StateManager {
+class StateManager {
   private pinnedMessages: Map<number, number> = new Map();
   private pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
   private pendingNewRepoNames: Map<number, PendingNewRepoName> = new Map();
@@ -86,4 +86,3 @@ export class StateManager {
 }
 
 export const stateManager = new StateManager();
-export default StateManager;

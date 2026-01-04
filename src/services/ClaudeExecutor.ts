@@ -600,5 +600,3 @@ Reply with ONLY the commit message, nothing else.`;
     return cleaned;
   }
 }
-
-export default ClaudeExecutor;

@@ -35,14 +35,6 @@ export enum TaskStatus {
   TIMEOUT = 'timeout'
 }
 
-export interface ClaudeExecutionOptions {
-  workingDir?: string;
-  dangerMode?: boolean;
-  additionalFlags?: string[];
-  timeout?: number;
-  aiProvider?: AIProviderConfig;
-}
-
 export interface UserActivity {
   userId: number;
   requestsThisHour: number;
@@ -50,29 +42,6 @@ export interface UserActivity {
   lastRequestTime: Date;
   hourStartTime: Date;
   dayStartTime: Date;
-}
-
-export interface TaskMetrics {
-  totalTasks: number;
-  successfulTasks: number;
-  failedTasks: number;
-  averageExecutionTime: number;
-  tasksByUser: Map<number, number>;
-}
-
-export interface CommandContext {
-  userId: number;
-  chatId: number;
-  username?: string;
-  args: string[];
-  rawCommand: string;
-}
-
-export interface ProjectConfig {
-  name: string;
-  path: string;
-  gitBranch?: string;
-  description?: string;
 }
 
 export interface Repository {
@@ -241,11 +210,6 @@ export interface StreamAction {
   kind: StreamActionKind;
   title: string;
   detail?: Record<string, unknown>;
-}
-
-export interface StreamResumeToken {
-  engine: string;
-  value: string;
 }
 
 // Raw Claude Code JSON event types

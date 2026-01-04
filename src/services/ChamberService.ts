@@ -485,5 +485,3 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
     };
   }
 }
-
-export default ChamberService;
