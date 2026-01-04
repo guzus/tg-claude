@@ -20,6 +20,7 @@ export class ClaudeExecutor extends EventEmitter {
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
   private taskParsers: Map<string, StreamingOutputParser> = new Map();
+  private taskInitialHeads: Map<string, string> = new Map();  // Store initial HEAD per task
 
   constructor() {
     super();
@@ -97,6 +98,14 @@ export class ClaudeExecutor extends EventEmitter {
 
       if (!fs.existsSync(workingDir)) {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
+      }
+
+      // Store initial HEAD to track commits made during task
+      try {
+        const { stdout } = await execAsync('git rev-parse HEAD', { cwd: workingDir, timeout: 5000 });
+        this.taskInitialHeads.set(task.id, stdout.trim());
+      } catch {
+        // Not a git repo or no commits yet - ignore
       }
 
       const isRoot = process.getuid && process.getuid() === 0;
@@ -376,6 +385,38 @@ export class ClaudeExecutor extends EventEmitter {
     const message = await this.generateCommitMessage(workingDir);
     const result = await gitService.commit(workingDir, message);
     return result.success ? result.hash : null;
+  }
+
+  /**
+   * Get commits made during task execution
+   */
+  async getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>> {
+    const initialHead = this.taskInitialHeads.get(taskId);
+    if (!initialHead) return [];
+
+    try {
+      // Get all commits since initial HEAD (excluding the initial HEAD itself)
+      const { stdout } = await execAsync(
+        `git log ${initialHead}..HEAD --format="%H|%s" --reverse`,
+        { cwd: workingDir, timeout: 10000 }
+      );
+
+      if (!stdout.trim()) return [];
+
+      return stdout.trim().split('\n').map(line => {
+        const [hash, ...messageParts] = line.split('|');
+        return { hash, message: messageParts.join('|') };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Clean up task initial HEAD tracking
+   */
+  cleanupTaskHead(taskId: string): void {
+    this.taskInitialHeads.delete(taskId);
   }
 
   private async generateCommitMessage(workingDir: string): Promise<string> {
