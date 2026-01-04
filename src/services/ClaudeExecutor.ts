@@ -1,7 +1,8 @@
 import { spawn, ChildProcess } from 'child_process';
-import { TaskStatus, AIProviderConfig, AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
+import { configureProviderEnv } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
 import { v4 as uuidv4 } from 'uuid';
 import { promisify } from 'util';
@@ -110,42 +111,22 @@ export class ClaudeExecutor extends EventEmitter {
         prompt
       ];
 
-      const env = { ...process.env };
+      // Configure AI provider environment variables
+      const provider = aiProvider?.provider || 'anthropic';
+      const env = configureProviderEnv(provider, aiProvider?.apiKey);
+      
+      // Override for default Anthropic to use opus model
+      if (provider === 'anthropic') {
+        env.ANTHROPIC_MODEL = 'opus';
+      }
+      
       if (isRoot) {
         env.IS_SANDBOX = '1';
         env.CLAUDE_AUTO_APPROVE = '1';
         env.CI = 'true';
       }
-
-      // Configure AI provider environment variables
-      if (aiProvider?.provider && aiProvider.provider !== 'anthropic') {
-        const baseUrl = AI_PROVIDER_ENDPOINTS[aiProvider.provider];
-        if (baseUrl) {
-          env.ANTHROPIC_BASE_URL = baseUrl;
-          logger.info('Using AI provider', { provider: aiProvider.provider, baseUrl });
-        }
-
-        // Set GLM-specific configuration per Z.ai docs
-        if (aiProvider.provider === 'glm') {
-          // Z.ai uses ANTHROPIC_AUTH_TOKEN instead of ANTHROPIC_API_KEY
-          if (aiProvider.apiKey) {
-            env.ANTHROPIC_AUTH_TOKEN = aiProvider.apiKey;
-          }
-          // Set extended timeout for reliability
-          env.API_TIMEOUT_MS = '3000000';
-          // Set GLM model mappings for Claude Code's internal model slots
-          env.ANTHROPIC_DEFAULT_HAIKU_MODEL = GLM_MODEL_MAPPINGS.haiku;
-          env.ANTHROPIC_DEFAULT_SONNET_MODEL = GLM_MODEL_MAPPINGS.sonnet;
-          env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
-          logger.info('GLM configured', { baseUrl, models: GLM_MODEL_MAPPINGS });
-        } else if (aiProvider.apiKey) {
-          env.ANTHROPIC_API_KEY = aiProvider.apiKey;
-        }
-      } else {
-        // Default to Anthropic with Opus model
-        env.ANTHROPIC_MODEL = 'opus';
-        logger.info('Using Anthropic provider', { model: 'opus' });
-      }
+      
+      logger.info('Using AI provider', { provider });
 
       const claudeProcess = spawn('claude', args, {
         cwd: workingDir,

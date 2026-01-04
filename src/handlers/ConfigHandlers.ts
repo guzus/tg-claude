@@ -280,7 +280,7 @@ export class ConfigHandlers extends BaseHandler {
         break;
       case 'aiProvider':
         this.validateAIProviderValue(field, value);
-        update.aiProvider = { [field]: value } as any;
+        update.aiProvider = { [field]: value } as unknown as typeof update.aiProvider;
         break;
       case 'preferences':
         update.preferences = { [field]: parsedValue };
