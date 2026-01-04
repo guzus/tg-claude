@@ -53,79 +53,33 @@ flowchart TB
     Bot -->|Response| TG
 ```
 
-## Pre-requisites
+## Quick Start
 
-- **Claude subscription**: Active Claude Pro/Team subscription
-- **Docker**: For deployment
+📖 **[Full Deployment Guide](./docs/DEPLOYMENT.md)** - Complete step-by-step tutorial
 
-## Setup
-
-### 1. Get Claude OAuth Token
-
-Login to Claude and generate an OAuth token for headless environments:
-
-```bash
-# Install Claude CLI locally first
-curl -fsSL https://claude.ai/install.sh | bash
-
-# Login with your Claude subscription
-claude login
-
-# Generate OAuth token for server use
-claude setup-token
-```
-
-Copy the generated `CLAUDE_CODE_OAUTH_TOKEN` value.
-
-### 2. Configure Environment
-
-Create a `.env` file on your server:
-
-```env
-TELEGRAM_BOT_TOKEN=your_bot_token      # From @BotFather
-ALLOWED_USER_IDS=123456789             # Your Telegram ID (@userinfobot)
-CLAUDE_CODE_OAUTH_TOKEN=your_token     # From claude setup-token
-GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
-```
-
-### 3. Deploy
-
-**Option A: Railway (Easiest)**
+### Deploy on Railway (Easiest)
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com/deploy/hEF-Y8?referralCode=56ZSuE)
 
-📖 **[Full Deployment Guide](./docs/DEPLOYMENT.md)** - Step-by-step tutorial for setting up Telegram bot, GitHub token, Claude OAuth, and Railway deployment.
+> 💰 **Cost**: Claude / GLM (Z.ai) subscription + Railway hosting (~$5/mo)
 
-**Option B: Docker Compose (Recommended for VPS)**
+1. Click the button above
+2. Set required environment variables:
+   - `TELEGRAM_BOT_TOKEN` - from [@BotFather](https://t.me/BotFather)
+   - `ALLOWED_USER_IDS` - your Telegram ID (get from [@userinfobot](https://t.me/userinfobot))
+   - `CLAUDE_CODE_OAUTH_TOKEN` - from `claude setup-token`
+3. Deploy!
+
+### Deploy on VPS (Docker Compose)
 
 ```bash
-# Clone the repository
 git clone https://github.com/guzus/tg-claude.git
 cd tg-claude
-
-# Create .env file with your configuration
-cp .env.example .env
-# Edit .env with your values
-
-# Start the bot
-docker compose up -d
-
-# Data is stored in ./persistent/ on your host
-```
-
-**Option C: Docker Hub (Pre-built Image, for VPS)**
-
-```bash
-# Pull the latest image
-docker pull guzus/tg-claude:latest
-
-# Or use a specific version
-docker pull guzus/tg-claude:v0.1
-
-# Run with docker-compose (download docker-compose.yml first)
-curl -O https://raw.githubusercontent.com/guzus/tg-claude/main/docker-compose.yml
+cp .env.example .env  # Edit with your tokens
 docker compose up -d
 ```
+
+Data is stored in `./persistent/` on your host.
 
 ## Commands
 
@@ -140,65 +94,34 @@ docker compose up -d
 | `/mcp` | Manage MCP servers per repository |
 | `/help` | Show help |
 
-Plain text messages are treated as `/task` commands.
+Just send a plain text message to execute tasks with Claude.
 
-## User Configuration
+## Configuration
 
-### AI Provider (GLM Support)
+### Using GLM Instead of Claude
 
-Switch between Anthropic Claude and GLM (Z.ai) as your AI provider:
-
-```
-/config set aiProvider.provider glm        # Switch to GLM
-/config set aiProvider.apiKey <your-key>   # Set your Z.ai API key
-/config set aiProvider.provider anthropic  # Switch back to Claude
-/config show                               # View current provider
-```
-
-GLM-4.7 is available through Z.ai's Anthropic-compatible endpoint. To use it:
-1. Get a Z.ai API key from [z.ai](https://z.ai/manage-apikey/apikey-list)
-2. Set the provider to `glm`
-3. Set your API key
-
-When using GLM, the following model mappings are applied automatically:
-- Haiku → GLM-4.5-Air
-- Sonnet → GLM-4.7
-- Opus → GLM-4.7
-
-See [Z.ai docs](https://docs.z.ai/devpack/tool/claude) for more details.
-
-### Tech Stack Preferences
-
-Set your preferred package managers:
+You can use [GLM-4](https://docs.z.ai/devpack/tool/claude) as an alternative AI provider:
 
 ```
-/config techstack typescript bun    # Options: bun, npm, pnpm, yarn
-/config techstack python uv         # Options: uv, pip, poetry, pipenv
+/config set aiProvider.provider glm
+/config set aiProvider.apiKey YOUR_ZAI_API_KEY
 ```
 
-These preferences are synced to `.claude/settings.json` in each repository.
+Get your API key from [Z.ai](https://z.ai/manage-apikey/apikey-list). See the [Deployment Guide](./docs/DEPLOYMENT.md#using-glm-instead-of-claude-optional) for details.
 
-### MCP Servers
+### Other Settings
 
-Configure Model Context Protocol servers per repository:
+```bash
+# Tech stack preferences
+/config techstack typescript bun    # bun, npm, pnpm, yarn
+/config techstack python uv         # uv, pip, poetry, pipenv
 
-```
-/mcp add <name> <command> [args...]  # Add MCP server
-/mcp remove <name>                   # Remove MCP server
-/mcp list                            # List configured servers
-/mcp clear                           # Remove all servers
-```
+# MCP servers (per repository)
+/mcp add <name> <command> [args...]
+/mcp list
 
-MCP configs are stored in `.mcp.json` at the repository root.
-
-### CLAUDE.md Template
-
-Set a custom template for new repositories:
-
-```
-/config claudemd show    # View current template
-/config claudemd set     # Set new template (send content after)
-/config claudemd reset   # Reset to default
+# CLAUDE.md template
+/config claudemd show
 ```
 
 ## Development
