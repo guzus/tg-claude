@@ -119,27 +119,13 @@ curl -O https://raw.githubusercontent.com/guzus/tg-claude/main/docker-compose.ym
 docker compose up -d
 ```
 
-**Option C: Railway**
+**Option C: Railway (Easiest)**
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/tg-claude)
 
 1. Click the button above
 2. Set environment variables in Railway dashboard
 3. Deploy
-
-**Option D: Fly.io**
-
-```bash
-# Install flyctl
-curl -L https://fly.io/install.sh | sh
-
-# Clone and deploy
-git clone https://github.com/guzus/tg-claude.git
-cd tg-claude
-fly launch
-fly secrets set TELEGRAM_BOT_TOKEN=xxx ALLOWED_USER_IDS=xxx CLAUDE_CODE_OAUTH_TOKEN=xxx
-fly deploy
-```
 
 ## Commands
 
