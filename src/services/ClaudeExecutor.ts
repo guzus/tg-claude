@@ -109,8 +109,10 @@ export class ClaudeExecutor extends EventEmitter {
       }
 
       const isRoot = process.getuid && process.getuid() === 0;
+      // --continue resumes the most recent conversation. TODO: Add /flush command to start fresh session
       // Use --output-format stream-json for structured streaming output
       const args = [
+        '--continue',  // Resume previous conversation
         '-p',  // Print mode (non-interactive)
         '--output-format', 'stream-json',  // Enable JSON streaming
         '--verbose',  // Include detailed events

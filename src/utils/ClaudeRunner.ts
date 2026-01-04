@@ -77,7 +77,9 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
       env.CI = 'true';
     }
     
+    // --continue resumes the most recent conversation. TODO: Add option to start fresh when user wants to flush history
     const args = [
+      '--continue',
       '--print',
       '--verbose',
       '--output-format', 'stream-json',
