@@ -99,9 +99,10 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
+          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
 
           // Build status message using streaming events
-          const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed);
+          const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
 
           // Create control buttons
           const controlButtons = {
@@ -200,10 +201,12 @@ export class TaskHandlers extends BaseHandler {
 
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
+          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
           let statsLine = UIHelpers.formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
           }
+          statsLine += ` · ${providerName}`;
 
           // Get commits made during task execution
           let commitsInfo = '';
@@ -552,11 +555,11 @@ Always commit and push your changes after completing the task unless explicitly 
   /**
    * Build a status message from streaming events
    */
-  private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number): string {
+  private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number, provider: string = 'Claude'): string {
     const lines: string[] = [];
 
-    // Clean header with time
-    lines.push(`⏳ *${UIHelpers.formatDuration(elapsed)}*`);
+    // Clean header with time and provider
+    lines.push(`⏳ *${UIHelpers.formatDuration(elapsed)}* · ${provider}`);
 
     // Recent completed actions (last 3, more compact)
     const recentEvents = task.events
