@@ -150,6 +150,7 @@ bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
   { command: 'task', description: 'Execute a coding task with Claude AI' },
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
+  { command: 'new_repo', description: '📁 Create new GitHub repository' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
   { command: 'bot', description: '🤖 Manage bots via Mothership (run/status/logs)' },
@@ -168,6 +169,7 @@ bot.setMyCommands([
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/task (.+)/, (msg, match) => handlers.handleTask(msg, match));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
+bot.onText(/\/new_repo(.*)/, (msg, match) => handlers.handleNewRepo(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
 bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));

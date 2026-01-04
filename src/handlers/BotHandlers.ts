@@ -6,6 +6,7 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { MothershipService } from '../services/MothershipService';
+import { stateManager } from '../services/StateManager';
 import { TaskHandlers } from './TaskHandlers';
 import { RepositoryHandlers } from './RepositoryHandlers';
 import { StatusHandlers } from './StatusHandlers';
@@ -88,6 +89,10 @@ export class BotHandlers {
     return this.repositoryHandlers.handleRemote(msg, match);
   }
 
+  async handleNewRepo(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.repositoryHandlers.handleNewRepoCommand(msg, match);
+  }
+
   // ==================== Status Commands ====================
 
   async handleStatus(msg: Message): Promise<void> {
@@ -130,6 +135,11 @@ export class BotHandlers {
     // Check if user has a pending repository creation waiting for a name
     if (userId && text && CallbackQueryHandler.hasPendingRepoCreation(userId)) {
       return this.callbackQueryHandler.handleRepoNameResponse(userId, chatId, text);
+    }
+
+    // Check if user has a pending /new_repo command waiting for name
+    if (userId && text && stateManager.hasPendingNewRepoName(userId)) {
+      return this.repositoryHandlers.handleNewRepoNameInput(userId, chatId, text);
     }
 
     // Otherwise treat as task command

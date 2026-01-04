@@ -12,11 +12,21 @@ export interface PendingRepoCreation {
 }
 
 /**
+ * Pending /new_repo command state (waiting for name input)
+ */
+export interface PendingNewRepoName {
+  userId: number;
+  chatId: number;
+  messageId: number;  // Message to update
+}
+
+/**
  * Centralized state manager for all in-memory state
  */
 export class StateManager {
   private pinnedMessages: Map<number, number> = new Map();
   private pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
+  private pendingNewRepoNames: Map<number, PendingNewRepoName> = new Map();
 
   // Pinned Messages
   getPinnedMessageId(chatId: number): number | undefined {
@@ -48,11 +58,29 @@ export class StateManager {
     this.pendingRepoCreations.delete(userId);
   }
 
+  // Pending New Repo Name (for /new_repo command)
+  hasPendingNewRepoName(userId: number): boolean {
+    return this.pendingNewRepoNames.has(userId);
+  }
+
+  getPendingNewRepoName(userId: number): PendingNewRepoName | undefined {
+    return this.pendingNewRepoNames.get(userId);
+  }
+
+  setPendingNewRepoName(userId: number, data: PendingNewRepoName): void {
+    this.pendingNewRepoNames.set(userId, data);
+  }
+
+  clearPendingNewRepoName(userId: number): void {
+    this.pendingNewRepoNames.delete(userId);
+  }
+
   // Cleanup
   cleanup(): void {
     logger.debug('StateManager cleanup', {
       pinnedMessages: this.pinnedMessages.size,
-      pendingRepoCreations: this.pendingRepoCreations.size
+      pendingRepoCreations: this.pendingRepoCreations.size,
+      pendingNewRepoNames: this.pendingNewRepoNames.size
     });
   }
 }

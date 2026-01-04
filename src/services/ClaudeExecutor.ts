@@ -421,43 +421,79 @@ export class ClaudeExecutor extends EventEmitter {
 
   private async generateCommitMessage(workingDir: string): Promise<string> {
     try {
-      const { stdout: gitDiff } = await execAsync('git diff HEAD', { cwd: workingDir, timeout: 10000 });
       const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
 
-      // Truncate diff for efficiency
-      const diff = gitDiff.length > 4000 ? gitDiff.substring(0, 4000) + '\n...(truncated)' : gitDiff;
+      if (!gitStatus.trim()) {
+        return 'chore: update code';
+      }
 
-      const prompt = `Generate a concise conventional commit message for these changes.
+      const { stdout: gitDiff } = await execAsync('git diff HEAD --stat', { cwd: workingDir, timeout: 10000 });
 
-Files changed:
-${gitStatus}
+      // Create a simpler prompt using bash heredoc
+      const prompt = `Based on these changes, generate ONE conventional commit message.
+Files: ${gitStatus.trim().split('\n').map(l => l.trim().split(/\s+/).pop()).join(', ')}
+Stats: ${gitDiff.trim().split('\n').slice(-1)[0] || 'changes'}
+Format: type(scope): description (under 72 chars)
+Types: feat, fix, refactor, docs, style, test, chore
+Reply with ONLY the commit message line.`;
 
-Diff:
-${diff}
-
-Rules:
-- Use format: type(scope): description
-- Types: feat, fix, refactor, docs, style, test, chore
-- Keep under 72 characters
-- Be specific about what changed
-
-Return ONLY the commit message, nothing else.`;
-
-      // Use Claude Haiku for fast, cheap commit messages
+      // Use Claude Haiku with simpler escaped prompt
+      const escapedPrompt = prompt.replace(/'/g, "'\\''");
       const { stdout } = await execAsync(
-        `claude -p --model haiku "${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`,
+        `claude -p --model haiku $'${escapedPrompt}'`,
         {
           cwd: workingDir,
-          timeout: 15000,
-          env: { ...process.env }
+          timeout: 20000,
+          env: { ...process.env },
+          shell: '/bin/bash'
         }
       );
 
-      // Extract just the commit message (first non-empty line)
-      const message = stdout.trim().split('\n').find(line => line.trim()) || 'chore: update code';
-      return message.replace(/^["']|["']$/g, '').trim();
+      // Parse output - handle JSON stream format if present
+      let message = '';
+      const lines = stdout.trim().split('\n');
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Try to parse as JSON (stream format)
+        try {
+          const json = JSON.parse(trimmed);
+          if (json.type === 'result' && json.result) {
+            message = json.result.trim();
+            break;
+          }
+        } catch {
+          // Not JSON, might be plain text output
+          // Look for conventional commit pattern
+          if (/^(feat|fix|refactor|docs|style|test|chore|build|ci|perf)(\(.+?\))?:/.test(trimmed)) {
+            message = trimmed;
+            break;
+          }
+        }
+      }
+
+      // If no valid message found, try last non-empty line
+      if (!message) {
+        message = lines.filter(l => l.trim()).pop() || 'chore: update code';
+      }
+
+      // Clean up the message
+      message = message
+        .replace(/^["'`]|["'`]$/g, '')  // Remove quotes
+        .replace(/^\*\*|\*\*$/g, '')     // Remove markdown bold
+        .trim();
+
+      // Validate it looks like a commit message
+      if (message.length < 5 || message.length > 100 || message.includes('\n')) {
+        return 'chore: update code';
+      }
+
+      logger.debug('Generated commit message', { message });
+      return message;
     } catch (error) {
-      logger.debug('Commit message generation failed', { error });
+      logger.debug('Commit message generation failed', { error: error instanceof Error ? error.message : String(error) });
       return 'chore: update code';
     }
   }
