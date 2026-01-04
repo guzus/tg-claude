@@ -49,6 +49,7 @@ flowchart TB
         GitHub[GitHub]
         ClaudeAPI[Claude API]
         ZaiAPI[Z.ai GLM API]
+        OpenRouter[OpenRouter API]
     end
 
     TG -->|Commands| Bot
@@ -58,6 +59,7 @@ flowchart TB
     Beast -->|Iterate| Claude
     Claude -->|OAuth| ClaudeAPI
     Claude -->|API Key| ZaiAPI
+    Claude -->|API Key| OpenRouter
     Claude -->|Read/Write| Workspace
     Git -->|Clone/Push| GitHub
     Repo -->|Manage| Workspace
@@ -121,6 +123,29 @@ You can use [GLM-4](https://docs.z.ai/devpack/tool/claude) as an alternative AI 
 ```
 
 Get your API key from [Z.ai](https://z.ai/manage-apikey/apikey-list). See the [Deployment Guide](./docs/DEPLOYMENT.md#using-glm-instead-of-claude-optional) for details.
+
+### Using OpenRouter
+
+[OpenRouter](https://openrouter.ai) provides access to 100+ models from multiple providers through a unified API:
+
+```
+/config set aiProvider.provider openrouter
+/config set aiProvider.apiKey YOUR_OPENROUTER_API_KEY
+```
+
+Get your API key from [OpenRouter](https://openrouter.ai/settings/keys).
+
+**Custom Models**: By default, OpenRouter uses [Minimax](https://openrouter.ai/minimax/minimax-m2.1) for all model slots. You can customize each slot independently:
+
+```
+/config set aiProvider.haikuModel openai/gpt-4o-mini
+/config set aiProvider.sonnetModel anthropic/claude-sonnet-4
+/config set aiProvider.opusModel anthropic/claude-opus-4
+```
+
+Browse available models at [OpenRouter Models](https://openrouter.ai/models).
+
+**Quick Switch**: Use `/ai` to toggle between Claude, GLM, and OpenRouter with inline buttons.
 
 ### Other Settings
 
