@@ -162,8 +162,6 @@ export interface UserConfig {
     defaultBranch?: string;
   };
   preferences?: {
-    autoCommit?: boolean;
-    autoPush?: boolean;
     notifyOnTaskComplete?: boolean;
     dangerModeEnabled?: boolean;
   };

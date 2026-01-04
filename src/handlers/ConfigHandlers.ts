@@ -166,8 +166,6 @@ export class ConfigHandlers extends BaseHandler {
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
       `*Preferences:*\n` +
-      `💾 Auto Commit: ${config.preferences?.autoCommit ? '✅' : '❌'}\n` +
-      `📤 Auto Push: ${config.preferences?.autoPush ? '✅' : '❌'}\n` +
       `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
       `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +

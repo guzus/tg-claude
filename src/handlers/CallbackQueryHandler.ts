@@ -377,7 +377,7 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
         backToConfig
       ),
       preferences: () => this.editMessage(chatId, messageId,
-        '*Preferences*\n\n`/config set preferences.autoCommit true`\n`/config set preferences.autoPush false`',
+        '*Preferences*\n\n`/config set preferences.notifyOnTaskComplete true`\n`/config set preferences.dangerModeEnabled false`',
         backToConfig
       ),
       limits: () => this.editMessage(chatId, messageId,
