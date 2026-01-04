@@ -1,4 +1,4 @@
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import { AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, AIProvider } from '../types';
 
 export interface ClaudeRunOptions {
@@ -8,6 +8,16 @@ export interface ClaudeRunOptions {
   apiKey?: string;
   timeout?: number;
   dangerMode?: boolean;
+}
+
+export interface SpawnClaudeOptions {
+  prompt: string;
+  workingDir?: string;
+  provider?: AIProvider;
+  apiKey?: string;
+  dangerMode?: boolean;
+  additionalFlags?: string[];
+  model?: string;  // Override default model (e.g., 'opus', 'haiku')
 }
 
 export interface ToolCall {
@@ -26,7 +36,7 @@ export interface ClaudeStreamResult {
 /**
  * Configure environment variables for the specified AI provider
  */
-export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string): NodeJS.ProcessEnv {
+export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string, model?: string): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
   if (provider === 'glm') {
@@ -38,7 +48,7 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
   } else {
     delete env.ANTHROPIC_BASE_URL;
-    env.ANTHROPIC_MODEL = 'sonnet';
+    env.ANTHROPIC_MODEL = model || 'sonnet';
     if (apiKey) {
       env.ANTHROPIC_API_KEY = apiKey;
     }
@@ -55,43 +65,83 @@ export function delay(ms: number): Promise<void> {
 }
 
 /**
- * Run Claude CLI with stream-json output to capture tool calls
+ * Spawn Claude CLI process with configured environment and args.
+ * This is the single source of truth for spawning Claude.
+ *
+ * --continue resumes the most recent conversation. TODO: Add /flush command to start fresh session
  */
-export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStreamResult> {
+export function spawnClaude(options: SpawnClaudeOptions): ChildProcess {
   const {
     prompt,
     workingDir = process.cwd(),
     provider = 'anthropic',
     apiKey,
+    dangerMode = true,
+    additionalFlags = [],
+    model
+  } = options;
+
+  const env = configureProviderEnv(provider, apiKey, model);
+  const isRoot = process.getuid && process.getuid() === 0;
+
+  if (isRoot) {
+    env.IS_SANDBOX = '1';
+    env.CLAUDE_AUTO_APPROVE = '1';
+    env.CI = 'true';
+  }
+
+  const args = [
+    '--continue',
+    '-p',
+    '--output-format', 'stream-json',
+    '--verbose',
+    ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
+    ...additionalFlags,
+    '--',
+    prompt
+  ];
+
+  const claudeProcess = spawn('claude', args, {
+    cwd: workingDir,
+    env,
+    shell: false,
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+
+  // Handle root user stdin requirements
+  if (isRoot && claudeProcess.stdin) {
+    claudeProcess.stdin.write('y\n');
+    claudeProcess.stdin.write('yes\n');
+    claudeProcess.stdin.write('y\n');
+    setTimeout(() => claudeProcess.stdin?.end(), 100);
+  } else {
+    claudeProcess.stdin?.end();
+  }
+
+  return claudeProcess;
+}
+
+/**
+ * Run Claude CLI with stream-json output to capture tool calls.
+ * Returns a Promise that resolves when the process completes.
+ */
+export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStreamResult> {
+  const {
+    prompt,
+    workingDir,
+    provider,
+    apiKey,
     timeout = 300000,
-    dangerMode = true
+    dangerMode
   } = options;
 
   return new Promise((resolve, reject) => {
-    const env = configureProviderEnv(provider, apiKey);
-    const isRoot = process.getuid && process.getuid() === 0;
-    
-    if (isRoot) {
-      env.IS_SANDBOX = '1';
-      env.CLAUDE_AUTO_APPROVE = '1';
-      env.CI = 'true';
-    }
-    
-    // --continue resumes the most recent conversation. TODO: Add /flush command to start fresh session
-    const args = [
-      '--continue',
-      '--print',
-      '--verbose',
-      '--output-format', 'stream-json',
-      ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
-      prompt
-    ];
-
-    const claudeProcess = spawn('claude', args, {
-      cwd: workingDir,
-      env,
-      shell: false,
-      stdio: ['pipe', 'pipe', 'pipe'],
+    const claudeProcess = spawnClaude({
+      prompt,
+      workingDir,
+      provider,
+      apiKey,
+      dangerMode
     });
 
     let rawOutput = '';
@@ -101,12 +151,12 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
 
     claudeProcess.stdout?.on('data', (data: Buffer) => {
       rawOutput += data.toString();
-      
+
       const lines = data.toString().split('\n').filter(line => line.trim());
       for (const line of lines) {
         try {
           const event = JSON.parse(line);
-          
+
           if (event.type === 'assistant' && event.message?.content) {
             for (const block of event.message.content) {
               if (block.type === 'tool_use') {
@@ -121,7 +171,7 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
               }
             }
           }
-          
+
           if (event.type === 'result') {
             finalText += typeof event.result === 'string' ? event.result : '';
           }
@@ -132,8 +182,6 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
     claudeProcess.stderr?.on('data', (data: Buffer) => {
       errorOutput += data.toString();
     });
-
-    claudeProcess.stdin?.end();
 
     const timeoutHandle = setTimeout(() => {
       claudeProcess.kill('SIGTERM');

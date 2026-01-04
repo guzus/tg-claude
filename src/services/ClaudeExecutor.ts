@@ -1,8 +1,8 @@
-import { spawn, ChildProcess } from 'child_process';
+import { ChildProcess } from 'child_process';
 import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
-import { configureProviderEnv } from '../utils/ClaudeRunner';
+import { spawnClaude } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
 import { v4 as uuidv4 } from 'uuid';
 import { promisify } from 'util';
@@ -108,53 +108,19 @@ export class ClaudeExecutor extends EventEmitter {
         // Not a git repo or no commits yet - ignore
       }
 
-      const isRoot = process.getuid && process.getuid() === 0;
-      // --continue resumes the most recent conversation. TODO: Add /flush command to start fresh session
-      // Use --output-format stream-json for structured streaming output
-      const args = [
-        '--continue',  // Resume previous conversation
-        '-p',  // Print mode (non-interactive)
-        '--output-format', 'stream-json',  // Enable JSON streaming
-        '--verbose',  // Include detailed events
-        ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
-        ...additionalFlags,
-        '--',  // Separator before prompt
-        prompt
-      ];
-
-      // Configure AI provider environment variables
       const provider = aiProvider?.provider || 'anthropic';
-      const env = configureProviderEnv(provider, aiProvider?.apiKey);
-      
-      // Override for default Anthropic to use opus model
-      if (provider === 'anthropic') {
-        env.ANTHROPIC_MODEL = 'opus';
-      }
-      
-      if (isRoot) {
-        env.IS_SANDBOX = '1';
-        env.CLAUDE_AUTO_APPROVE = '1';
-        env.CI = 'true';
-      }
-      
       logger.info('Using AI provider', { provider });
 
-      const claudeProcess = spawn('claude', args, {
-        cwd: workingDir,
-        env,
-        shell: false,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        detached: false
+      // Use shared spawnClaude - single source of truth for Claude CLI invocation
+      const claudeProcess = spawnClaude({
+        prompt,
+        workingDir,
+        provider,
+        apiKey: aiProvider?.apiKey,
+        dangerMode,
+        additionalFlags,
+        model: provider === 'anthropic' ? 'opus' : undefined
       });
-
-      if (isRoot && claudeProcess.stdin) {
-        claudeProcess.stdin.write('y\n');
-        claudeProcess.stdin.write('yes\n');
-        claudeProcess.stdin.write('y\n');
-        setTimeout(() => claudeProcess.stdin?.end(), 100);
-      } else {
-        claudeProcess.stdin?.end();
-      }
 
       if (!claudeProcess.pid) {
         throw new Error('Failed to spawn Claude process');
