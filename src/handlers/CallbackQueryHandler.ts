@@ -74,6 +74,8 @@ export class CallbackQueryHandler extends BaseHandler {
       current: () => this.showCurrentRepo(chatId, messageId, userId),
       switch_menu: () => this.showRepoList(chatId, messageId, userId),
       add_menu: () => this.showAddRepoInstructions(chatId, messageId),
+      clone_menu: () => this.showCloneInstructions(chatId, messageId),
+      new_menu: () => this.showNewRepoInstructions(chatId, messageId),
       link: () => this.showRepoLink(chatId, messageId, userId)
     };
 
@@ -96,17 +98,26 @@ export class CallbackQueryHandler extends BaseHandler {
 
     if (repositories.length === 0) {
       await this.editMessage(chatId, messageId,
-        '*Your Repositories*\n\nNo repositories found.\n\n' +
-        '`/repo clone <url>` - Clone repository\n' +
-        '`/repo new <name>` - Create new\n' +
-        '`/repo add <path>` - Add existing',
+        `No repositories yet\n\n` +
+        `\`/repo clone owner/repo\`\n` +
+        `\`/repo new name\``,
         UIHelpers.createRepoActionMenu()
       );
       return;
     }
 
+    // Build compact list
+    const lines: string[] = [];
+    for (const repo of repositories) {
+      const isCurrent = currentRepo?.id === repo.id;
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const branch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : 'main';
+      const marker = isCurrent ? '▸ ' : '  ';
+      lines.push(`${marker}*${escapedName}* · \`${branch}\``);
+    }
+
     await this.editMessage(chatId, messageId,
-      `*Your Repositories*\n\nFound ${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'}. Select to switch:`,
+      lines.join('\n'),
       UIHelpers.createRepositoryListKeyboard(repositories, currentRepo?.id || null)
     );
   }
@@ -124,6 +135,23 @@ export class CallbackQueryHandler extends BaseHandler {
       '*Create:* `/repo new <name>`\n' +
       '*Add existing:* `/repo add <path>`',
       { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_menu' }]] }
+    );
+  }
+
+  private async showCloneInstructions(chatId: number, messageId: number): Promise<void> {
+    await this.editMessage(chatId, messageId,
+      `*Clone Repository*\n\n` +
+      `\`/repo clone owner/repo\`\n` +
+      `\`/repo clone https://github.com/...\``,
+      { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_list' }]] }
+    );
+  }
+
+  private async showNewRepoInstructions(chatId: number, messageId: number): Promise<void> {
+    await this.editMessage(chatId, messageId,
+      `*Create Repository*\n\n` +
+      `\`/repo new my-project\``,
+      { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_list' }]] }
     );
   }
 
@@ -404,19 +432,26 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
-    const newProvider = subAction === 'switch_glm' ? 'glm' : 'anthropic';
+    // Extract provider from "switch_<provider>"
+    const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
     await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
 
-    const isGlm = newProvider === 'glm';
-    const toggleButton = isGlm
-      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
-      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+    const providerLabels: Record<string, string> = {
+      anthropic: 'Claude',
+      glm: 'GLM',
+      openrouter: 'OpenRouter'
+    };
+
+    // Build buttons for other providers
+    const buttons = (['anthropic', 'glm', 'openrouter'] as const)
+      .filter(p => p !== newProvider)
+      .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
     await this.editMessage(
       chatId,
       messageId,
-      `✅ *Switched to ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}*`,
-      { inline_keyboard: [[toggleButton]] }
+      `*${providerLabels[newProvider]}*`,
+      { inline_keyboard: [buttons] }
     );
   }
 

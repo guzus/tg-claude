@@ -7,14 +7,6 @@ import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
-
-// Default Anthropic models used by Claude Code
-// Per docs: https://docs.claude.com/en/docs/claude-code/model-config
-const ANTHROPIC_MODELS = {
-  haiku: 'Haiku 4.5',
-  sonnet: 'Sonnet 4.5',
-  opus: 'Opus 4.5'
-};
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
@@ -34,7 +26,7 @@ export class ConfigHandlers extends BaseHandler {
   }
 
   /**
-   * /ai command - Quick toggle between Claude and GLM
+   * /ai command - Quick toggle between AI providers
    */
   async handleAi(msg: Message): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
@@ -48,15 +40,22 @@ export class ConfigHandlers extends BaseHandler {
     }
 
     const config = await this.userConfigManager.getConfig(userId);
-    const isGlm = config.aiProvider?.provider === 'glm';
+    const provider = config.aiProvider?.provider || 'anthropic';
 
-    const toggleButton = isGlm
-      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
-      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+    const providerLabels: Record<AIProvider, string> = {
+      anthropic: 'Claude',
+      glm: 'GLM',
+      openrouter: 'OpenRouter'
+    };
 
-    await this.bot.sendMessage(chatId, `🤖 *AI Provider:* ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}`, {
+    // Build buttons for providers other than current
+    const buttons = (['anthropic', 'glm', 'openrouter'] as AIProvider[])
+      .filter(p => p !== provider)
+      .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
+
+    await this.bot.sendMessage(chatId, `*${providerLabels[provider]}*`, {
       parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: [[toggleButton]] }
+      reply_markup: { inline_keyboard: [buttons] }
     });
   }
 
@@ -71,18 +70,14 @@ export class ConfigHandlers extends BaseHandler {
     const args = match?.[1]?.trim().split(/\s+/) || [];
     const subcommand = args[0];
 
-    if (!subcommand) {
-      await this.showConfigMenu(msg);
+    // No subcommand or 'show' - display current config
+    if (!subcommand || subcommand.toLowerCase() === 'show' || subcommand.toLowerCase() === 'view') {
+      await this.showConfig(msg);
       return;
     }
 
     try {
       switch (subcommand.toLowerCase()) {
-        case 'show':
-        case 'view':
-          await this.showConfig(msg);
-          break;
-
         case 'set':
           await this.setConfigValue(msg, args.slice(1));
           break;
@@ -98,7 +93,9 @@ export class ConfigHandlers extends BaseHandler {
         default:
           await this.bot.sendMessage(
             chatId,
-            `❌ Unknown subcommand: ${subcommand}\nUse /config to see available commands.`
+            `Unknown: ${subcommand}\n\n` +
+            `/config set <key> <value>\n` +
+            `/config reset`
           );
       }
     } catch (error) {
@@ -167,70 +164,41 @@ export class ConfigHandlers extends BaseHandler {
     const userId = msg.from!.id;
 
     if (!this.userConfigManager) {
-      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
       return;
     }
 
     const config = await this.userConfigManager.getConfig(userId);
-    const providerDisplay = config.aiProvider?.provider || 'anthropic';
-    const hasApiKey = config.aiProvider?.apiKey ? '✅ Set' : '❌ Not set';
+    const provider = config.aiProvider?.provider || 'anthropic';
+    const hasKey = config.aiProvider?.apiKey ? '✓' : '–';
 
-    // Get model mappings based on provider (use custom models if configured)
-    const aiProviderConfig = config.aiProvider;
-    const getModels = () => {
-      if (providerDisplay === 'glm') return GLM_MODEL_MAPPINGS;
-      if (providerDisplay === 'openrouter') {
-        return {
-          haiku: aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
-          sonnet: aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
-          opus: aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus
-        };
-      }
-      return ANTHROPIC_MODELS;
+    // Get model based on provider
+    const getModel = () => {
+      if (provider === 'glm') return GLM_MODEL_MAPPINGS.sonnet;
+      if (provider === 'openrouter') return config.aiProvider?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
+      return 'claude-sonnet-4';
     };
-    const models = getModels();
 
-    const message =
-      `⚙️ *Your Configuration*\n\n` +
-      `*Git Settings:*\n` +
-      `👤 User Name: \`${config.git?.userName || 'Not set'}\`\n` +
-      `📧 User Email: \`${config.git?.userEmail || 'Not set'}\`\n` +
-      `🌿 Default Branch: \`${config.git?.defaultBranch || 'main'}\`\n\n` +
-      `*AI Provider:*\n` +
-      `🤖 Provider: \`${providerDisplay}\`\n` +
-      `🔑 API Key: ${hasApiKey}\n` +
-      `📊 Models:\n` +
-      `   Haiku → \`${models.haiku}\`\n` +
-      `   Sonnet → \`${models.sonnet}\`\n` +
-      `   Opus → \`${models.opus}\`\n\n` +
-      `*Tech Stack:*\n` +
-      `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
-      `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
-      `*Preferences:*\n` +
-      `💾 Auto Commit: ${config.preferences?.autoCommit ? '✅' : '❌'}\n` +
-      `📤 Auto Push: ${config.preferences?.autoPush ? '✅' : '❌'}\n` +
-      `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
-      `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
-      `*Limits:*\n` +
-      `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
-      `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
-      `_Last updated: ${config.updatedAt.toLocaleString()}_`;
+    const providerLabels: Record<string, string> = {
+      anthropic: 'Claude',
+      glm: 'GLM',
+      openrouter: 'OpenRouter'
+    };
 
-    await this.bot.sendMessage(chatId, message, {
+    const lines = [
+      `*Config*`,
+      ``,
+      `AI: *${providerLabels[provider]}* · \`${getModel()}\` · key ${hasKey}`,
+      `Git: \`${config.git?.userName || '–'}\` <\`${config.git?.userEmail || '–'}\`>`,
+      `Stack: ts/\`${config.techStack?.typescript || 'bun'}\` py/\`${config.techStack?.python || 'uv'}\``,
+    ];
+
+    await this.bot.sendMessage(chatId, lines.join('\n'), {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [
-            { text: '👤 Edit Git', callback_data: 'config_git' },
-            { text: '⚙️ Edit Preferences', callback_data: 'config_preferences' }
-          ],
-          [
-            { text: '🛠️ Edit Tech Stack', callback_data: 'config_techstack' },
-            { text: '🤖 Edit AI Provider', callback_data: 'config_aiprovider' }
-          ],
-          [
-            { text: '📊 Edit Limits', callback_data: 'config_limits' },
-            { text: '🔙 Back to Config Menu', callback_data: 'config_menu' }
+            { text: 'Reset', callback_data: 'config_reset_confirm' }
           ]
         ]
       }

@@ -29,49 +29,42 @@ export class RepositoryHandlers extends BaseHandler {
       const repo = this.repositoryManager.getCurrentRepository(userId);
       const repoMenuKeyboard = UIHelpers.createRepoActionMenu();
 
-      let currentRepoInfo = '';
       if (repo) {
-        const typeEmoji =
-          repo.type === RepositoryType.CLONED
-            ? '📥 Cloned'
-            : repo.type === RepositoryType.NEW
-              ? '✨ New'
-              : '📂 Existing';
         const webUrl = UIHelpers.convertGitUrlToWeb(repo.gitUrl);
         const escapedName = UIHelpers.escapeMarkdown(repo.name);
-        const escapedPath = UIHelpers.escapeMarkdown(repo.path);
-        const escapedBranch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : '';
+        const escapedBranch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : 'main';
 
-        currentRepoInfo =
-          `▶️ *Current Repository*\n` +
-          `📁 Name: ${escapedName}\n` +
-          `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
-          `📂 Path: \`${escapedPath}\`\n` +
-          `📝 Type: ${typeEmoji}\n` +
-          `${webUrl ? `🔗 URL: ${webUrl}\n` : ''}` +
-          `${repo.branch ? `🌿 Branch: ${escapedBranch}\n` : ''}\n`;
-      } else {
-        currentRepoInfo = `⚠️ *No repository selected*\n\n`;
-      }
-
-      await this.bot.sendMessage(
-        chatId,
-        currentRepoInfo +
-        `*Commands:*\n` +
-        `/repo clone <owner/repo | git-url> [name] [branch]\n` +
-        `/repo new <name> - Create new repository\n` +
-        `/repo add <path> [name] - Add existing repository\n` +
-        `/repo list - List all repositories\n` +
-        `/repo switch <id> - Switch to repository\n` +
-        `/repo delete <id> - Delete repository\n\n` +
-        `Examples:\n` +
-        `\`/repo clone owner/repo\`\n` +
-        `\`/repo new my-project\``,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: repoMenuKeyboard
+        // Build inline keyboard with optional URL button
+        const buttons: { text: string; callback_data?: string; url?: string }[][] = [];
+        if (webUrl) {
+          buttons.push([{ text: 'Open on GitHub', url: webUrl }]);
         }
-      );
+        buttons.push([
+          { text: 'List', callback_data: 'repo_list' },
+          { text: 'Clone', callback_data: 'repo_clone_menu' },
+          { text: 'New', callback_data: 'repo_new_menu' }
+        ]);
+
+        await this.bot.sendMessage(
+          chatId,
+          `*${escapedName}* · \`${escapedBranch}\``,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: buttons }
+          }
+        );
+      } else {
+        await this.bot.sendMessage(
+          chatId,
+          `No repository selected\n\n` +
+          `\`/repo clone owner/repo\` — clone from GitHub\n` +
+          `\`/repo new name\` — create new`,
+          {
+            parse_mode: 'Markdown',
+            reply_markup: repoMenuKeyboard
+          }
+        );
+      }
       return;
     }
 
@@ -313,53 +306,29 @@ export class RepositoryHandlers extends BaseHandler {
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
     if (repositories.length === 0) {
-      const keyboard = UIHelpers.createRepoActionMenu();
-
       await this.bot.sendMessage(
         chatId,
-        `📁 No repositories yet.\n\n` +
-        `Use:\n` +
-        `• /repo clone <url> to clone a repository\n` +
-        `• /repo new <name> to create a new one\n` +
-        `• /repo add <path> to add an existing one`,
-        { reply_markup: keyboard }
+        `No repositories yet\n\n` +
+        `\`/repo clone owner/repo\`\n` +
+        `\`/repo new name\``,
+        { parse_mode: 'Markdown', reply_markup: UIHelpers.createRepoActionMenu() }
       );
       return;
     }
 
-    const keyboard = UIHelpers.createRepositoryListKeyboard(repositories, currentRepo?.id || null);
-
-    let message = `📁 *Your Repositories (${repositories.length})*\n\n`;
-
+    // Build compact list
+    const lines: string[] = [];
     for (const repo of repositories) {
       const isCurrent = currentRepo?.id === repo.id;
-      const typeEmoji =
-        repo.type === RepositoryType.CLONED
-          ? '📥'
-          : repo.type === RepositoryType.NEW
-            ? '✨'
-            : '📂';
-
-      // Escape special characters for Markdown
       const escapedName = UIHelpers.escapeMarkdown(repo.name);
-      const escapedPath = UIHelpers.escapeMarkdown(repo.path);
-
-      message +=
-        `${isCurrent ? '▶️ ' : ''}${typeEmoji} *${escapedName}*\n` +
-        `   ID: \`${repo.id.substring(0, 8)}\`\n` +
-        `   Path: \`${escapedPath}\`\n`;
-
-      if (repo.gitUrl) {
-        const escapedUrl = UIHelpers.escapeMarkdown(repo.gitUrl);
-        message += `   Remote: ${escapedUrl}\n`;
-      }
-
-      message += `\n`;
+      const branch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : 'main';
+      const marker = isCurrent ? '▸ ' : '  ';
+      lines.push(`${marker}*${escapedName}* · \`${branch}\``);
     }
 
-    message += `Tap a repository below to switch to it:`;
+    const keyboard = UIHelpers.createRepositoryListKeyboard(repositories, currentRepo?.id || null);
 
-    await this.bot.sendMessage(chatId, message, {
+    await this.bot.sendMessage(chatId, lines.join('\n'), {
       parse_mode: 'Markdown',
       reply_markup: keyboard
     });

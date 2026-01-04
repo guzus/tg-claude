@@ -68,7 +68,7 @@ export class UIHelpers {
   }
 
   /**
-   * Creates an inline keyboard for repository list
+   * Creates an inline keyboard for repository list - minimal design
    */
   static createRepositoryListKeyboard(
     repositories: Repository[],
@@ -78,28 +78,24 @@ export class UIHelpers {
 
     repositories.forEach((repo) => {
       const isCurrent = repo.id === currentRepoId;
-      const typeEmoji = this.getRepoTypeEmoji(repo.type);
-      const prefix = isCurrent ? '▶️ ' : '';
+      const prefix = isCurrent ? '▸ ' : '';
 
       buttons.push([
         {
-          text: `${prefix}${typeEmoji} ${repo.name}`,
+          text: `${prefix}${repo.name}`,
           callback_data: `repo_select_${repo.id.substring(0, 8)}`
         },
         {
-          text: '🗑️',
+          text: '×',
           callback_data: `repo_delete_${repo.id.substring(0, 8)}`
         }
       ]);
     });
 
-    // Add action buttons at the bottom
+    // Compact action row
     buttons.push([
-      { text: '➕ Add New Repository', callback_data: 'repo_add_menu' }
-    ]);
-
-    buttons.push([
-      { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
+      { text: 'Clone', callback_data: 'repo_clone_menu' },
+      { text: 'New', callback_data: 'repo_new_menu' }
     ]);
 
     return { inline_keyboard: buttons };
@@ -134,21 +130,15 @@ export class UIHelpers {
   }
 
   /**
-   * Creates repository action menu
+   * Creates repository action menu - minimal modern design
    */
   static createRepoActionMenu(): InlineKeyboardMarkup {
     return {
       inline_keyboard: [
         [
-          { text: '📋 List Repositories', callback_data: 'repo_list' },
-          { text: '➕ Add Repository', callback_data: 'repo_add_menu' }
-        ],
-        [
-          { text: '🔗 Link Repository', callback_data: 'repo_link' },
-          { text: '📂 Current Repository', callback_data: 'repo_current' }
-        ],
-        [
-          { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
+          { text: 'List', callback_data: 'repo_list' },
+          { text: 'Clone', callback_data: 'repo_clone_menu' },
+          { text: 'New', callback_data: 'repo_new_menu' }
         ]
       ]
     };
