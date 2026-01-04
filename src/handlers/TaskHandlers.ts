@@ -290,13 +290,16 @@ export class TaskHandlers extends BaseHandler {
               { parse_mode: 'Markdown' }
             );
           } catch (error) {
-            // If message is too long, send as document
+            // If message is too long, send parsed answer as document (not raw JSON)
+            const documentContent = completedEvent?.type === 'completed' && completedEvent.answer
+              ? completedEvent.answer
+              : fullOutput;
             await this.bot.sendDocument(
               chatId,
-              Buffer.from(fullOutput),
+              Buffer.from(documentContent),
               {},
               {
-                filename: 'task-output.txt',
+                filename: 'task-result.txt',
                 contentType: 'text/plain'
               }
             );

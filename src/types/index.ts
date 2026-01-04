@@ -287,6 +287,7 @@ export interface ClaudeResultEvent {
   type: 'result';
   result?: string;
   cost_usd?: number;
+  total_cost_usd?: number;  // Claude Code CLI uses this field name
   is_error?: boolean;
   duration_ms?: number;
   session_id?: string;

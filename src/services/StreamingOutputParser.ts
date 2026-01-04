@@ -80,7 +80,7 @@ export class StreamingOutputParser {
           answer: raw.result || '',
           sessionId: raw.session_id,
           error: raw.is_error ? raw.result : undefined,
-          costUsd: raw.cost_usd,
+          costUsd: raw.total_cost_usd || raw.cost_usd,  // CLI uses total_cost_usd
           durationMs: raw.duration_ms,
         });
         break;
