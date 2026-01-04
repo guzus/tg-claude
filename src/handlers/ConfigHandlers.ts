@@ -129,6 +129,10 @@ export class ConfigHandlers extends BaseHandler {
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
       `• \`aiProvider.provider\` - AI provider (anthropic/glm/openrouter)\n` +
       `• \`aiProvider.apiKey\` - Provider API key\n` +
+      `• \`aiProvider.haikuModel\` - Custom Haiku model\n` +
+      `• \`aiProvider.sonnetModel\` - Custom Sonnet model\n` +
+      `• \`aiProvider.opusModel\` - Custom Opus model\n` +
+      `• \`preferences.dangerModeEnabled\` - Danger mode\n` +
       `• \`limits.maxConcurrentTasks\` - Max tasks\n\n` +
       `Example:\n` +
       `\`/config set aiProvider.provider glm\``;
@@ -359,10 +363,10 @@ export class ConfigHandlers extends BaseHandler {
       if (!value || value.trim() === '') {
         throw new Error('API key cannot be empty');
       }
-    } else if (field === 'model') {
-      // Model can be any string
+    } else if (field === 'model' || field === 'haikuModel' || field === 'sonnetModel' || field === 'opusModel') {
+      // Model can be any string (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4")
     } else {
-      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, apiKey, model`);
+      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, apiKey, haikuModel, sonnetModel, opusModel`);
     }
   }
 

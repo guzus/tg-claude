@@ -95,7 +95,10 @@ export type AIProvider = 'anthropic' | 'glm' | 'openrouter';
 export interface AIProviderConfig {
   provider: AIProvider;
   apiKey?: string;        // Provider-specific API key (stored separately from Anthropic)
-  model?: string;         // Optional model override
+  model?: string;         // Optional model override (legacy)
+  haikuModel?: string;    // Custom model for Haiku slot
+  sonnetModel?: string;   // Custom model for Sonnet slot
+  opusModel?: string;     // Custom model for Opus slot
 }
 
 export const AI_PROVIDER_ENDPOINTS: Record<AIProvider, string | undefined> = {
