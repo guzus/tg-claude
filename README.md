@@ -26,10 +26,10 @@ flowchart TB
         end
     end
 
-    subgraph Storage
-        Workspace["/workspace"]
-        Data["/app/data"]
-        Config["/app/config"]
+    subgraph Storage["Storage (/persistent)"]
+        Workspace["/persistent/workspace"]
+        Data["/persistent/app/data"]
+        Config["/persistent/app/config"]
     end
 
     subgraph External
@@ -103,6 +103,8 @@ cp .env.example .env
 
 # Start the bot
 docker compose up -d
+
+# Data is stored in ./persistent/ on your host
 ```
 
 **Option B: Docker Hub (Pre-built Image)**
@@ -125,7 +127,8 @@ docker compose up -d
 
 1. Click the button above
 2. Set environment variables in Railway dashboard
-3. Deploy
+3. Add a volume mounted at `/persistent`
+4. Deploy
 
 ## Commands
 

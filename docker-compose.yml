@@ -7,15 +7,13 @@ services:
     ports:
       - "5555:5555"
     volumes:
-      - ./workspace:/workspace
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./config:/app/config
+      - ./persistent:/persistent
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - ALLOWED_USER_IDS=${ALLOWED_USER_IDS}
       - GITHUB_TOKEN=${GITHUB_TOKEN:-}
       - CLAUDE_CODE_OAUTH_TOKEN=${CLAUDE_CODE_OAUTH_TOKEN:-}
+      - DATA_PATH=/persistent
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5555/health"]
       interval: 30s

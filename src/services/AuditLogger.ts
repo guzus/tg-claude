@@ -1,5 +1,6 @@
 import { AuditLogEntry } from '../types';
 import { logger } from '../utils/logger';
+import { LOGS_PATH } from '../config';
 import fs from 'fs';
 import path from 'path';
 
@@ -7,8 +8,8 @@ export class AuditLogger {
   private auditLogPath: string;
   private entries: AuditLogEntry[] = [];
 
-  constructor(auditLogPath: string = './logs/audit.log') {
-    this.auditLogPath = auditLogPath;
+  constructor(auditLogPath?: string) {
+    this.auditLogPath = auditLogPath || path.join(LOGS_PATH, 'audit.log');
     this.ensureLogDirectory();
   }
 
