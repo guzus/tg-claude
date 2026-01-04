@@ -29,8 +29,7 @@
    - `gh workflow run deploy.yml` triggers deployment
    - `gh run watch` monitors the running workflow
 
-10. Claude Review Workflow Triggers:
-    - Add label `claude-review` to PR, OR
-    - Comment `@claude` on the PR
-    - Claude will review and can make changes with write permissions
+10. Claude Review Workflow:
+    - Add label `claude-review` to PR to trigger Claude review
+    - Claude has write permissions to make changes
 
