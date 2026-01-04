@@ -4,7 +4,7 @@ ARG COMMIT_HASH=unknown
 
 WORKDIR /app
 
-COPY package.json bun.lock* ./
+COPY package.json bun.lockb ./
 RUN bun install --frozen-lockfile
 
 COPY . .
@@ -18,7 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/bun.lock* ./
+COPY --from=builder /app/bun.lockb ./
 RUN bun install --frozen-lockfile --production --ignore-scripts
 
 RUN apk add --no-cache git openssh-client curl bash github-cli
