@@ -118,9 +118,9 @@ export const GLM_MODEL_MAPPINGS = {
 // OpenRouter default model mappings (users can override via env vars or config)
 // Per OpenRouter docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
 export const OPENROUTER_MODEL_MAPPINGS = {
-  haiku: 'anthropic/claude-3.5-haiku',
-  sonnet: 'anthropic/claude-sonnet-4',
-  opus: 'anthropic/claude-opus-4'
+  haiku: 'minimax/minimax-m2.1',
+  sonnet: 'minimax/minimax-m2.1',
+  opus: 'minimax/minimax-m2.1'
 };
 
 export interface McpServer {
