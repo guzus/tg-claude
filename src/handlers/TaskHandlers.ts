@@ -198,14 +198,11 @@ export class TaskHandlers extends BaseHandler {
           const currentRepo = this.repositoryManager.getCurrentRepository(userId);
           const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
 
-          // Build streaming stats line
+          // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          let statsLine = `Time: ${UIHelpers.formatDuration(executionTime)}`;
-          if (streamingTask.actions && streamingTask.actions.length > 0) {
-            statsLine += ` | Steps: ${streamingTask.actions.length}`;
-          }
+          let statsLine = UIHelpers.formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
-            statsLine += ` | Cost: $${streamingTask.costUsd.toFixed(4)}`;
+            statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
           }
 
           // Get commits made during task execution
@@ -316,22 +313,6 @@ export class TaskHandlers extends BaseHandler {
                     ]
                   ]
                 }
-              }
-            );
-          }
-
-          // Show push error details if push failed
-          if (pushError) {
-            await this.bot.sendMessage(
-              chatId,
-              `⚠️ *Push Failed*\n\n${pushError}\n\n` +
-              `Common causes:\n` +
-              `• Not authenticated with GitHub\n` +
-              `• No network connection\n` +
-              `• Permission denied\n\n` +
-              `Check the logs with \`/logs ${task.id.substring(0, 8)}\` for more details.`,
-              {
-                parse_mode: 'Markdown'
               }
             );
           }
