@@ -1,4 +1,5 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
+import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
@@ -266,7 +267,7 @@ export class TaskHandlers extends BaseHandler {
             // Send log file as a document
             const logFilePath = this.executor.getTaskLogFilePath(task.id);
             if (logFilePath) {
-              await this.bot.sendDocument(chatId, logFilePath, {
+              await this.bot.sendDocument(chatId, Buffer.from(readFileSync(logFilePath)), {
                 caption: `📋 Full execution log for task \`${task.id.substring(0, 8)}\``,
                 parse_mode: 'Markdown'
               }, {

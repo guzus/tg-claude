@@ -1,4 +1,5 @@
 import { CallbackQuery, InlineKeyboardButton } from 'node-telegram-bot-api';
+import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
@@ -424,7 +425,7 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
     const logFilePath = this.executor.getTaskLogFilePath(actualTaskId);
 
     if (logFilePath) {
-      await this.bot.sendDocument(chatId, logFilePath, {
+      await this.bot.sendDocument(chatId, Buffer.from(readFileSync(logFilePath)), {
         caption: `Log: \`${actualTaskId.substring(0, 8)}\``,
         parse_mode: 'Markdown'
       }, { filename: `task-${actualTaskId.substring(0, 8)}.log`, contentType: 'text/plain' });
