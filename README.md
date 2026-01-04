@@ -90,7 +90,16 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 
 ### 3. Deploy
 
-**Option A: Docker Compose (Self-Hosted)**
+**Option A: Railway (Easiest)**
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.com/deploy/hEF-Y8?referralCode=56ZSuE)
+
+1. Click the button above
+2. Set environment variables in Railway dashboard
+3. Add a volume mounted at `/persistent`
+4. Deploy
+
+**Option B: Docker Compose (Recommended for VPS)**
 
 ```bash
 # Clone the repository
@@ -107,7 +116,7 @@ docker compose up -d
 # Data is stored in ./persistent/ on your host
 ```
 
-**Option B: Docker Hub (Pre-built Image)**
+**Option C: Docker Hub (Pre-built Image, for VPS)**
 
 ```bash
 # Pull the latest image
@@ -120,15 +129,6 @@ docker pull guzus/tg-claude:v0.1
 curl -O https://raw.githubusercontent.com/guzus/tg-claude/main/docker-compose.yml
 docker compose up -d
 ```
-
-**Option C: Railway (Easiest)**
-
-[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/tg-claude)
-
-1. Click the button above
-2. Set environment variables in Railway dashboard
-3. Add a volume mounted at `/persistent`
-4. Deploy
 
 ## Commands
 
