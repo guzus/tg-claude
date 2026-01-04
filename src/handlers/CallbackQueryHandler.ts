@@ -45,7 +45,7 @@ export class CallbackQueryHandler extends BaseHandler {
         newrepo: () => this.handleNewRepoCommandCallback(chatId, messageId, userId, subAction),
         config: () => this.handleConfigAction(chatId, messageId, userId, subAction),
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
-        view: () => this.handleViewLog(chatId, userId, subAction),
+        view: () => this.handleViewAction(chatId, userId, subAction),
         beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction)
       };
@@ -473,6 +473,14 @@ export class CallbackQueryHandler extends BaseHandler {
     }
   }
 
+  private async handleViewAction(chatId: number, userId: number, subAction: string): Promise<void> {
+    if (subAction.startsWith('download:')) {
+      await this.handleDownloadLog(chatId, userId, subAction.replace('download:', ''));
+    } else {
+      await this.handleViewLog(chatId, userId, subAction);
+    }
+  }
+
   private async handleViewLog(chatId: number, userId: number, taskId: string): Promise<void> {
     const actualTaskId = taskId.replace('log:', '');
     const task = this.executor.getTask(actualTaskId);
@@ -482,20 +490,107 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
+    // Get log content
     const logFilePath = this.executor.getTaskLogFilePath(actualTaskId);
+    let rawLog: string;
 
     if (logFilePath) {
-      await this.bot.sendDocument(chatId, Buffer.from(readFileSync(logFilePath)), {
-        caption: `Log: \`${actualTaskId.substring(0, 8)}\``,
-        parse_mode: 'Markdown'
-      }, { filename: `task-${actualTaskId.substring(0, 8)}.log`, contentType: 'text/plain' });
+      rawLog = readFileSync(logFilePath, 'utf-8');
     } else {
-      const output = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
-      await this.bot.sendDocument(chatId, Buffer.from(output), {
-        caption: `Log: \`${actualTaskId.substring(0, 8)}\``,
-        parse_mode: 'Markdown'
-      }, { filename: `task-${actualTaskId.substring(0, 8)}.log`, contentType: 'text/plain' });
+      rawLog = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
     }
+
+    // Parse the log to extract meaningful content
+    const parsedLog = this.parseLogContent(rawLog);
+
+    // Telegram message limit is 4096 chars, reserve some for formatting
+    const MAX_LENGTH = 3800;
+    const shortId = actualTaskId.substring(0, 8);
+
+    if (parsedLog.length <= MAX_LENGTH) {
+      await this.bot.sendMessage(chatId, `📋 *Log* \`${shortId}\`\n\n${parsedLog}`, {
+        parse_mode: 'Markdown'
+      });
+    } else {
+      const truncated = parsedLog.substring(parsedLog.length - MAX_LENGTH);
+      await this.bot.sendMessage(
+        chatId,
+        `📋 *Log* \`${shortId}\` (last ${MAX_LENGTH} chars)\n\n${truncated}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{ text: '📥 Download Full Log', callback_data: `view_download:${actualTaskId}` }]]
+          }
+        }
+      );
+    }
+  }
+
+  private parseLogContent(rawLog: string): string {
+    const lines: string[] = [];
+    const jsonLines = rawLog.split('\n');
+
+    for (const line of jsonLines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Try to parse as JSON (Claude Code stream format)
+      try {
+        const event = JSON.parse(trimmed);
+
+        if (event.type === 'assistant' && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === 'text' && block.text) {
+              lines.push(block.text);
+            } else if (block.type === 'tool_use') {
+              const toolName = block.name || 'tool';
+              lines.push(`🔧 ${toolName}`);
+            }
+          }
+        } else if (event.type === 'result') {
+          if (event.result) {
+            lines.push(`\n✅ Result: ${event.result.substring(0, 500)}${event.result.length > 500 ? '...' : ''}`);
+          }
+          if (event.total_cost_usd) {
+            lines.push(`💰 Cost: $${event.total_cost_usd.toFixed(4)}`);
+          }
+        }
+      } catch {
+        // Not JSON - check if it's meaningful text (not file content dump)
+        // Skip lines that look like file content with line numbers (e.g., "   123→")
+        if (!/^\s*\d+→/.test(trimmed) && !trimmed.startsWith('<') && trimmed.length < 200) {
+          // Skip common noise patterns
+          if (!trimmed.includes('system-reminder') && !trimmed.includes('tool_use_result')) {
+            lines.push(trimmed);
+          }
+        }
+      }
+    }
+
+    return lines.join('\n') || 'No parsed content available.';
+  }
+
+  private async handleDownloadLog(chatId: number, userId: number, taskId: string): Promise<void> {
+    const task = this.executor.getTask(taskId);
+
+    if (!task || task.userId !== userId) {
+      await this.bot.sendMessage(chatId, 'Task not found');
+      return;
+    }
+
+    const logFilePath = this.executor.getTaskLogFilePath(taskId);
+    let logContent: string;
+
+    if (logFilePath) {
+      logContent = readFileSync(logFilePath, 'utf-8');
+    } else {
+      logContent = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
+    }
+
+    await this.bot.sendDocument(chatId, Buffer.from(logContent), {
+      caption: `Log: \`${taskId.substring(0, 8)}\``,
+      parse_mode: 'Markdown'
+    }, { filename: `task-${taskId.substring(0, 8)}.log`, contentType: 'text/plain' });
   }
 
   private async handleBeastModeAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
