@@ -212,12 +212,16 @@ export class TaskHandlers extends BaseHandler {
             if (commits.length > 0) {
               const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
               if (webUrl) {
-                // Clean commit links on one line
-                const commitLinks = commits.slice(0, 3).map(c =>
-                  `[\`${c.hash.substring(0, 7)}\`](${webUrl}/commit/${c.hash})`
-                ).join(' ');
-                const moreText = commits.length > 3 ? ` +${commits.length - 3}` : '';
-                commitsInfo = `\n📝 ${commitLinks}${moreText}\n`;
+                // Show commits with messages
+                commitsInfo = '\n';
+                for (const c of commits.slice(0, 3)) {
+                  const shortHash = c.hash.substring(0, 7);
+                  const shortMsg = c.message.length > 45 ? c.message.substring(0, 42) + '...' : c.message;
+                  commitsInfo += `› [\`${shortHash}\`](${webUrl}/commit/${c.hash}) ${shortMsg}\n`;
+                }
+                if (commits.length > 3) {
+                  commitsInfo += `_+${commits.length - 3} more_\n`;
+                }
               }
             }
             // Clean up task head tracking

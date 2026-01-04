@@ -424,18 +424,41 @@ export class ClaudeExecutor extends EventEmitter {
       const { stdout: gitDiff } = await execAsync('git diff HEAD', { cwd: workingDir, timeout: 10000 });
       const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
 
-      const diff = gitDiff.length > 8000 ? gitDiff.substring(0, 8000) + '\n...(truncated)' : gitDiff;
+      // Truncate diff for efficiency
+      const diff = gitDiff.length > 4000 ? gitDiff.substring(0, 4000) + '\n...(truncated)' : gitDiff;
 
-      const prompt = `Analyze changes and generate a conventional commit message (feat/fix/docs/etc). Files: ${gitStatus}\nDiff: ${diff}\n\nReturn ONLY the commit message.`;
+      const prompt = `Generate a concise conventional commit message for these changes.
 
-      const { stdout } = await execAsync(`claude "${prompt.replace(/"/g, '\\"')}"`, {
-        cwd: workingDir,
-        timeout: 30000
-      });
+Files changed:
+${gitStatus}
 
-      return stdout.trim().split('\n')[0] || 'chore: Update code';
-    } catch {
-      return 'chore: Update code';
+Diff:
+${diff}
+
+Rules:
+- Use format: type(scope): description
+- Types: feat, fix, refactor, docs, style, test, chore
+- Keep under 72 characters
+- Be specific about what changed
+
+Return ONLY the commit message, nothing else.`;
+
+      // Use Claude Haiku for fast, cheap commit messages
+      const { stdout } = await execAsync(
+        `claude -p --model haiku "${prompt.replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`,
+        {
+          cwd: workingDir,
+          timeout: 15000,
+          env: { ...process.env }
+        }
+      );
+
+      // Extract just the commit message (first non-empty line)
+      const message = stdout.trim().split('\n').find(line => line.trim()) || 'chore: update code';
+      return message.replace(/^["']|["']$/g, '').trim();
+    } catch (error) {
+      logger.debug('Commit message generation failed', { error });
+      return 'chore: update code';
     }
   }
 
