@@ -90,8 +90,55 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 
 ### 3. Deploy
 
+**Option A: Docker Compose (Self-Hosted)**
+
 ```bash
+# Clone the repository
+git clone https://github.com/guzus/tg-claude.git
+cd tg-claude
+
+# Create .env file with your configuration
+cp .env.example .env
+# Edit .env with your values
+
+# Start the bot
 docker compose up -d
+```
+
+**Option B: Docker Hub (Pre-built Image)**
+
+```bash
+# Pull the latest image
+docker pull guzus/tg-claude:latest
+
+# Or use a specific version
+docker pull guzus/tg-claude:v0.1
+
+# Run with docker-compose (download docker-compose.yml first)
+curl -O https://raw.githubusercontent.com/guzus/tg-claude/main/docker-compose.yml
+docker compose up -d
+```
+
+**Option C: Railway**
+
+[![Deploy on Railway](https://railway.app/button.svg)](https://railway.app/template/tg-claude)
+
+1. Click the button above
+2. Set environment variables in Railway dashboard
+3. Deploy
+
+**Option D: Fly.io**
+
+```bash
+# Install flyctl
+curl -L https://fly.io/install.sh | sh
+
+# Clone and deploy
+git clone https://github.com/guzus/tg-claude.git
+cd tg-claude
+fly launch
+fly secrets set TELEGRAM_BOT_TOKEN=xxx ALLOWED_USER_IDS=xxx CLAUDE_CODE_OAUTH_TOKEN=xxx
+fly deploy
 ```
 
 ## Commands
