@@ -121,7 +121,6 @@ export class ConfigHandlers extends BaseHandler {
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
       `• \`aiProvider.provider\` - AI provider (anthropic/glm)\n` +
       `• \`aiProvider.apiKey\` - Provider API key\n` +
-      `• \`preferences.dangerModeEnabled\` - Danger mode\n` +
       `• \`limits.maxConcurrentTasks\` - Max tasks\n\n` +
       `Example:\n` +
       `\`/config set aiProvider.provider glm\``;
@@ -178,8 +177,7 @@ export class ConfigHandlers extends BaseHandler {
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
       `*Preferences:*\n` +
-      `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
-      `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
+      `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +
       `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
       `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
@@ -410,7 +408,7 @@ export class ConfigHandlers extends BaseHandler {
 
       const parsed = content.replace(/\\n/g, '\n');
       await this.userConfigManager.updateConfig(userId, { claudeMdTemplate: parsed });
-      
+
       await this.bot.sendMessage(chatId,
         `✅ CLAUDE.md template updated!\n\n\`\`\`\n${parsed}\n\`\`\``,
         { parse_mode: 'Markdown' }

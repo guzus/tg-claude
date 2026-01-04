@@ -25,6 +25,10 @@ RUN bun install -g @anthropic-ai/claude-code
 
 RUN mkdir -p /workspace /app/data /app/logs /app/config
 
+# For Railway single-volume setup: mount /persistent
+# Then set DATA_PATH=/persistent in Railway env vars
+RUN mkdir -p /persistent/workspace /persistent/app/data /persistent/app/logs /persistent/app/config
+
 EXPOSE 5555
 
 CMD ["bun", "run", "dist/index.js"]

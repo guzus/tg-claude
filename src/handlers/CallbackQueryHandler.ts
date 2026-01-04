@@ -288,8 +288,8 @@ export class CallbackQueryHandler extends BaseHandler {
 
       try {
         await execAsync('git init', { cwd: repo.path, timeout: 5000 });
-await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
-await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
+        await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
+        await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
 
         try {
           await execAsync('git log -1', { cwd: repo.path, timeout: 5000 });
@@ -337,8 +337,10 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
 
         await this.bot.editMessageText(
           `*Created!*\n\n\`${newRepoName}\` - ${pending.isPrivate ? 'Private' : 'Public'}`,
-          { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown',
-            reply_markup: { inline_keyboard: [[{ text: 'View Repository', callback_data: 'repo_current' }]] } }
+          {
+            chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown',
+            reply_markup: { inline_keyboard: [[{ text: 'View Repository', callback_data: 'repo_current' }]] }
+          }
         );
       } else {
         await this.bot.editMessageText(`\`${newRepoName}\` also exists. Try /repo again.`,
@@ -378,7 +380,7 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
         backToConfig
       ),
       preferences: () => this.editMessage(chatId, messageId,
-        '*Preferences*\n\n`/config set preferences.notifyOnTaskComplete true`\n`/config set preferences.dangerModeEnabled false`',
+        '*Preferences*\n\n`/config set preferences.notifyOnTaskComplete true`',
         backToConfig
       ),
       limits: () => this.editMessage(chatId, messageId,

@@ -1,7 +1,12 @@
 import { BotConfig } from '../types';
 
-// Hardcoded workspace path - mounted via Docker volume
-export const WORKSPACE_PATH = '/workspace';
+// Paths - configurable via env vars for Railway single-volume setup
+// Railway: Set DATA_PATH=/persistent to use single volume
+const DATA_PATH = process.env.DATA_PATH || '';
+export const WORKSPACE_PATH = process.env.WORKSPACE_PATH || `${DATA_PATH}/workspace`.replace(/^\/+/, '/');
+export const CONFIG_PATH = process.env.CONFIG_PATH || `${DATA_PATH}/app/config`.replace(/^\/+/, '/');
+export const LOGS_PATH = process.env.LOGS_PATH || `${DATA_PATH}/app/logs`.replace(/^\/+/, '/');
+export const STATE_PATH = process.env.STATE_PATH || `${DATA_PATH}/app/data`.replace(/^\/+/, '/');
 
 export const config: BotConfig = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
@@ -13,7 +18,7 @@ export const config: BotConfig = {
   taskTimeoutMs: 1800000, // 30 minutes
   maxOutputSize: 4096,
   logLevel: 'info',
-  logFile: './logs/bot.log',
+  logFile: `${LOGS_PATH}/bot.log`,
   maxRequestsPerUserPerHour: 100,
   maxRequestsPerUserPerDay: 500
 };

@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { UserConfig } from '../types';
 import { logger } from '../utils/logger';
+import { CONFIG_PATH } from '../config';
 
 const DEFAULT_CLAUDE_MD = `# Guidelines for Claude
 
@@ -24,7 +25,7 @@ export class UserConfigManager {
   private configs: Map<number, UserConfig> = new Map();
 
   constructor(configPath?: string) {
-    this.configPath = configPath || path.join(process.cwd(), 'config', 'users');
+    this.configPath = configPath || path.join(CONFIG_PATH, 'users');
   }
 
   /**
@@ -122,13 +123,12 @@ export class UserConfigManager {
     return {
       userId,
       git: {
-        userName: 'Claude Telegram Bot',
-        userEmail: 'bot@claude-telegram.local',
+        userName: 'tg-claude',
+        userEmail: 'noreply@github.com',
         defaultBranch: 'main'
       },
       preferences: {
-        notifyOnTaskComplete: true,
-        dangerModeEnabled: false
+        notifyOnTaskComplete: true
       },
       techStack: {
         typescript: 'bun',
