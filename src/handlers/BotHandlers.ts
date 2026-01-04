@@ -43,7 +43,7 @@ export class BotHandlers {
     this.statusHandlers = new StatusHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.utilityHandlers = new UtilityHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager);
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
-    this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager, undefined, userConfigManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
 
     // Connect beast mode executor to callback handler for stop functionality
@@ -103,6 +103,10 @@ export class BotHandlers {
     return this.configHandlers.handleConfig(msg, match);
   }
 
+  async handleAi(msg: Message): Promise<void> {
+    return this.configHandlers.handleAi(msg);
+  }
+
   async handleMcp(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleMcp(msg, match);
   }
@@ -146,5 +150,3 @@ export class BotHandlers {
     return this.taskHandlers.handlePlainMessage(msg);
   }
 }
-
-export default BotHandlers;

@@ -4,8 +4,8 @@ ARG COMMIT_HASH=unknown
 
 WORKDIR /app
 
-COPY package.json bun.lock* ./
-RUN bun install --frozen-lockfile
+COPY package.json bun.lockb ./
+RUN bun install
 
 COPY . .
 RUN bun run build
@@ -18,8 +18,7 @@ WORKDIR /app
 
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
-COPY --from=builder /app/bun.lock* ./
-RUN bun install --frozen-lockfile --production --ignore-scripts
+RUN bun install --production --ignore-scripts --no-save
 
 RUN apk add --no-cache git openssh-client curl bash github-cli
 RUN bun install -g @anthropic-ai/claude-code

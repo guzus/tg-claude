@@ -136,5 +136,3 @@ export class ClaudeSettingsManager {
     }
   }
 }
-
-export default ClaudeSettingsManager;

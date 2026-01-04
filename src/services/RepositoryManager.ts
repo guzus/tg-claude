@@ -513,5 +513,3 @@ export class RepositoryManager {
     return count;
   }
 }
-
-export default RepositoryManager;

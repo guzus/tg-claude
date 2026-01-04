@@ -287,5 +287,3 @@ export class StreamingOutputParser {
     this.activeActions.clear();
   }
 }
-
-export const streamingOutputParser = new StreamingOutputParser();

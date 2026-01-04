@@ -127,8 +127,6 @@ export class UserConfigManager {
         defaultBranch: 'main'
       },
       preferences: {
-        autoCommit: false,
-        autoPush: false,
         notifyOnTaskComplete: true,
         dangerModeEnabled: false
       },
@@ -249,5 +247,3 @@ export class UserConfigManager {
     return this.configs.has(userId);
   }
 }
-
-export default UserConfigManager;

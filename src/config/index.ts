@@ -1,7 +1,4 @@
-import dotenv from 'dotenv';
 import { BotConfig } from '../types';
-
-dotenv.config();
 
 // Hardcoded workspace path - mounted via Docker volume
 export const WORKSPACE_PATH = '/workspace';
