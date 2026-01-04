@@ -132,7 +132,6 @@ export interface UserConfig {
   };
   preferences?: {
     notifyOnTaskComplete?: boolean;
-    dangerModeEnabled?: boolean;
   };
   techStack?: TechStackPreferences;
   aiProvider?: AIProviderConfig;

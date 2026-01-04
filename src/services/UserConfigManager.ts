@@ -128,8 +128,7 @@ export class UserConfigManager {
         defaultBranch: 'main'
       },
       preferences: {
-        notifyOnTaskComplete: true,
-        dangerModeEnabled: false
+        notifyOnTaskComplete: true
       },
       techStack: {
         typescript: 'bun',

@@ -131,11 +131,10 @@ docker compose up -d
 
 | Command | Description |
 |---------|-------------|
-| `/task <description>` | Execute a coding task with Claude AI |
 | `/beast <task>` | Autonomous mode (iterates until complete) |
 | `/repo` | Manage repositories (clone/new/list/switch) |
 | `/remote` | Manage git remote (show/set/test) |
-| `/bot` | Manage bots via Mothership |
+| `/bot` | Manage bots via Mothership (in development) |
 | `/status` | Check active tasks |
 | `/config` | User configuration |
 | `/mcp` | Manage MCP servers per repository |
