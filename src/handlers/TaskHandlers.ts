@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus } from '../types';
+import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
@@ -59,11 +59,14 @@ export class TaskHandlers extends BaseHandler {
     const commitMessageContext = originalUserRequest || prompt;
 
     try {
-      // Send initial status message
+      // Send initial status message as reply to user's instruction
       const statusMsg = await this.bot.sendMessage(
         chatId,
-        `🤖 Task started...\n\n\`\`\`\n${commitMessageContext.substring(0, 200)}\n\`\`\``,
-        { parse_mode: 'Markdown' }
+        `⏳ Starting...`,
+        {
+          parse_mode: 'Markdown',
+          reply_to_message_id: msg.message_id
+        }
       );
 
       // Get user-specific timeout if available
@@ -87,7 +90,7 @@ export class TaskHandlers extends BaseHandler {
 
       // Poll for updates
       const updateInterval = setInterval(async () => {
-        const currentTask = this.executor.getTask(task.id);
+        const currentTask = this.executor.getTask(task.id) as ClaudeTaskWithStreaming | undefined;
         if (!currentTask) {
           clearInterval(updateInterval);
           return;
@@ -96,35 +99,10 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
+          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
 
-          // Get both stdout and stderr
-          const output = this.executor.getTaskOutput(task.id);
-          const errorOutput = currentTask.errorOutput || '';
-
-          // Combine outputs
-          let combinedOutput = '';
-          if (output) {
-            combinedOutput += output;
-          }
-          if (errorOutput) {
-            combinedOutput += (combinedOutput ? '\n---STDERR---\n' : '') + errorOutput;
-          }
-
-          // Parse output to extract current action
-          const currentAction = this.parseCurrentAction(combinedOutput);
-
-          // Build status message
-          let newUpdateText;
-          const preview = combinedOutput.slice(-1500).trim();
-
-          if (!preview) {
-            // No output yet - just show waiting message
-            newUpdateText = `⏳ Waiting for Claude... (${UIHelpers.formatDuration(elapsed)})`;
-          } else {
-            // Has output - show it with current action
-            const actionLine = currentAction ? `📌 ${currentAction}\n\n` : '';
-            newUpdateText = `🔄 Processing... (${UIHelpers.formatDuration(elapsed)})\n${actionLine}\`\`\`\n${preview}\n\`\`\``;
-          }
+          // Build status message using streaming events
+          const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
 
           // Create control buttons
           const controlButtons = {
@@ -172,72 +150,29 @@ export class TaskHandlers extends BaseHandler {
           // Auto-commit and push changes if task completed successfully
           let commitInfo = '';
           let needsRemoteSetup = false;
-          let pushError = '';
-          let commitUrl = '';
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
               const commitHash = await this.executor.autoCommitChanges(actualWorkingDir);
               let shouldPush = false;
 
               if (commitHash) {
-                commitInfo = '\n💾 Changes auto-committed';
                 shouldPush = true;
-
-                // Get repository info to build commit URL
-                const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-                if (currentRepo && currentRepo.gitUrl) {
-                  const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
-                  if (webUrl) {
-                    commitUrl = `${webUrl}/commit/${commitHash}`;
-                    logger.info('Built commit URL', { commitUrl, commitHash });
-                  }
-                }
               } else {
-                // No uncommitted changes, but check if there are unpushed commits
+                // Check if there are unpushed commits
                 const hasUnpushedCommits = await this.executor.hasUnpushedCommits(actualWorkingDir);
                 if (hasUnpushedCommits) {
-                  logger.info('Found unpushed commits', {
-                    taskId: task.id,
-                    workingDir: actualWorkingDir
-                  });
                   shouldPush = true;
-                  commitInfo = '\n💾 Commits ready to push';
-                } else {
-                  logger.info('No changes to commit or push', {
-                    taskId: task.id,
-                    workingDir: actualWorkingDir
-                  });
                 }
               }
 
               // Attempt push if there are commits to push
               if (shouldPush) {
-                logger.info('Starting auto-push', {
-                  taskId: task.id,
-                  workingDir: actualWorkingDir
-                });
-
-                // Auto-push changes
                 const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
 
-                logger.info('Auto-push result', {
-                  taskId: task.id,
-                  result: pushResult
-                });
-
                 if (pushResult === 'success') {
-                  commitInfo += ' & pushed to GitHub ✅\n';
-                  if (commitUrl) {
-                    commitInfo += `🔗 [View commit](${commitUrl})\n`;
-                  }
+                  commitInfo = ' · Pushed ✓';
                 } else if (pushResult === 'no_remote') {
-                  commitInfo += '\n⚠️ No remote repository configured\n';
                   needsRemoteSetup = true;
-                } else if (pushResult === 'no_changes') {
-                  commitInfo += ' (already up to date)\n';
-                } else {
-                  commitInfo += '\n⚠️ Push failed - check logs for details\n';
-                  pushError = 'Push operation failed. This may be due to authentication or network issues.';
                 }
               }
             } catch (error) {
@@ -245,7 +180,6 @@ export class TaskHandlers extends BaseHandler {
                 taskId: task.id,
                 error: error instanceof Error ? error.message : String(error)
               });
-              commitInfo = '\n⚠️ Commit/push error - check logs\n';
             }
           }
 
@@ -265,18 +199,68 @@ export class TaskHandlers extends BaseHandler {
           const currentRepo = this.repositoryManager.getCurrentRepository(userId);
           const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
 
+          // Build clean stats line
+          const streamingTask = currentTask as ClaudeTaskWithStreaming;
+          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
+          let statsLine = UIHelpers.formatDuration(executionTime);
+          if (streamingTask.costUsd && streamingTask.costUsd > 0) {
+            statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
+          }
+          statsLine += ` · ${providerName}`;
+
+          // Get commits made during task execution
+          let commitsInfo = '';
+          if (actualWorkingDir && currentRepo?.gitUrl) {
+            const commits = await this.executor.getTaskCommits(task.id, actualWorkingDir);
+            if (commits.length > 0) {
+              const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
+              if (webUrl) {
+                // Show commits with messages
+                commitsInfo = '\n';
+                for (const c of commits.slice(0, 3)) {
+                  const shortHash = c.hash.substring(0, 7);
+                  const shortMsg = c.message.length > 45 ? c.message.substring(0, 42) + '...' : c.message;
+                  commitsInfo += `› [\`${shortHash}\`](${webUrl}/commit/${c.hash}) ${shortMsg}\n`;
+                }
+                if (commits.length > 3) {
+                  commitsInfo += `_+${commits.length - 3} more_\n`;
+                }
+              }
+            }
+            // Clean up task head tracking
+            this.executor.cleanupTaskHead(task.id);
+          }
+
+          // Get final answer from streaming events (if available)
+          const completedEvent = streamingTask.events?.find(e => e.type === 'completed');
+          let answerPreview = '';
+          if (completedEvent && completedEvent.type === 'completed' && completedEvent.answer) {
+            const answer = completedEvent.answer;
+            answerPreview = answer.length > 400 ? answer.substring(0, 400) + '...' : answer;
+          }
+
+          // Build clean final message
           const finalMessage =
-            `${statusEmoji} ${statusText}${commitInfo}\n` +
-            `Exit code: ${currentTask.exitCode || 0}\n` +
-            `Time: ${UIHelpers.formatDuration(executionTime)}\n\n` +
-            `\`\`\`\n${fullOutput.slice(-2500)}\n\`\`\`` +
+            `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
+            (answerPreview ? `\n${answerPreview}\n` : '') +
+            commitsInfo +
             repoFooter;
+
+          // Completion buttons - just one row
+          const completionButtons = {
+            inline_keyboard: [
+              [
+                { text: '📋 View Log', callback_data: `view_log:${task.id}` }
+              ]
+            ]
+          };
 
           try {
             await this.bot.editMessageText(finalMessage, {
               chat_id: chatId,
               message_id: statusMsg.message_id,
-              parse_mode: 'Markdown'
+              parse_mode: 'Markdown',
+              reply_markup: completionButtons
             });
 
             // Send log file as a document
@@ -290,21 +274,17 @@ export class TaskHandlers extends BaseHandler {
                 contentType: 'text/plain'
               });
             }
-
-            // Send simple notification message
-            await this.bot.sendMessage(
-              chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
-              { parse_mode: 'Markdown' }
-            );
           } catch (error) {
-            // If message is too long, send as document
+            // If message is too long, send parsed answer as document (not raw JSON)
+            const documentContent = completedEvent?.type === 'completed' && completedEvent.answer
+              ? completedEvent.answer
+              : fullOutput;
             await this.bot.sendDocument(
               chatId,
-              Buffer.from(fullOutput),
+              Buffer.from(documentContent),
               {},
               {
-                filename: 'task-output.txt',
+                filename: 'task-result.txt',
                 contentType: 'text/plain'
               }
             );
@@ -318,13 +298,6 @@ export class TaskHandlers extends BaseHandler {
                 reply_markup: repoKeyboard
               });
             }
-
-            // Send simple notification message
-            await this.bot.sendMessage(
-              chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\nTime: ${UIHelpers.formatDuration(executionTime)}`,
-              { parse_mode: 'Markdown' }
-            );
           }
 
           // Prompt user to create remote repository if needed
@@ -347,22 +320,6 @@ export class TaskHandlers extends BaseHandler {
                     ]
                   ]
                 }
-              }
-            );
-          }
-
-          // Show push error details if push failed
-          if (pushError) {
-            await this.bot.sendMessage(
-              chatId,
-              `⚠️ *Push Failed*\n\n${pushError}\n\n` +
-              `Common causes:\n` +
-              `• Not authenticated with GitHub\n` +
-              `• No network connection\n` +
-              `• Permission denied\n\n` +
-              `Check the logs with \`/logs ${task.id.substring(0, 8)}\` for more details.`,
-              {
-                parse_mode: 'Markdown'
               }
             );
           }
@@ -596,7 +553,63 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
+   * Build a status message from streaming events
+   */
+  private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number, provider: string = 'Claude'): string {
+    const lines: string[] = [];
+
+    // Clean header with time and provider
+    lines.push(`⏳ *${UIHelpers.formatDuration(elapsed)}* · ${provider}`);
+
+    // Recent completed actions (last 3, more compact)
+    const recentEvents = task.events
+      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'completed'; ok?: boolean; message?: string } =>
+        e.type === 'action' && e.phase === 'completed'
+      )
+      .slice(-3);
+
+    if (recentEvents.length > 0 || task.currentAction) {
+      lines.push('');
+
+      // Show recent actions
+      for (const event of recentEvents) {
+        const icon = event.ok === false ? '✗' : '›';
+        const actionTitle = this.formatAction(event.action);
+        lines.push(`${icon} ${actionTitle}`);
+      }
+
+      // Current action (if any)
+      if (task.currentAction) {
+        lines.push(`› ${this.formatAction(task.currentAction)}...`);
+      }
+    } else {
+      lines.push('');
+      lines.push('_Starting..._');
+    }
+
+    return lines.join('\n');
+  }
+
+  /**
+   * Format an action for display
+   */
+  private formatAction(action: StreamAction): string {
+    let title = action.title;
+
+    // Truncate long titles
+    if (title.length > 60) {
+      title = title.substring(0, 57) + '...';
+    }
+
+    // Escape markdown special characters
+    title = title.replace(/[_*`[\]]/g, '\\$&');
+
+    return title;
+  }
+
+  /**
    * Parse Claude's output to extract current action/file being worked on
+   * @deprecated Use streaming events instead
    */
   private parseCurrentAction(output: string): string | null {
     if (!output) return null;

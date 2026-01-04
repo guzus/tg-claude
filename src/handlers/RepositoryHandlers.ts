@@ -3,6 +3,7 @@ import { BaseHandler } from './BaseHandler';
 import { RepositoryType, Repository } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
+import { stateManager } from '../services/StateManager';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 
@@ -745,6 +746,158 @@ export class RepositoryHandlers extends BaseHandler {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       await this.bot.sendMessage(chatId, `❌ Failed to remove remote:\n${errorMessage}`);
+    }
+  }
+
+  /**
+   * /new_repo command - Create new repository with interactive prompts
+   */
+  async handleNewRepoCommand(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const name = match?.[1]?.trim();
+
+    if (name) {
+      // Name provided, ask for visibility
+      await this.askVisibility(chatId, name);
+    } else {
+      // No name provided, ask for name first
+      const statusMsg = await this.bot.sendMessage(
+        chatId,
+        '📁 *Create New Repository*\n\nWhat should the repository be named?',
+        { parse_mode: 'Markdown' }
+      );
+
+      // Store pending state
+      stateManager.setPendingNewRepoName(userId, {
+        userId,
+        chatId,
+        messageId: statusMsg.message_id
+      });
+    }
+  }
+
+  /**
+   * Handle name input for /new_repo
+   */
+  async handleNewRepoNameInput(userId: number, chatId: number, name: string): Promise<void> {
+    const pending = stateManager.getPendingNewRepoName(userId);
+    if (!pending) return;
+
+    stateManager.clearPendingNewRepoName(userId);
+
+    // Validate name
+    if (!/^[a-zA-Z0-9_-]+$/.test(name)) {
+      await this.bot.sendMessage(
+        chatId,
+        `Invalid name: \`${name}\`\n\nUse only letters, numbers, hyphens, and underscores.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    await this.askVisibility(chatId, name);
+  }
+
+  /**
+   * Ask for repository visibility (public/private)
+   */
+  private async askVisibility(chatId: number, name: string): Promise<void> {
+    await this.bot.sendMessage(
+      chatId,
+      `📁 *${UIHelpers.escapeMarkdown(name)}*\n\nChoose visibility:`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🌐 Public', callback_data: `newrepo_public_${name}` },
+              { text: '🔒 Private', callback_data: `newrepo_private_${name}` }
+            ],
+            [
+              { text: '❌ Cancel', callback_data: 'newrepo_cancel' }
+            ]
+          ]
+        }
+      }
+    );
+  }
+
+  /**
+   * Handle visibility callback for /new_repo
+   */
+  async handleNewRepoVisibility(
+    chatId: number,
+    messageId: number,
+    userId: number,
+    visibility: 'public' | 'private',
+    name: string
+  ): Promise<void> {
+    const isPrivate = visibility === 'private';
+
+    // Update message to show progress
+    await this.bot.editMessageText(
+      `Creating \`${name}\`...`,
+      { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+    );
+
+    try {
+      // Create local repository first
+      const repo = await this.repositoryManager.createRepository(userId, name);
+
+      // Initialize git
+      await execAsync('git init', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
+
+      // Create initial commit
+      await execAsync('git add . || true', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
+
+      // Create GitHub repository
+      const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+
+      if (result === 'success') {
+        await this.repositoryManager.refreshRepository(userId, repo.id);
+        await this.updatePinnedRepositoryInfo(chatId, userId);
+
+        const escapedName = UIHelpers.escapeMarkdown(repo.name);
+        const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+
+        await this.bot.editMessageText(
+          `✅ *Repository created!*\n\n` +
+          `📁 ${escapedName}\n` +
+          `${isPrivate ? '🔒 Private' : '🌐 Public'}\n` +
+          `📂 \`${escapedPath}\``,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [[{ text: '📂 View', callback_data: 'repo_current' }]]
+            }
+          }
+        );
+      } else if (result === 'already_exists') {
+        await this.bot.editMessageText(
+          `Repository \`${name}\` already exists on GitHub.\n\nTry a different name with /new_repo`,
+          { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+        );
+      } else {
+        await this.bot.editMessageText(
+          `Failed to create GitHub repository.\n\nLocal repo created at \`${repo.path}\``,
+          { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+        );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(
+        `Error: ${errorMessage}`,
+        { chat_id: chatId, message_id: messageId }
+      );
+      logger.error('Failed to create new repo', { userId, name, error: errorMessage });
     }
   }
 }

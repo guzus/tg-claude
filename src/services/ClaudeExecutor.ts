@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { ClaudeTask, TaskStatus, AIProviderConfig } from '../types';
+import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
@@ -9,16 +9,21 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
+import { StreamingOutputParser } from './StreamingOutputParser';
+import { EventEmitter } from 'events';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(process.cwd(), 'logs', 'tasks');
 
-export class ClaudeExecutor {
+export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
-  private taskHistory: Map<string, ClaudeTask> = new Map();
+  private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
+  private taskParsers: Map<string, StreamingOutputParser> = new Map();
+  private taskInitialHeads: Map<string, string> = new Map();  // Store initial HEAD per task
 
   constructor() {
+    super();
     if (!fs.existsSync(TASK_LOGS_DIR)) {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
@@ -63,7 +68,7 @@ export class ClaudeExecutor {
     chatId: number,
     prompt: string,
     options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
-  ): Promise<ClaudeTask> {
+  ): Promise<ClaudeTaskWithStreaming> {
     const {
       workingDir = WORKSPACE_PATH,
       dangerMode = true,
@@ -72,7 +77,7 @@ export class ClaudeExecutor {
       aiProvider
     } = options;
 
-    const task: ClaudeTask = {
+    const task: ClaudeTaskWithStreaming = {
       id: uuidv4(),
       userId,
       chatId,
@@ -81,7 +86,9 @@ export class ClaudeExecutor {
       status: TaskStatus.PENDING,
       startTime: new Date(),
       output: '',
-      errorOutput: ''
+      errorOutput: '',
+      actions: [],
+      events: []
     };
 
     logger.info('Starting task', { taskId: task.id, userId, prompt: prompt.substring(0, 100) });
@@ -93,8 +100,25 @@ export class ClaudeExecutor {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
       }
 
+      // Store initial HEAD to track commits made during task
+      try {
+        const { stdout } = await execAsync('git rev-parse HEAD', { cwd: workingDir, timeout: 5000 });
+        this.taskInitialHeads.set(task.id, stdout.trim());
+      } catch {
+        // Not a git repo or no commits yet - ignore
+      }
+
       const isRoot = process.getuid && process.getuid() === 0;
-      const args = [prompt, ...(dangerMode ? ['--dangerously-skip-permissions'] : []), ...additionalFlags];
+      // Use --output-format stream-json for structured streaming output
+      const args = [
+        '-p',  // Print mode (non-interactive)
+        '--output-format', 'stream-json',  // Enable JSON streaming
+        '--verbose',  // Include detailed events
+        ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
+        ...additionalFlags,
+        '--',  // Separator before prompt
+        prompt
+      ];
 
       // Configure AI provider environment variables
       const provider = aiProvider?.provider || 'anthropic';
@@ -138,6 +162,10 @@ export class ClaudeExecutor {
       task.status = TaskStatus.RUNNING;
       this.taskHistory.set(task.id, task);
 
+      // Create streaming parser for this task
+      const parser = new StreamingOutputParser();
+      this.taskParsers.set(task.id, parser);
+
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
       logStream.write(`Prompt: ${prompt}\nWorkingDir: ${workingDir}\n\n`);
@@ -163,6 +191,32 @@ export class ClaudeExecutor {
         task.output += chunk;
         this.taskLogFiles.get(task.id)?.write(chunk);
 
+        // Parse streaming JSON events
+        const taskParser = this.taskParsers.get(task.id);
+        if (taskParser) {
+          const events = taskParser.processChunk(chunk);
+          for (const event of events) {
+            task.events.push(event);
+
+            // Update task metadata based on events
+            if (event.type === 'started') {
+              task.sessionId = event.sessionId;
+            } else if (event.type === 'action') {
+              if (event.phase === 'started') {
+                task.currentAction = event.action;
+                task.actions.push(event.action);
+              } else if (event.phase === 'completed') {
+                task.currentAction = undefined;
+              }
+            } else if (event.type === 'completed') {
+              task.costUsd = event.costUsd;
+            }
+
+            // Emit event for real-time listeners
+            this.emit('streamEvent', task.id, event);
+          }
+        }
+
         if (task.output.length > config.maxOutputSize * 10) {
           task.output = task.output.slice(-config.maxOutputSize * 10);
         }
@@ -182,6 +236,7 @@ export class ClaudeExecutor {
       claudeProcess.on('close', (code: number | null) => {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         this.activeTasks.delete(task.id);
+        this.taskParsers.delete(task.id);
 
         task.exitCode = code || 0;
         task.endTime = new Date();
@@ -197,12 +252,22 @@ export class ClaudeExecutor {
           this.taskLogFiles.delete(task.id);
         }
 
-        logger.info('Task completed', { taskId: task.id, status: task.status, exitCode: code });
+        // Emit completion event
+        this.emit('taskComplete', task.id, task);
+
+        logger.info('Task completed', {
+          taskId: task.id,
+          status: task.status,
+          exitCode: code,
+          actionsCount: task.actions.length,
+          costUsd: task.costUsd
+        });
       });
 
       claudeProcess.on('error', (error: Error) => {
         if (timeoutHandle) clearTimeout(timeoutHandle);
         this.activeTasks.delete(task.id);
+        this.taskParsers.delete(task.id);
 
         task.status = TaskStatus.FAILED;
         task.errorOutput += error.message.includes('ENOENT')
@@ -212,6 +277,9 @@ export class ClaudeExecutor {
 
         this.taskLogFiles.get(task.id)?.end();
         this.taskLogFiles.delete(task.id);
+
+        // Emit error event
+        this.emit('taskError', task.id, error);
       });
 
       return task;
@@ -223,18 +291,43 @@ export class ClaudeExecutor {
     }
   }
 
-  getTask(taskId: string): ClaudeTask | undefined {
+  getTask(taskId: string): ClaudeTaskWithStreaming | undefined {
     return this.taskHistory.get(taskId);
   }
 
-  getActiveTasks(): ClaudeTask[] {
+  getActiveTasks(): ClaudeTaskWithStreaming[] {
     return Array.from(this.taskHistory.values()).filter(
       task => task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING
     );
   }
 
-  getActiveTasksForUser(userId: number): ClaudeTask[] {
+  getActiveTasksForUser(userId: number): ClaudeTaskWithStreaming[] {
     return this.getActiveTasks().filter(task => task.userId === userId);
+  }
+
+  /**
+   * Get current action being executed for a task
+   */
+  getCurrentAction(taskId: string): StreamAction | undefined {
+    const task = this.taskHistory.get(taskId);
+    return task?.currentAction;
+  }
+
+  /**
+   * Get all actions completed for a task
+   */
+  getTaskActions(taskId: string): StreamAction[] {
+    const task = this.taskHistory.get(taskId);
+    return task?.actions || [];
+  }
+
+  /**
+   * Get recent events for a task
+   */
+  getRecentEvents(taskId: string, limit: number = 10): StreamEvent[] {
+    const task = this.taskHistory.get(taskId);
+    if (!task) return [];
+    return task.events.slice(-limit);
   }
 
   cancelTask(taskId: string): boolean {
@@ -294,23 +387,114 @@ export class ClaudeExecutor {
     return result.success ? result.hash : null;
   }
 
+  /**
+   * Get commits made during task execution
+   */
+  async getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>> {
+    const initialHead = this.taskInitialHeads.get(taskId);
+    if (!initialHead) return [];
+
+    try {
+      // Get all commits since initial HEAD (excluding the initial HEAD itself)
+      const { stdout } = await execAsync(
+        `git log ${initialHead}..HEAD --format="%H|%s" --reverse`,
+        { cwd: workingDir, timeout: 10000 }
+      );
+
+      if (!stdout.trim()) return [];
+
+      return stdout.trim().split('\n').map(line => {
+        const [hash, ...messageParts] = line.split('|');
+        return { hash, message: messageParts.join('|') };
+      });
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Clean up task initial HEAD tracking
+   */
+  cleanupTaskHead(taskId: string): void {
+    this.taskInitialHeads.delete(taskId);
+  }
+
   private async generateCommitMessage(workingDir: string): Promise<string> {
     try {
-      const { stdout: gitDiff } = await execAsync('git diff HEAD', { cwd: workingDir, timeout: 10000 });
       const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
 
-      const diff = gitDiff.length > 8000 ? gitDiff.substring(0, 8000) + '\n...(truncated)' : gitDiff;
+      if (!gitStatus.trim()) {
+        return 'chore: update code';
+      }
 
-      const prompt = `Analyze changes and generate a conventional commit message (feat/fix/docs/etc). Files: ${gitStatus}\nDiff: ${diff}\n\nReturn ONLY the commit message.`;
+      const { stdout: gitDiff } = await execAsync('git diff HEAD --stat', { cwd: workingDir, timeout: 10000 });
 
-      const { stdout } = await execAsync(`claude "${prompt.replace(/"/g, '\\"')}"`, {
-        cwd: workingDir,
-        timeout: 30000
-      });
+      // Create a simpler prompt using bash heredoc
+      const prompt = `Based on these changes, generate ONE conventional commit message.
+Files: ${gitStatus.trim().split('\n').map(l => l.trim().split(/\s+/).pop()).join(', ')}
+Stats: ${gitDiff.trim().split('\n').slice(-1)[0] || 'changes'}
+Format: type(scope): description (under 72 chars)
+Types: feat, fix, refactor, docs, style, test, chore
+Reply with ONLY the commit message line.`;
 
-      return stdout.trim().split('\n')[0] || 'chore: Update code';
-    } catch {
-      return 'chore: Update code';
+      // Use Claude Haiku with simpler escaped prompt
+      const escapedPrompt = prompt.replace(/'/g, "'\\''");
+      const { stdout } = await execAsync(
+        `claude -p --model haiku $'${escapedPrompt}'`,
+        {
+          cwd: workingDir,
+          timeout: 20000,
+          env: { ...process.env },
+          shell: '/bin/bash'
+        }
+      );
+
+      // Parse output - handle JSON stream format if present
+      let message = '';
+      const lines = stdout.trim().split('\n');
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        // Try to parse as JSON (stream format)
+        try {
+          const json = JSON.parse(trimmed);
+          if (json.type === 'result' && json.result) {
+            message = json.result.trim();
+            break;
+          }
+        } catch {
+          // Not JSON, might be plain text output
+          // Look for conventional commit pattern
+          if (/^(feat|fix|refactor|docs|style|test|chore|build|ci|perf)(\(.+?\))?:/.test(trimmed)) {
+            message = trimmed;
+            break;
+          }
+        }
+      }
+
+      // If no valid message found, try last non-empty line
+      if (!message) {
+        message = lines.filter(l => l.trim()).pop() || 'chore: update code';
+      }
+
+      // Clean up the message
+      message = message
+        .replace(/^["'`]|["'`]$/g, '')  // Remove quotes
+        .replace(/^\*\*|\*\*$/g, '')     // Remove markdown bold
+        .trim();
+
+      // Validate it looks like a commit message
+      if (message.length < 5 || message.length > 100 || message.includes('\n')) {
+        return 'chore: update code';
+      }
+
+      logger.debug('Generated commit message', { message });
+      return message;
+    } catch (error) {
+      logger.debug('Commit message generation failed', { error: error instanceof Error ? error.message : String(error) });
+      return 'chore: update code';
     }
   }
 

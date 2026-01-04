@@ -214,23 +214,18 @@ export class UIHelpers {
    */
   static createRepositoryFooter(currentRepo: Repository | null): string {
     if (!currentRepo) {
-      return '\n\n━━━━━━━━━━━━━━━━━━\n📂 *No repository selected*';
+      return '';
     }
 
     const webUrl = this.convertGitUrlToWeb(currentRepo.gitUrl);
-    const typeEmoji = this.getRepoTypeEmoji(currentRepo.type);
 
     // Escape special characters for Markdown
     const escapedName = this.escapeMarkdown(currentRepo.name);
     const escapedBranch = this.escapeMarkdown(currentRepo.branch || 'main');
-    const escapedPath = this.escapeMarkdown(currentRepo.path);
 
-    return (
-      '\n\n━━━━━━━━━━━━━━━━━━\n' +
-      `${typeEmoji} *${escapedName}*\n` +
-      `🌿 ${escapedBranch} | ` +
-      `${webUrl ? `[View on GitHub](${webUrl})` : escapedPath}`
-    );
+    // Clean, minimal footer
+    const repoLink = webUrl ? `[${escapedName}](${webUrl})` : escapedName;
+    return `\n─────────\n📂 ${repoLink} · \`${escapedBranch}\``;
   }
 
   /**

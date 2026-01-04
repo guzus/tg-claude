@@ -41,6 +41,7 @@ export class CallbackQueryHandler extends BaseHandler {
         refresh: () => this.handleRefreshAction(chatId, messageId, userId, subAction),
         create: () => this.handleCreateRepoAction(chatId, messageId, userId, params),
         new: () => this.handleNewRepoAction(chatId, messageId, userId, params),
+        newrepo: () => this.handleNewRepoCommandCallback(chatId, messageId, userId, subAction),
         config: () => this.handleConfigAction(chatId, messageId, userId, subAction),
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
         view: () => this.handleViewLog(chatId, userId, subAction),
@@ -451,6 +452,73 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
       } else {
         await this.bot.sendMessage(chatId, 'Could not stop. Session may have completed.');
       }
+    }
+  }
+
+  private async handleNewRepoCommandCallback(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (subAction === 'cancel') {
+      await this.editMessage(chatId, messageId, 'Cancelled.');
+      return;
+    }
+
+    // Format: public_reponame or private_reponame
+    const parts = subAction.split('_');
+    const visibility = parts[0] as 'public' | 'private';
+    const name = parts.slice(1).join('_');
+
+    if (!name || (visibility !== 'public' && visibility !== 'private')) {
+      await this.bot.sendMessage(chatId, 'Invalid action');
+      return;
+    }
+
+    const isPrivate = visibility === 'private';
+
+    // Update message to show progress
+    await this.editMessage(chatId, messageId, `Creating \`${name}\`...`);
+
+    try {
+      // Create local repository first
+      const repo = await this.repositoryManager.createRepository(userId, name);
+
+      // Initialize git
+      await execAsync('git init', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git config user.name "tg-claude"', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git config user.email "claude-code@remote.machine"', { cwd: repo.path, timeout: 5000 });
+
+      // Create initial commit
+      await execAsync('git add . || true', { cwd: repo.path, timeout: 5000 });
+      await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
+
+      // Create GitHub repository
+      const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+
+      if (result === 'success') {
+        await this.repositoryManager.refreshRepository(userId, repo.id);
+        await this.updatePinnedRepositoryInfo(chatId, userId);
+
+        const escapedName = UIHelpers.escapeMarkdown(repo.name);
+        const escapedPath = UIHelpers.escapeMarkdown(repo.path);
+
+        await this.editMessage(chatId, messageId,
+          `✅ *Repository created!*\n\n` +
+          `📁 ${escapedName}\n` +
+          `${isPrivate ? '🔒 Private' : '🌐 Public'}\n` +
+          `📂 \`${escapedPath}\``,
+          { inline_keyboard: [[{ text: '📂 View', callback_data: 'repo_current' }]] }
+        );
+      } else if (result === 'already_exists') {
+        await this.editMessage(chatId, messageId,
+          `Repository \`${name}\` already exists on GitHub.\n\nTry a different name with /new_repo`
+        );
+      } else {
+        await this.editMessage(chatId, messageId,
+          `Failed to create GitHub repository.\n\nLocal repo created at \`${repo.path}\``
+        );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.editMessage(chatId, messageId, `Error: ${errorMessage}`);
+      logger.error('Failed to create new repo via callback', { userId, name, error: errorMessage });
     }
   }
 
