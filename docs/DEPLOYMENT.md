@@ -131,9 +131,9 @@ This is pre-configured in the template.
 
 1. Open Telegram and find your bot (search for the username you created)
 2. Send `/start` to see the welcome message
-3. Try a simple task:
+3. Try a simple task (just type a message):
    ```
-   /task Create a hello world Python script
+   Create a hello world Python script
    ```
 
 ## Troubleshooting
@@ -178,4 +178,41 @@ To manually redeploy:
 - Set up repositories with `/repo clone <url>`
 - Try autonomous mode with `/beast <task>`
 - See [TELEGRAM_COMMANDS.md](./TELEGRAM_COMMANDS.md) for all commands
+
+## Using GLM Instead of Claude (Optional)
+
+You can use [GLM-4](https://docs.z.ai/devpack/tool/claude) as an alternative AI provider. GLM is Zhipu AI's model available through Z.ai's Anthropic-compatible API.
+
+### Get a Z.ai API Key
+
+1. Go to [Z.ai API Key Management](https://z.ai/manage-apikey/apikey-list)
+2. Create a new API key
+3. Copy the key
+
+### Switch to GLM
+
+In Telegram, configure your bot to use GLM:
+
+```
+/config set aiProvider.provider glm
+/config set aiProvider.apiKey YOUR_ZAI_API_KEY
+```
+
+### Switch Back to Claude
+
+```
+/config set aiProvider.provider anthropic
+```
+
+### Model Mapping
+
+When using GLM, models are automatically mapped:
+
+| Claude Model | GLM Model |
+|--------------|-----------|
+| Haiku | GLM-4.5-Air |
+| Sonnet | GLM-4.7 |
+| Opus | GLM-4.7 |
+
+See [Z.ai Claude Integration Docs](https://docs.z.ai/devpack/tool/claude) for more details.
 
