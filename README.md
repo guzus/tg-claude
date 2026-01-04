@@ -94,10 +94,7 @@ GITHUB_TOKEN=ghp_xxx                   # Optional, for private repos
 
 [![Deploy on Railway](https://railway.app/button.svg)](https://railway.com/deploy/hEF-Y8?referralCode=56ZSuE)
 
-1. Click the button above
-2. Set environment variables in Railway dashboard
-3. Add a volume mounted at `/persistent`
-4. Deploy
+📖 **[Full Deployment Guide](./docs/DEPLOYMENT.md)** - Step-by-step tutorial for setting up Telegram bot, GitHub token, Claude OAuth, and Railway deployment.
 
 **Option B: Docker Compose (Recommended for VPS)**
 
