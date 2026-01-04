@@ -6,7 +6,15 @@ import { AuditLogger } from '../services/AuditLogger';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
-import { McpConfig, McpServer, UserConfig, AIProvider } from '../types';
+import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
+
+// Default Anthropic models used by Claude Code
+// Per docs: https://docs.claude.com/en/docs/claude-code/model-config
+const ANTHROPIC_MODELS = {
+  haiku: 'Haiku 4.5',
+  sonnet: 'Sonnet 4.5',
+  opus: 'Opus 4.5'
+};
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
@@ -119,7 +127,7 @@ export class ConfigHandlers extends BaseHandler {
       `• \`git.userEmail\` - Git user email\n` +
       `• \`techStack.typescript\` - TS (bun/npm/pnpm/yarn)\n` +
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
-      `• \`aiProvider.provider\` - AI provider (anthropic/glm)\n` +
+      `• \`aiProvider.provider\` - AI provider (anthropic/glm/openrouter)\n` +
       `• \`aiProvider.apiKey\` - Provider API key\n` +
       `• \`limits.maxConcurrentTasks\` - Max tasks\n\n` +
       `Example:\n` +
@@ -163,7 +171,20 @@ export class ConfigHandlers extends BaseHandler {
     const providerDisplay = config.aiProvider?.provider || 'anthropic';
     const hasApiKey = config.aiProvider?.apiKey ? '✅ Set' : '❌ Not set';
 
-    const isGlm = providerDisplay === 'glm';
+    // Get model mappings based on provider (use custom models if configured)
+    const aiProviderConfig = config.aiProvider;
+    const getModels = () => {
+      if (providerDisplay === 'glm') return GLM_MODEL_MAPPINGS;
+      if (providerDisplay === 'openrouter') {
+        return {
+          haiku: aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
+          sonnet: aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
+          opus: aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus
+        };
+      }
+      return ANTHROPIC_MODELS;
+    };
+    const models = getModels();
 
     const message =
       `⚙️ *Your Configuration*\n\n` +
@@ -171,31 +192,41 @@ export class ConfigHandlers extends BaseHandler {
       `👤 User Name: \`${config.git?.userName || 'Not set'}\`\n` +
       `📧 User Email: \`${config.git?.userEmail || 'Not set'}\`\n` +
       `🌿 Default Branch: \`${config.git?.defaultBranch || 'main'}\`\n\n` +
-      `*AI Provider:* ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}\n` +
-      `🔑 API Key: ${hasApiKey}\n\n` +
+      `*AI Provider:*\n` +
+      `🤖 Provider: \`${providerDisplay}\`\n` +
+      `🔑 API Key: ${hasApiKey}\n` +
+      `📊 Models:\n` +
+      `   Haiku → \`${models.haiku}\`\n` +
+      `   Sonnet → \`${models.sonnet}\`\n` +
+      `   Opus → \`${models.opus}\`\n\n` +
       `*Tech Stack:*\n` +
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
       `*Preferences:*\n` +
-      `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n\n` +
+      `💾 Auto Commit: ${config.preferences?.autoCommit ? '✅' : '❌'}\n` +
+      `📤 Auto Push: ${config.preferences?.autoPush ? '✅' : '❌'}\n` +
+      `🔔 Notify on Complete: ${config.preferences?.notifyOnTaskComplete ? '✅' : '❌'}\n` +
+      `⚠️ Danger Mode: ${config.preferences?.dangerModeEnabled ? '✅' : '❌'}\n\n` +
       `*Limits:*\n` +
       `🔢 Max Concurrent Tasks: \`${config.limits?.maxConcurrentTasks || 3}\`\n` +
       `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
       `_Last updated: ${config.updatedAt.toLocaleString()}_`;
 
-    const toggleButton = isGlm
-      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
-      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
-
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
-          [toggleButton],
           [
-            { text: '👤 Git', callback_data: 'config_git' },
-            { text: '🛠️ Tech', callback_data: 'config_techstack' },
-            { text: '📊 Limits', callback_data: 'config_limits' }
+            { text: '👤 Edit Git', callback_data: 'config_git' },
+            { text: '⚙️ Edit Preferences', callback_data: 'config_preferences' }
+          ],
+          [
+            { text: '🛠️ Edit Tech Stack', callback_data: 'config_techstack' },
+            { text: '🤖 Edit AI Provider', callback_data: 'config_aiprovider' }
+          ],
+          [
+            { text: '📊 Edit Limits', callback_data: 'config_limits' },
+            { text: '🔙 Back to Config Menu', callback_data: 'config_menu' }
           ]
         ]
       }
@@ -317,7 +348,7 @@ export class ConfigHandlers extends BaseHandler {
   }
 
   private validateAIProviderValue(field: string, value: string): void {
-    const validProviders: AIProvider[] = ['anthropic', 'glm'];
+    const validProviders: AIProvider[] = ['anthropic', 'glm', 'openrouter'];
 
     if (field === 'provider') {
       if (!validProviders.includes(value as AIProvider)) {

@@ -120,9 +120,9 @@ export class ClaudeExecutor extends EventEmitter {
         prompt
       ];
 
-      // Configure AI provider environment variables
+      // Configure AI provider environment variables (pass full config for custom models)
       const provider = aiProvider?.provider || 'anthropic';
-      const env = configureProviderEnv(provider, aiProvider?.apiKey);
+      const env = configureProviderEnv(provider, aiProvider?.apiKey, aiProvider);
       
       // Override for default Anthropic to use opus model
       if (provider === 'anthropic') {
@@ -134,7 +134,7 @@ export class ClaudeExecutor extends EventEmitter {
         env.CLAUDE_AUTO_APPROVE = '1';
         env.CI = 'true';
       }
-      
+
       logger.info('Using AI provider', { provider });
 
       const claudeProcess = spawn('claude', args, {
