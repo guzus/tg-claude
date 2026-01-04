@@ -1,3 +1,6 @@
+// Acknowledge we're following telegram-bot-api file sending best practices (Buffer + contentType)
+process.env.NTBA_FIX_350 = '1';
+
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
 import { config, validateConfig } from './config';

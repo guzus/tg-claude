@@ -441,12 +441,17 @@ export class ClaudeExecutor extends EventEmitter {
       }
 
       // Parse file changes from git status properly
+      // Format: "XY filename" or "XY old -> new" for renames
       const fileChanges = gitStatus.trim().split('\n').map(line => {
-        const status = line.substring(0, 2);
-        const file = line.substring(3);
+        const match = line.match(/^(.{1,2})\s+(.+)$/);
+        if (!match) return line.trim();
+        const [, status, filePath] = match;
+        // Handle rename format "old -> new"
+        const file = filePath.includes(' -> ') ? filePath.split(' -> ')[1] : filePath;
         const statusDesc = status.includes('A') ? 'added' :
                           status.includes('M') ? 'modified' :
                           status.includes('D') ? 'deleted' :
+                          status.includes('R') ? 'renamed' :
                           status.includes('?') ? 'new' : 'changed';
         return `${file} (${statusDesc})`;
       }).join(', ');
@@ -523,7 +528,9 @@ Reply with ONLY the commit message, nothing else.`;
       // Validate it looks like a commit message
       if (message.length < 5 || message.length > 100 || message.includes('\n')) {
         // Fallback: generate basic message from file names
-        const firstFile = gitStatus.trim().split('\n')[0]?.substring(3) || 'files';
+        const firstLine = gitStatus.trim().split('\n')[0] || '';
+        const fileMatch = firstLine.match(/^.{1,2}\s+(.+)$/);
+        const firstFile = fileMatch ? fileMatch[1] : 'files';
         return `chore: update ${path.basename(firstFile)}`;
       }
 
@@ -534,7 +541,9 @@ Reply with ONLY the commit message, nothing else.`;
       // Fallback with file context
       try {
         const { stdout: status } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
-        const firstFile = status.trim().split('\n')[0]?.substring(3) || 'files';
+        const firstLine = status.trim().split('\n')[0] || '';
+        const fileMatch = firstLine.match(/^.{1,2}\s+(.+)$/);
+        const firstFile = fileMatch ? fileMatch[1] : 'files';
         return `chore: update ${path.basename(firstFile)}`;
       } catch {
         return 'chore: update code';
