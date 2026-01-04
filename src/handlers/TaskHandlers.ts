@@ -59,11 +59,14 @@ export class TaskHandlers extends BaseHandler {
     const commitMessageContext = originalUserRequest || prompt;
 
     try {
-      // Send initial status message
+      // Send initial status message as reply to user's instruction
       const statusMsg = await this.bot.sendMessage(
         chatId,
         `🤖 Task started...\n\n\`\`\`\n${commitMessageContext.substring(0, 200)}\n\`\`\``,
-        { parse_mode: 'Markdown' }
+        {
+          parse_mode: 'Markdown',
+          reply_to_message_id: msg.message_id
+        }
       );
 
       // Get user-specific timeout if available
@@ -264,11 +267,22 @@ export class TaskHandlers extends BaseHandler {
             (answerPreview ? `\n*Result:*\n${answerPreview}\n` : '') +
             repoFooter;
 
+          // Create completion buttons (transform Cancel to Done)
+          const completionButtons = {
+            inline_keyboard: [
+              [
+                { text: '✅ Done', callback_data: `view_log:${task.id}` },
+                { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+              ]
+            ]
+          };
+
           try {
             await this.bot.editMessageText(finalMessage, {
               chat_id: chatId,
               message_id: statusMsg.message_id,
-              parse_mode: 'Markdown'
+              parse_mode: 'Markdown',
+              reply_markup: completionButtons
             });
 
             // Send log file as a document
@@ -282,13 +296,6 @@ export class TaskHandlers extends BaseHandler {
                 contentType: 'text/plain'
               });
             }
-
-            // Send simple notification message with streaming stats
-            await this.bot.sendMessage(
-              chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\n${statsLine}`,
-              { parse_mode: 'Markdown' }
-            );
           } catch (error) {
             // If message is too long, send parsed answer as document (not raw JSON)
             const documentContent = completedEvent?.type === 'completed' && completedEvent.answer
@@ -313,13 +320,6 @@ export class TaskHandlers extends BaseHandler {
                 reply_markup: repoKeyboard
               });
             }
-
-            // Send simple notification message with streaming stats
-            await this.bot.sendMessage(
-              chatId,
-              `${statusEmoji} *Task ${statusText}!*\n\n${statsLine}`,
-              { parse_mode: 'Markdown' }
-            );
           }
 
           // Prompt user to create remote repository if needed

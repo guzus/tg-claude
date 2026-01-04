@@ -229,6 +229,13 @@ export class StreamingOutputParser {
     }
 
     if (tool === 'note') {
+      const text = String(input.text || '').trim();
+      if (text) {
+        // Show first line or truncated preview
+        const firstLine = text.split('\n')[0];
+        const preview = firstLine.length > 50 ? firstLine.substring(0, 47) + '...' : firstLine;
+        return preview || 'Note';
+      }
       return 'Note';
     }
 
