@@ -90,17 +90,21 @@ export interface TechStackPreferences {
 }
 
 // AI Provider Types
-export type AIProvider = 'anthropic' | 'glm';
+export type AIProvider = 'anthropic' | 'glm' | 'openrouter';
 
 export interface AIProviderConfig {
   provider: AIProvider;
   apiKey?: string;        // Provider-specific API key (stored separately from Anthropic)
-  model?: string;         // Optional model override
+  model?: string;         // Optional model override (legacy)
+  haikuModel?: string;    // Custom model for Haiku slot
+  sonnetModel?: string;   // Custom model for Sonnet slot
+  opusModel?: string;     // Custom model for Opus slot
 }
 
 export const AI_PROVIDER_ENDPOINTS: Record<AIProvider, string | undefined> = {
   anthropic: undefined,   // Uses default Anthropic endpoint
-  glm: 'https://api.z.ai/api/anthropic'  // Z.ai GLM endpoint
+  glm: 'https://api.z.ai/api/anthropic',  // Z.ai GLM endpoint
+  openrouter: 'https://openrouter.ai/api'  // OpenRouter endpoint
 };
 
 // GLM model mappings for Claude Code's internal model slots (Haiku/Sonnet/Opus)
@@ -109,6 +113,14 @@ export const GLM_MODEL_MAPPINGS = {
   haiku: 'GLM-4.5-Air',
   sonnet: 'GLM-4.7',
   opus: 'GLM-4.7'
+};
+
+// OpenRouter default model mappings (users can override via env vars or config)
+// Per OpenRouter docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
+export const OPENROUTER_MODEL_MAPPINGS = {
+  haiku: 'minimax/minimax-m2.1',
+  sonnet: 'minimax/minimax-m2.1',
+  opus: 'minimax/minimax-m2.1'
 };
 
 export interface McpServer {

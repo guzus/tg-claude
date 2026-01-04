@@ -45,7 +45,7 @@ export class CallbackQueryHandler extends BaseHandler {
         newrepo: () => this.handleNewRepoCommandCallback(chatId, messageId, userId, subAction),
         config: () => this.handleConfigAction(chatId, messageId, userId, subAction),
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
-        view: () => this.handleViewLog(chatId, userId, subAction),
+        view: () => this.handleViewAction(chatId, userId, subAction),
         beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction)
       };
@@ -74,6 +74,8 @@ export class CallbackQueryHandler extends BaseHandler {
       current: () => this.showCurrentRepo(chatId, messageId, userId),
       switch_menu: () => this.showRepoList(chatId, messageId, userId),
       add_menu: () => this.showAddRepoInstructions(chatId, messageId),
+      clone_menu: () => this.showCloneInstructions(chatId, messageId),
+      new_menu: () => this.showNewRepoInstructions(chatId, messageId),
       link: () => this.showRepoLink(chatId, messageId, userId)
     };
 
@@ -96,17 +98,26 @@ export class CallbackQueryHandler extends BaseHandler {
 
     if (repositories.length === 0) {
       await this.editMessage(chatId, messageId,
-        '*Your Repositories*\n\nNo repositories found.\n\n' +
-        '`/repo clone <url>` - Clone repository\n' +
-        '`/repo new <name>` - Create new\n' +
-        '`/repo add <path>` - Add existing',
+        `No repositories yet\n\n` +
+        `\`/repo clone owner/repo\`\n` +
+        `\`/repo new name\``,
         UIHelpers.createRepoActionMenu()
       );
       return;
     }
 
+    // Build compact list
+    const lines: string[] = [];
+    for (const repo of repositories) {
+      const isCurrent = currentRepo?.id === repo.id;
+      const escapedName = UIHelpers.escapeMarkdown(repo.name);
+      const branch = repo.branch ? UIHelpers.escapeMarkdown(repo.branch) : 'main';
+      const marker = isCurrent ? '▸ ' : '  ';
+      lines.push(`${marker}*${escapedName}* · \`${branch}\``);
+    }
+
     await this.editMessage(chatId, messageId,
-      `*Your Repositories*\n\nFound ${repositories.length} ${repositories.length === 1 ? 'repository' : 'repositories'}. Select to switch:`,
+      lines.join('\n'),
       UIHelpers.createRepositoryListKeyboard(repositories, currentRepo?.id || null)
     );
   }
@@ -124,6 +135,23 @@ export class CallbackQueryHandler extends BaseHandler {
       '*Create:* `/repo new <name>`\n' +
       '*Add existing:* `/repo add <path>`',
       { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_menu' }]] }
+    );
+  }
+
+  private async showCloneInstructions(chatId: number, messageId: number): Promise<void> {
+    await this.editMessage(chatId, messageId,
+      `*Clone Repository*\n\n` +
+      `\`/repo clone owner/repo\`\n` +
+      `\`/repo clone https://github.com/...\``,
+      { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_list' }]] }
+    );
+  }
+
+  private async showNewRepoInstructions(chatId: number, messageId: number): Promise<void> {
+    await this.editMessage(chatId, messageId,
+      `*Create Repository*\n\n` +
+      `\`/repo new my-project\``,
+      { inline_keyboard: [[{ text: 'Back', callback_data: 'repo_list' }]] }
     );
   }
 
@@ -404,19 +432,26 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
-    const newProvider = subAction === 'switch_glm' ? 'glm' : 'anthropic';
+    // Extract provider from "switch_<provider>"
+    const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
     await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
 
-    const isGlm = newProvider === 'glm';
-    const toggleButton = isGlm
-      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
-      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+    const providerLabels: Record<string, string> = {
+      anthropic: 'Claude',
+      glm: 'GLM',
+      openrouter: 'OpenRouter'
+    };
+
+    // Build buttons for other providers
+    const buttons = (['anthropic', 'glm', 'openrouter'] as const)
+      .filter(p => p !== newProvider)
+      .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
     await this.editMessage(
       chatId,
       messageId,
-      `✅ *Switched to ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}*`,
-      { inline_keyboard: [[toggleButton]] }
+      `*${providerLabels[newProvider]}*`,
+      { inline_keyboard: [buttons] }
     );
   }
 
@@ -438,6 +473,14 @@ export class CallbackQueryHandler extends BaseHandler {
     }
   }
 
+  private async handleViewAction(chatId: number, userId: number, subAction: string): Promise<void> {
+    if (subAction.startsWith('download:')) {
+      await this.handleDownloadLog(chatId, userId, subAction.replace('download:', ''));
+    } else {
+      await this.handleViewLog(chatId, userId, subAction);
+    }
+  }
+
   private async handleViewLog(chatId: number, userId: number, taskId: string): Promise<void> {
     const actualTaskId = taskId.replace('log:', '');
     const task = this.executor.getTask(actualTaskId);
@@ -447,20 +490,107 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
+    // Get log content
     const logFilePath = this.executor.getTaskLogFilePath(actualTaskId);
+    let rawLog: string;
 
     if (logFilePath) {
-      await this.bot.sendDocument(chatId, Buffer.from(readFileSync(logFilePath)), {
-        caption: `Log: \`${actualTaskId.substring(0, 8)}\``,
-        parse_mode: 'Markdown'
-      }, { filename: `task-${actualTaskId.substring(0, 8)}.log`, contentType: 'text/plain' });
+      rawLog = readFileSync(logFilePath, 'utf-8');
     } else {
-      const output = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
-      await this.bot.sendDocument(chatId, Buffer.from(output), {
-        caption: `Log: \`${actualTaskId.substring(0, 8)}\``,
-        parse_mode: 'Markdown'
-      }, { filename: `task-${actualTaskId.substring(0, 8)}.log`, contentType: 'text/plain' });
+      rawLog = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
     }
+
+    // Parse the log to extract meaningful content
+    const parsedLog = this.parseLogContent(rawLog);
+
+    // Telegram message limit is 4096 chars, reserve some for formatting
+    const MAX_LENGTH = 3800;
+    const shortId = actualTaskId.substring(0, 8);
+
+    if (parsedLog.length <= MAX_LENGTH) {
+      await this.bot.sendMessage(chatId, `📋 *Log* \`${shortId}\`\n\n${parsedLog}`, {
+        parse_mode: 'Markdown'
+      });
+    } else {
+      const truncated = parsedLog.substring(parsedLog.length - MAX_LENGTH);
+      await this.bot.sendMessage(
+        chatId,
+        `📋 *Log* \`${shortId}\` (last ${MAX_LENGTH} chars)\n\n${truncated}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[{ text: '📥 Download Full Log', callback_data: `view_download:${actualTaskId}` }]]
+          }
+        }
+      );
+    }
+  }
+
+  private parseLogContent(rawLog: string): string {
+    const lines: string[] = [];
+    const jsonLines = rawLog.split('\n');
+
+    for (const line of jsonLines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      // Try to parse as JSON (Claude Code stream format)
+      try {
+        const event = JSON.parse(trimmed);
+
+        if (event.type === 'assistant' && event.message?.content) {
+          for (const block of event.message.content) {
+            if (block.type === 'text' && block.text) {
+              lines.push(block.text);
+            } else if (block.type === 'tool_use') {
+              const toolName = block.name || 'tool';
+              lines.push(`🔧 ${toolName}`);
+            }
+          }
+        } else if (event.type === 'result') {
+          if (event.result) {
+            lines.push(`\n✅ Result: ${event.result.substring(0, 500)}${event.result.length > 500 ? '...' : ''}`);
+          }
+          if (event.total_cost_usd) {
+            lines.push(`💰 Cost: $${event.total_cost_usd.toFixed(4)}`);
+          }
+        }
+      } catch {
+        // Not JSON - check if it's meaningful text (not file content dump)
+        // Skip lines that look like file content with line numbers (e.g., "   123→")
+        if (!/^\s*\d+→/.test(trimmed) && !trimmed.startsWith('<') && trimmed.length < 200) {
+          // Skip common noise patterns
+          if (!trimmed.includes('system-reminder') && !trimmed.includes('tool_use_result')) {
+            lines.push(trimmed);
+          }
+        }
+      }
+    }
+
+    return lines.join('\n') || 'No parsed content available.';
+  }
+
+  private async handleDownloadLog(chatId: number, userId: number, taskId: string): Promise<void> {
+    const task = this.executor.getTask(taskId);
+
+    if (!task || task.userId !== userId) {
+      await this.bot.sendMessage(chatId, 'Task not found');
+      return;
+    }
+
+    const logFilePath = this.executor.getTaskLogFilePath(taskId);
+    let logContent: string;
+
+    if (logFilePath) {
+      logContent = readFileSync(logFilePath, 'utf-8');
+    } else {
+      logContent = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
+    }
+
+    await this.bot.sendDocument(chatId, Buffer.from(logContent), {
+      caption: `Log: \`${taskId.substring(0, 8)}\``,
+      parse_mode: 'Markdown'
+    }, { filename: `task-${taskId.substring(0, 8)}.log`, contentType: 'text/plain' });
   }
 
   private async handleBeastModeAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {

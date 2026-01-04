@@ -1,5 +1,5 @@
 import { spawn } from 'child_process';
-import { AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, AIProvider } from '../types';
+import { AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, AIProvider, AIProviderConfig } from '../types';
 
 export interface ClaudeRunOptions {
   prompt: string;
@@ -26,7 +26,7 @@ export interface ClaudeStreamResult {
 /**
  * Configure environment variables for the specified AI provider
  */
-export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string): NodeJS.ProcessEnv {
+export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string, aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
   if (provider === 'glm') {
@@ -36,6 +36,16 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = GLM_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = GLM_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
+  } else if (provider === 'openrouter') {
+    // OpenRouter uses ANTHROPIC_AUTH_TOKEN and requires ANTHROPIC_API_KEY to be blank
+    // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
+    env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
+    env.ANTHROPIC_AUTH_TOKEN = apiKey || process.env.OPENROUTER_API_KEY || '';
+    env.ANTHROPIC_API_KEY = '';  // Must be blank to prevent conflicts
+    // Use custom models if configured, else defaults
+    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku;
+    env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
+    env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus;
   } else {
     delete env.ANTHROPIC_BASE_URL;
     env.ANTHROPIC_MODEL = 'sonnet';
