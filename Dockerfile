@@ -1,4 +1,4 @@
-FROM oven/bun:1-alpine AS builder
+FROM oven/bun:1.0-alpine AS builder
 
 ARG COMMIT_HASH=unknown
 
@@ -12,7 +12,7 @@ RUN bun run build
 RUN echo "$COMMIT_HASH" > dist/VERSION
 
 
-FROM oven/bun:1-alpine
+FROM oven/bun:1.0-alpine
 
 WORKDIR /app
 
