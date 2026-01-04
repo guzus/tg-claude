@@ -123,8 +123,8 @@ export class UserConfigManager {
     return {
       userId,
       git: {
-        userName: 'Claude Telegram Bot',
-        userEmail: 'bot@claude-telegram.local',
+        userName: 'tg-claude',
+        userEmail: 'noreply@github.com',
         defaultBranch: 'main'
       },
       preferences: {
