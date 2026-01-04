@@ -103,6 +103,10 @@ export class BotHandlers {
     return this.configHandlers.handleConfig(msg, match);
   }
 
+  async handleAi(msg: Message): Promise<void> {
+    return this.configHandlers.handleAi(msg);
+  }
+
   async handleMcp(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleMcp(msg, match);
   }

@@ -6,15 +6,7 @@ import { AuditLogger } from '../services/AuditLogger';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
-import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS } from '../types';
-
-// Default Anthropic models used by Claude Code
-// Per docs: https://docs.claude.com/en/docs/claude-code/model-config
-const ANTHROPIC_MODELS = {
-  haiku: 'Haiku 4.5',
-  sonnet: 'Sonnet 4.5',
-  opus: 'Opus 4.5'
-};
+import { McpConfig, McpServer, UserConfig, AIProvider } from '../types';
 import { logger } from '../utils/logger';
 
 export class ConfigHandlers extends BaseHandler {
@@ -31,6 +23,33 @@ export class ConfigHandlers extends BaseHandler {
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
     this.repoManager = repositoryManager;
+  }
+
+  /**
+   * /ai command - Quick toggle between Claude and GLM
+   */
+  async handleAi(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const config = await this.userConfigManager.getConfig(userId);
+    const isGlm = config.aiProvider?.provider === 'glm';
+
+    const toggleButton = isGlm
+      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
+      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+
+    await this.bot.sendMessage(chatId, `🤖 *AI Provider:* ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}`, {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: [[toggleButton]] }
+    });
   }
 
   /**
@@ -145,9 +164,7 @@ export class ConfigHandlers extends BaseHandler {
     const providerDisplay = config.aiProvider?.provider || 'anthropic';
     const hasApiKey = config.aiProvider?.apiKey ? '✅ Set' : '❌ Not set';
 
-    // Get model mappings based on provider
     const isGlm = providerDisplay === 'glm';
-    const models = isGlm ? GLM_MODEL_MAPPINGS : ANTHROPIC_MODELS;
 
     const message =
       `⚙️ *Your Configuration*\n\n` +
@@ -155,13 +172,8 @@ export class ConfigHandlers extends BaseHandler {
       `👤 User Name: \`${config.git?.userName || 'Not set'}\`\n` +
       `📧 User Email: \`${config.git?.userEmail || 'Not set'}\`\n` +
       `🌿 Default Branch: \`${config.git?.defaultBranch || 'main'}\`\n\n` +
-      `*AI Provider:*\n` +
-      `🤖 Provider: \`${providerDisplay}\`\n` +
-      `🔑 API Key: ${hasApiKey}\n` +
-      `📊 Models:\n` +
-      `   Haiku → \`${models.haiku}\`\n` +
-      `   Sonnet → \`${models.sonnet}\`\n` +
-      `   Opus → \`${models.opus}\`\n\n` +
+      `*AI Provider:* ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}\n` +
+      `🔑 API Key: ${hasApiKey}\n\n` +
       `*Tech Stack:*\n` +
       `📦 TypeScript: \`${config.techStack?.typescript || 'bun'}\`\n` +
       `🐍 Python: \`${config.techStack?.python || 'uv'}\`\n\n` +
@@ -173,21 +185,19 @@ export class ConfigHandlers extends BaseHandler {
       `⏱️ Task Timeout: \`${(config.limits?.taskTimeoutMs || 1800000) / 1000}s\`\n\n` +
       `_Last updated: ${config.updatedAt.toLocaleString()}_`;
 
+    const toggleButton = isGlm
+      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
+      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
+          [toggleButton],
           [
-            { text: '👤 Edit Git', callback_data: 'config_git' },
-            { text: '⚙️ Edit Preferences', callback_data: 'config_preferences' }
-          ],
-          [
-            { text: '🛠️ Edit Tech Stack', callback_data: 'config_techstack' },
-            { text: '🤖 Edit AI Provider', callback_data: 'config_aiprovider' }
-          ],
-          [
-            { text: '📊 Edit Limits', callback_data: 'config_limits' },
-            { text: '🔙 Back to Config Menu', callback_data: 'config_menu' }
+            { text: '👤 Git', callback_data: 'config_git' },
+            { text: '🛠️ Tech', callback_data: 'config_techstack' },
+            { text: '📊 Limits', callback_data: 'config_limits' }
           ]
         ]
       }

@@ -46,7 +46,8 @@ export class CallbackQueryHandler extends BaseHandler {
         config: () => this.handleConfigAction(chatId, messageId, userId, subAction),
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
         view: () => this.handleViewLog(chatId, userId, subAction),
-        beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction)
+        beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
+        ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction)
       };
 
       const handler = handlers[action];
@@ -393,6 +394,28 @@ await execAsync('git config user.email "claude-code@remote.machine"', { cwd: rep
     };
 
     await (actions[subAction] || (() => this.bot.sendMessage(chatId, 'Use /config')))();
+  }
+
+  private async handleAiSwitch(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const newProvider = subAction === 'switch_glm' ? 'glm' : 'anthropic';
+    await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
+
+    const isGlm = newProvider === 'glm';
+    const toggleButton = isGlm
+      ? { text: '🔄 Switch to Claude', callback_data: 'ai_switch_anthropic' }
+      : { text: '🔄 Switch to GLM', callback_data: 'ai_switch_glm' };
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `✅ *Switched to ${isGlm ? '🇨🇳 GLM' : '🇺🇸 Claude'}*`,
+      { inline_keyboard: [[toggleButton]] }
+    );
   }
 
   private async handleCancelTask(chatId: number, messageId: number, userId: number, taskId: string): Promise<void> {

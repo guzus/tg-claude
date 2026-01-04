@@ -179,6 +179,7 @@ bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
+bot.onText(/\/ai/, (msg) => handlers.handleAi(msg));
 bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
 bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
