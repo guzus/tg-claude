@@ -1,5 +1,4 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
-import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
@@ -247,7 +246,7 @@ export class TaskHandlers extends BaseHandler {
             commitsInfo +
             repoFooter;
 
-          // Completion buttons - just one row
+          // Completion buttons
           const completionButtons = {
             inline_keyboard: [
               [
@@ -256,6 +255,7 @@ export class TaskHandlers extends BaseHandler {
             ]
           };
 
+          // Try to update status message, fall back to shorter version if too long
           try {
             await this.bot.editMessageText(finalMessage, {
               chat_id: chatId,
@@ -263,41 +263,31 @@ export class TaskHandlers extends BaseHandler {
               parse_mode: 'Markdown',
               reply_markup: completionButtons
             });
+          } catch {
+            // Message too long - try shorter version without answer preview
+            const shortMessage =
+              `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
+              commitsInfo +
+              repoFooter;
 
-            // Send log file as a document
-            const logFilePath = this.executor.getTaskLogFilePath(task.id);
-            if (logFilePath) {
-              await this.bot.sendDocument(chatId, Buffer.from(readFileSync(logFilePath)), {
-                caption: `📋 Full execution log for task \`${task.id.substring(0, 8)}\``,
-                parse_mode: 'Markdown'
-              }, {
-                filename: `task-${task.id.substring(0, 8)}.log`,
-                contentType: 'text/plain'
-              });
-            }
-          } catch (error) {
-            // If message is too long, send parsed answer as document (not raw JSON)
-            const documentContent = completedEvent?.type === 'completed' && completedEvent.answer
-              ? completedEvent.answer
-              : fullOutput;
-            await this.bot.sendDocument(
-              chatId,
-              Buffer.from(documentContent),
-              {},
-              {
-                filename: 'task-result.txt',
-                contentType: 'text/plain'
-              }
-            );
-
-            // Send repo dashboard separately
-            if (currentRepo) {
-              const { message: repoMessage, keyboard: repoKeyboard } =
-                UIHelpers.createRepositoryDashboard(currentRepo);
-              await this.bot.sendMessage(chatId, repoMessage, {
+            try {
+              await this.bot.editMessageText(shortMessage, {
+                chat_id: chatId,
+                message_id: statusMsg.message_id,
                 parse_mode: 'Markdown',
-                reply_markup: repoKeyboard
+                reply_markup: completionButtons
               });
+            } catch {
+              // Even shorter - minimal completion message
+              await this.bot.editMessageText(
+                `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}`,
+                {
+                  chat_id: chatId,
+                  message_id: statusMsg.message_id,
+                  parse_mode: 'Markdown',
+                  reply_markup: completionButtons
+                }
+              ).catch(() => {});
             }
           }
 
