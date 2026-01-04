@@ -99,7 +99,7 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
-          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
+          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
 
           // Build status message using streaming events
           const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
@@ -201,7 +201,7 @@ export class TaskHandlers extends BaseHandler {
 
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : 'Claude';
+          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
           let statsLine = UIHelpers.formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
