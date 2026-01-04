@@ -427,23 +427,58 @@ export class ClaudeExecutor extends EventEmitter {
         return 'chore: update code';
       }
 
-      const { stdout: gitDiff } = await execAsync('git diff HEAD --stat', { cwd: workingDir, timeout: 10000 });
+      // Get detailed diff for context (limit to prevent overly long prompts)
+      let diffContent = '';
+      try {
+        // Get diff for staged and unstaged changes
+        const { stdout: stagedDiff } = await execAsync('git diff --cached', { cwd: workingDir, timeout: 10000 });
+        const { stdout: unstagedDiff } = await execAsync('git diff', { cwd: workingDir, timeout: 10000 });
+        diffContent = (stagedDiff + unstagedDiff).substring(0, 3000); // Limit diff size
+      } catch {
+        // Fallback to stat if full diff fails
+        const { stdout: statDiff } = await execAsync('git diff HEAD --stat', { cwd: workingDir, timeout: 10000 });
+        diffContent = statDiff;
+      }
 
-      // Create a simpler prompt using bash heredoc
-      const prompt = `Based on these changes, generate ONE conventional commit message.
-Files: ${gitStatus.trim().split('\n').map(l => l.trim().split(/\s+/).pop()).join(', ')}
-Stats: ${gitDiff.trim().split('\n').slice(-1)[0] || 'changes'}
-Format: type(scope): description (under 72 chars)
-Types: feat, fix, refactor, docs, style, test, chore
-Reply with ONLY the commit message line.`;
+      // Parse file changes from git status properly
+      const fileChanges = gitStatus.trim().split('\n').map(line => {
+        const status = line.substring(0, 2);
+        const file = line.substring(3);
+        const statusDesc = status.includes('A') ? 'added' :
+                          status.includes('M') ? 'modified' :
+                          status.includes('D') ? 'deleted' :
+                          status.includes('?') ? 'new' : 'changed';
+        return `${file} (${statusDesc})`;
+      }).join(', ');
 
-      // Use Claude Haiku with simpler escaped prompt
-      const escapedPrompt = prompt.replace(/'/g, "'\\''");
+      // Create a detailed prompt with actual diff content
+      const prompt = `Analyze these git changes and generate a conventional commit message.
+
+FILES CHANGED:
+${fileChanges}
+
+DIFF CONTENT:
+${diffContent || 'No diff available'}
+
+Generate ONE commit message following this format:
+type(scope): brief description
+
+Rules:
+- Types: feat (new feature), fix (bug fix), refactor, docs, style, test, chore
+- Scope is optional but helpful (e.g., api, ui, auth)
+- Description should explain WHAT changed and WHY
+- Keep under 72 characters total
+- Be specific about the actual changes, not generic
+
+Reply with ONLY the commit message, nothing else.`;
+
+      // Use Claude Haiku with proper escaping
+      const escapedPrompt = prompt.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
       const { stdout } = await execAsync(
         `claude -p --model haiku $'${escapedPrompt}'`,
         {
           cwd: workingDir,
-          timeout: 20000,
+          timeout: 30000,
           env: { ...process.env },
           shell: '/bin/bash'
         }
@@ -476,7 +511,7 @@ Reply with ONLY the commit message line.`;
 
       // If no valid message found, try last non-empty line
       if (!message) {
-        message = lines.filter(l => l.trim()).pop() || 'chore: update code';
+        message = lines.filter(l => l.trim()).pop() || '';
       }
 
       // Clean up the message
@@ -487,14 +522,23 @@ Reply with ONLY the commit message line.`;
 
       // Validate it looks like a commit message
       if (message.length < 5 || message.length > 100 || message.includes('\n')) {
-        return 'chore: update code';
+        // Fallback: generate basic message from file names
+        const firstFile = gitStatus.trim().split('\n')[0]?.substring(3) || 'files';
+        return `chore: update ${path.basename(firstFile)}`;
       }
 
       logger.debug('Generated commit message', { message });
       return message;
     } catch (error) {
       logger.debug('Commit message generation failed', { error: error instanceof Error ? error.message : String(error) });
-      return 'chore: update code';
+      // Fallback with file context
+      try {
+        const { stdout: status } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
+        const firstFile = status.trim().split('\n')[0]?.substring(3) || 'files';
+        return `chore: update ${path.basename(firstFile)}`;
+      } catch {
+        return 'chore: update code';
+      }
     }
   }
 
