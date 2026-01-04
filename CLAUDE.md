@@ -28,5 +28,9 @@
 9. Deploy Workflow:
    - `gh workflow run deploy.yml` triggers deployment
    - `gh run watch` monitors the running workflow
-   - Claude workflow only runs when PR is assigned to `claude-code[bot]`
+
+10. Claude Review Workflow Triggers:
+    - Add label `claude-review` to PR, OR
+    - Comment `@claude` on the PR
+    - Claude will review and can make changes with write permissions
 
