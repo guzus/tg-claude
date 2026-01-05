@@ -146,10 +146,16 @@ export class UtilityHandlers extends BaseHandler {
             versionCheck.on('close', async () => {
               const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
-              // Check auth status
+              // Check auth status with 5s timeout
               const authCheck = spawn('claude', ['auth', 'status']);
               let authOutput = '';
               let authError = '';
+              let authTimedOut = false;
+
+              const authTimeout = setTimeout(() => {
+                authTimedOut = true;
+                authCheck.kill('SIGTERM');
+              }, 5000);
 
               authCheck.stdout?.on('data', (data: Buffer) => {
                 authOutput += data.toString();
@@ -159,9 +165,16 @@ export class UtilityHandlers extends BaseHandler {
               });
 
               authCheck.on('close', async (authCode: number) => {
-                const authStatus = authCode === 0
-                  ? `✅ Authenticated\n\`\`\`\n${authOutput.trim().substring(0, 300)}\n\`\`\``
-                  : `❌ Not authenticated\n${authError.trim().substring(0, 200)}`;
+                clearTimeout(authTimeout);
+
+                let authStatus: string;
+                if (authTimedOut) {
+                  authStatus = '⏱️ Timeout (auth check took >5s)';
+                } else if (authCode === 0) {
+                  authStatus = `✅ Authenticated\n\`\`\`\n${authOutput.trim().substring(0, 300)}\n\`\`\``;
+                } else {
+                  authStatus = `❌ Not authenticated\n${(authError || authOutput).trim().substring(0, 200)}`;
+                }
 
                 await this.bot.sendMessage(
                   chatId,
