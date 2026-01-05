@@ -111,6 +111,8 @@ Examples:
 ### `/mcp`
 MCP (Model Context Protocol) server management per repository.
 
+> **Note:** MCP servers are configured **per repository**. Each repository has its own set of MCP servers. When you switch repositories with `/repo switch`, you'll have a different MCP configuration.
+
 | Subcommand | Description |
 |------------|-------------|
 | `/mcp list` | List configured MCP servers |
