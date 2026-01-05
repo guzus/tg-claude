@@ -146,17 +146,35 @@ export class UtilityHandlers extends BaseHandler {
             versionCheck.on('close', async () => {
               const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
-              await this.bot.sendMessage(
-                chatId,
-                '✅ *Claude CLI Status*\n\n' +
-                `📍 Path: \`${claudePath.trim()}\`\n` +
-                `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
-                `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
-                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
-                `🔐 API Key: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '⚠️ Using CLI auth'}\n\n` +
-                `To test, try:\n\`/task say hello\``,
-                { parse_mode: 'Markdown' }
-              );
+              // Check auth status
+              const authCheck = spawn('claude', ['auth', 'status']);
+              let authOutput = '';
+              let authError = '';
+
+              authCheck.stdout?.on('data', (data: Buffer) => {
+                authOutput += data.toString();
+              });
+              authCheck.stderr?.on('data', (data: Buffer) => {
+                authError += data.toString();
+              });
+
+              authCheck.on('close', async (authCode: number) => {
+                const authStatus = authCode === 0
+                  ? `✅ Authenticated\n\`\`\`\n${authOutput.trim().substring(0, 300)}\n\`\`\``
+                  : `❌ Not authenticated\n${authError.trim().substring(0, 200)}`;
+
+                await this.bot.sendMessage(
+                  chatId,
+                  '✅ *Claude CLI Status*\n\n' +
+                  `📍 Path: \`${claudePath.trim()}\`\n` +
+                  `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
+                  `🔐 *Auth Status:*\n${authStatus}\n\n` +
+                  `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
+                  `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
+                  `To test, try:\n\`/task say hello\``,
+                  { parse_mode: 'Markdown' }
+                );
+              });
             });
           }
           resolve(null);
