@@ -20,7 +20,13 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 RUN bun install --production --ignore-scripts --no-save
 
-RUN apk add --no-cache git openssh-client curl bash github-cli
+RUN apk add --no-cache git openssh-client curl bash github-cli \
+    # Chromium for Puppeteer MCP support
+    chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
+# Puppeteer configuration
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN bun install -g @anthropic-ai/claude-code
 
 RUN mkdir -p /workspace /app/data /app/logs /app/config
