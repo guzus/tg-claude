@@ -123,7 +123,6 @@ export class RalphWiggumHandler extends BaseHandler {
     const data = query.data;
     if (!data?.startsWith('ralph_stop:')) return;
 
-    const _sessionId = data.replace('ralph_stop:', '');
     const userId = query.from.id;
     const chatId = query.message?.chat.id;
 

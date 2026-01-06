@@ -8,7 +8,7 @@ import { WORKSPACE_PATH } from '../config';
 import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
 import { ClaudeSettingsManager } from './ClaudeSettingsManager';
-import { PLUGIN_PRESETS } from '../handlers/ConfigHandlers';
+import { PLUGIN_PRESETS } from '../presets';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();

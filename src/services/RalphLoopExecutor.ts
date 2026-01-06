@@ -8,7 +8,7 @@ import { RepositoryManager } from './RepositoryManager';
 import { TaskStatus, Repository, AIProviderConfig } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { PLUGIN_PRESETS } from '../handlers/ConfigHandlers';
+import { PLUGIN_PRESETS } from '../presets';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -241,7 +241,7 @@ export class RalphLoopExecutor {
       await this.ensureRalphPluginInstalled(state.workingDir);
 
       // Send initial status message
-      const repository = this.repositoryManager.getCurrentRepository(state.userId);
+      const repository = this.repositoryManager.getCurrentRepository(state.userId) ?? null;
       const statusMsg = await this.sendStatusMessage(state, repository);
       state.messageId = statusMsg?.message_id;
 
@@ -426,7 +426,7 @@ ${state.originalRequest}
   private formatStatusMessage(state: RalphLoopState, repository: Repository | null): string {
     const elapsed = Math.round((Date.now() - state.startTime.getTime()) / 1000);
     const emoji = state.status === RalphLoopStatus.RUNNING ? '🔄' :
-                  state.status === RalphLoopStatus.COMPLETED ? '✅' : '⚠️';
+      state.status === RalphLoopStatus.COMPLETED ? '✅' : '⚠️';
 
     let msg = `${emoji} **Ralph Loop**\n\n`;
     msg += `📋 ${state.originalRequest.substring(0, 100)}${state.originalRequest.length > 100 ? '...' : ''}\n\n`;
@@ -446,7 +446,7 @@ ${state.originalRequest}
     if (!state.messageId) return;
 
     try {
-      const repository = this.repositoryManager.getCurrentRepository(state.userId);
+      const repository = this.repositoryManager.getCurrentRepository(state.userId) ?? null;
       const keyboard = state.status === RalphLoopStatus.RUNNING ? {
         inline_keyboard: [[
           { text: '🛑 Stop Ralph Loop', callback_data: `ralph_stop:${state.sessionId}` }
@@ -475,15 +475,15 @@ ${state.originalRequest}
 
       const statusEmoji =
         state.status === RalphLoopStatus.COMPLETED ? '✅' :
-        state.status === RalphLoopStatus.MAX_ITERATIONS ? '⚠️' :
-        state.status === RalphLoopStatus.TIMEOUT ? '⏰' :
-        state.status === RalphLoopStatus.STOPPED ? '🛑' : '❌';
+          state.status === RalphLoopStatus.MAX_ITERATIONS ? '⚠️' :
+            state.status === RalphLoopStatus.TIMEOUT ? '⏰' :
+              state.status === RalphLoopStatus.STOPPED ? '🛑' : '❌';
 
       const statusText =
         state.status === RalphLoopStatus.COMPLETED ? 'Completed!' :
-        state.status === RalphLoopStatus.MAX_ITERATIONS ? 'Max Iterations' :
-        state.status === RalphLoopStatus.TIMEOUT ? 'Timeout' :
-        state.status === RalphLoopStatus.STOPPED ? 'Stopped' : 'Failed';
+          state.status === RalphLoopStatus.MAX_ITERATIONS ? 'Max Iterations' :
+            state.status === RalphLoopStatus.TIMEOUT ? 'Timeout' :
+              state.status === RalphLoopStatus.STOPPED ? 'Stopped' : 'Failed';
 
       let report = `${statusEmoji} **Ralph Loop ${statusText}**\n\n`;
       report += `📋 ${state.originalRequest.substring(0, 200)}\n\n`;
@@ -512,7 +512,7 @@ ${state.originalRequest}
         let message = '💾 **Ralph Loop Changes**\n\n';
         message += `Commit: \`${commitHash.substring(0, 8)}\`\n`;
         message += pushResult === 'success' ? '✅ Pushed' :
-                   pushResult === 'no_remote' ? '⚠️ No remote' : '⚠️ Push failed';
+          pushResult === 'no_remote' ? '⚠️ No remote' : '⚠️ Push failed';
 
         await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
       }
