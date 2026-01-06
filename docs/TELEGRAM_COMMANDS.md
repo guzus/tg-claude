@@ -12,7 +12,7 @@ add tests for the auth module
 refactor the database service
 ```
 
-### `/ralph <task>`
+### `/ralph <task>` (plugin: `ralph-wiggum`)
 Autonomous loop mode. Claude works iteratively on a task until it's complete (or you stop it).
 
 > **Note:** `/ralph` uses the **`ralph-wiggum` Claude plugin**. The bot will try to install it automatically, but you can also install/manage plugins explicitly via `/plugin` (see below).

@@ -151,7 +151,7 @@ const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigMa
 // Set bot commands in Telegram UI
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
-  { command: 'ralph', description: '🔄 Ralph loop - Autonomous AI execution' },
+  { command: 'ralph', description: '🔄 Ralph loop (ralph-wiggum plugin)' },
   { command: 'new_repo', description: '📁 Create new GitHub repository' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'scan', description: 'Scan for existing repositories' },
