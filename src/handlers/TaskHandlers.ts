@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { TaskStatus, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
@@ -441,58 +441,10 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
-   * Build a status message from streaming events
+   * Build a status message from streaming events (delegates to UIHelpers)
    */
   private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number, provider: string = 'Claude'): string {
-    const lines: string[] = [];
-
-    // Clean header with time and provider
-    lines.push(`⏳ *${UIHelpers.formatDuration(elapsed)}* · ${provider}`);
-
-    // Recent completed actions (last 3, more compact)
-    const recentEvents = task.events
-      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'completed'; ok?: boolean; message?: string } =>
-        e.type === 'action' && e.phase === 'completed'
-      )
-      .slice(-3);
-
-    if (recentEvents.length > 0 || task.currentAction) {
-      lines.push('');
-
-      // Show recent actions
-      for (const event of recentEvents) {
-        const icon = event.ok === false ? '✗' : '›';
-        const actionTitle = this.formatAction(event.action);
-        lines.push(`${icon} ${actionTitle}`);
-      }
-
-      // Current action (if any)
-      if (task.currentAction) {
-        lines.push(`› ${this.formatAction(task.currentAction)}...`);
-      }
-    } else {
-      lines.push('');
-      lines.push('_Starting..._');
-    }
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Format an action for display
-   */
-  private formatAction(action: StreamAction): string {
-    let title = action.title;
-
-    // Truncate long titles
-    if (title.length > 60) {
-      title = title.substring(0, 57) + '...';
-    }
-
-    // Escape markdown special characters
-    title = title.replace(/[_*`[\]]/g, '\\$&');
-
-    return title;
+    return UIHelpers.buildStreamingStatusMessage(task, elapsed, provider);
   }
 
   /**

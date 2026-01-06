@@ -6,7 +6,7 @@ import { execSync } from 'child_process';
 import { ClaudeExecutor } from './ClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
-import { TaskStatus, Repository, AIProviderConfig } from '../types';
+import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
@@ -346,7 +346,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
     // Use the plugin's /ralph-loop command format
-    return `/ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
+    return `/ralph-wiggum:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
   }
 
   /**
@@ -383,77 +383,92 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
   }
 
   /**
-   * Monitor task progress
+   * Monitor task progress using stream events (DRY - reuses ClaudeExecutor's streaming)
    */
   private async monitorTask(state: RalphLoopState, taskId: string): Promise<void> {
     return new Promise((resolve) => {
       const startTime = Date.now();
-      let lastIteration = state.iteration;
+      let lastUpdateTime = 0;
 
-      const interval = setInterval(async () => {
-        // Check timeout
-        if (Date.now() - startTime > state.config.maxDurationMs) {
-          clearInterval(interval);
-          state.status = RalphLoopStatus.TIMEOUT;
-          state.endTime = new Date();
-          logger.warn('Ralph loop timeout', {
-            sessionId: state.sessionId,
-            iterations: state.iteration,
-            durationMs: Date.now() - startTime
-          });
-          resolve();
-          return;
+      // Stream event handler - reuses ClaudeExecutor's parsed events
+      const handleStreamEvent = (eventTaskId: string, event: StreamEvent) => {
+        if (eventTaskId !== taskId) return;
+
+        // Check for iteration markers in note/text events
+        if (event.type === 'action' && event.action?.kind === 'note') {
+          const text = String(event.action.detail?.text || event.message || '');
+          if (text.includes('[RALPH_LOOP_ITERATION]')) {
+            state.iteration++;
+            logger.info('Ralph loop iteration (stream)', {
+              sessionId: state.sessionId,
+              iteration: state.iteration
+            });
+          }
         }
 
-        // Check if stopped
-        if (state.status !== RalphLoopStatus.RUNNING) {
-          clearInterval(interval);
-          logger.info('Ralph loop stopped externally', {
+        // Throttle UI updates (every 2s) for any action event
+        if (event.type === 'action' && Date.now() - lastUpdateTime > 2000) {
+          lastUpdateTime = Date.now();
+          this.updateStreamingStatusMessage(state, taskId).catch(() => {});
+        }
+
+        // Task completed via stream
+        if (event.type === 'completed') {
+          cleanup();
+          state.endTime = new Date();
+          logger.info('Ralph loop task finished (stream)', {
             sessionId: state.sessionId,
-            status: state.status,
+            ok: event.ok,
             iterations: state.iteration
           });
           resolve();
-          return;
         }
+      };
 
-        // Check task status
-        const task = this.executor.getTask(taskId);
-        if (!task) {
-          clearInterval(interval);
-          logger.warn('Ralph loop task not found', {
-            sessionId: state.sessionId,
-            taskId
-          });
+      this.executor.on('streamEvent', handleStreamEvent);
+
+      const cleanup = () => {
+        this.executor.off('streamEvent', handleStreamEvent);
+        clearInterval(fallbackInterval);
+      };
+
+      // Fallback interval for timeout/stop checks
+      const fallbackInterval = setInterval(async () => {
+        if (Date.now() - startTime > state.config.maxDurationMs) {
+          cleanup();
+          state.status = RalphLoopStatus.TIMEOUT;
+          state.endTime = new Date();
+          logger.warn('Ralph loop timeout', { sessionId: state.sessionId, iterations: state.iteration });
           resolve();
           return;
         }
 
-        // Update iteration count from output
-        const newIteration = this.countIterationsFromOutput(taskId);
-        if (newIteration !== lastIteration) {
-          logger.info('Ralph loop iteration change', {
-            sessionId: state.sessionId,
-            previousIteration: lastIteration,
-            currentIteration: newIteration,
-            maxIterations: state.config.maxIterations
-          });
-          lastIteration = newIteration;
+        if (state.status !== RalphLoopStatus.RUNNING) {
+          cleanup();
+          logger.info('Ralph loop stopped externally', { sessionId: state.sessionId, status: state.status });
+          resolve();
+          return;
         }
-        state.iteration = newIteration;
 
-        // Update status message periodically
-        await this.updateStatusMessage(state);
+        const task = this.executor.getTask(taskId);
+        if (!task) {
+          cleanup();
+          logger.warn('Ralph loop task not found', { sessionId: state.sessionId, taskId });
+          resolve();
+          return;
+        }
 
-        // Check if task finished
+        // Fallback task completion check
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
-          clearInterval(interval);
+          cleanup();
           state.endTime = new Date();
-          logger.info('Ralph loop task finished', {
+          // Final count from output in case stream missed some
+          const finalCount = this.countIterationsFromOutput(taskId);
+          if (finalCount > state.iteration) state.iteration = finalCount;
+          logger.info('Ralph loop task finished (fallback)', {
             sessionId: state.sessionId,
             taskStatus: task.status,
-            iterations: state.iteration,
-            durationMs: Date.now() - startTime
+            iterations: state.iteration
           });
           resolve();
         }
@@ -598,6 +613,44 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       });
     } catch {
       // Ignore edit errors (message not modified, etc.)
+    }
+  }
+
+  /**
+   * Update status message with streaming actions (DRY - reuses UIHelpers)
+   */
+  private async updateStreamingStatusMessage(state: RalphLoopState, taskId: string): Promise<void> {
+    if (!state.messageId) return;
+
+    const task = this.executor.getTask(taskId) as ClaudeTaskWithStreaming | undefined;
+    if (!task) return;
+
+    try {
+      const elapsed = Math.round((Date.now() - state.startTime.getTime()) / 1000);
+      const providerLabel = state.aiProvider?.provider === 'glm' ? 'GLM' :
+        state.aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
+
+      // Ralph header
+      const header = `🔄 *Ralph Loop* · ${state.iteration}/${state.config.maxIterations}`;
+
+      // Use shared streaming status builder
+      const message = UIHelpers.buildStreamingStatusMessage(task, elapsed, providerLabel, header);
+
+      const keyboard = state.status === RalphLoopStatus.RUNNING ? {
+        inline_keyboard: [[
+          { text: '🛑 Stop', callback_data: `ralph_stop:${state.sessionId}` },
+          { text: '📋 Log', callback_data: `view_log:${taskId}` }
+        ]]
+      } : undefined;
+
+      await this.bot.editMessageText(message, {
+        chat_id: state.chatId,
+        message_id: state.messageId,
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      });
+    } catch {
+      // Ignore edit errors
     }
   }
 
