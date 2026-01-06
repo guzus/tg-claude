@@ -21,12 +21,35 @@ interface PendingNewRepoName {
 }
 
 /**
+ * Pending API key entry state (waiting for user to paste a provider key)
+ */
+export interface PendingApiKeyEntry {
+  userId: number;
+  chatId: number;
+  messageId: number; // Message to update (usually the /ai message)
+  provider: 'glm' | 'openrouter';
+}
+
+/**
+ * Pending model entry state (waiting for user to paste a model ID string)
+ */
+export interface PendingModelEntry {
+  userId: number;
+  chatId: number;
+  messageId: number;
+  provider: 'openrouter';
+  slot: 'haiku' | 'sonnet' | 'opus';
+}
+
+/**
  * Centralized state manager for all in-memory state
  */
 class StateManager {
   private pinnedMessages: Map<number, number> = new Map();
   private pendingRepoCreations: Map<number, PendingRepoCreation> = new Map();
   private pendingNewRepoNames: Map<number, PendingNewRepoName> = new Map();
+  private pendingApiKeys: Map<number, PendingApiKeyEntry> = new Map();
+  private pendingModels: Map<number, PendingModelEntry> = new Map();
 
   // Pinned Messages
   getPinnedMessageId(chatId: number): number | undefined {
@@ -75,12 +98,48 @@ class StateManager {
     this.pendingNewRepoNames.delete(userId);
   }
 
+  // Pending API Key Entry
+  hasPendingApiKeyEntry(userId: number): boolean {
+    return this.pendingApiKeys.has(userId);
+  }
+
+  getPendingApiKeyEntry(userId: number): PendingApiKeyEntry | undefined {
+    return this.pendingApiKeys.get(userId);
+  }
+
+  setPendingApiKeyEntry(userId: number, data: PendingApiKeyEntry): void {
+    this.pendingApiKeys.set(userId, data);
+  }
+
+  clearPendingApiKeyEntry(userId: number): void {
+    this.pendingApiKeys.delete(userId);
+  }
+
+  // Pending Model Entry
+  hasPendingModelEntry(userId: number): boolean {
+    return this.pendingModels.has(userId);
+  }
+
+  getPendingModelEntry(userId: number): PendingModelEntry | undefined {
+    return this.pendingModels.get(userId);
+  }
+
+  setPendingModelEntry(userId: number, data: PendingModelEntry): void {
+    this.pendingModels.set(userId, data);
+  }
+
+  clearPendingModelEntry(userId: number): void {
+    this.pendingModels.delete(userId);
+  }
+
   // Cleanup
   cleanup(): void {
     logger.debug('StateManager cleanup', {
       pinnedMessages: this.pinnedMessages.size,
       pendingRepoCreations: this.pendingRepoCreations.size,
-      pendingNewRepoNames: this.pendingNewRepoNames.size
+      pendingNewRepoNames: this.pendingNewRepoNames.size,
+      pendingApiKeys: this.pendingApiKeys.size,
+      pendingModels: this.pendingModels.size
     });
   }
 }

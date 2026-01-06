@@ -4,14 +4,6 @@ Complete reference for all available commands in the tg-claude Telegram bot.
 
 ## Task Execution
 
-### `/task <prompt>`
-Execute a coding task with Claude AI.
-
-```
-/task add error handling to the API endpoints
-/task create a new React component for user settings
-```
-
 ### Plain text messages
 Any plain text message (without `/` prefix) is treated as a task command.
 
@@ -92,11 +84,10 @@ User configuration management.
 Configuration keys:
 - `git.userName` - Git author name
 - `git.userEmail` - Git author email
+- `git.defaultBranch` - Default branch name
 - `techStack.typescript` - Package manager (bun/npm/pnpm/yarn)
 - `techStack.python` - Python package manager (uv/pip/poetry)
-- `preferences.autoCommit` - Auto-commit after tasks (true/false)
-- `preferences.autoPush` - Auto-push after tasks (true/false)
-- `preferences.dangerModeEnabled` - Skip permission prompts (true/false)
+- `preferences.notifyOnTaskComplete` - Notify when tasks finish (true/false)
 - `limits.maxConcurrentTasks` - Max parallel tasks
 - `limits.taskTimeoutMs` - Task timeout in milliseconds
 
@@ -105,7 +96,7 @@ Examples:
 /config show
 /config set git.userName "John Doe"
 /config set techStack.typescript bun
-/config set preferences.autoCommit true
+/config set preferences.notifyOnTaskComplete true
 ```
 
 ### `/mcp`
@@ -151,15 +142,38 @@ Configure the AI provider in `/config`:
 /config set aiProvider.glmApiKey <your-z-ai-api-key>
 ```
 
+Tip: you can also use `/ai` and tap **Set GLM Key** to paste your key interactively.
+
 To switch back to Anthropic:
 ```
 /config set aiProvider.provider anthropic
 ```
 
+### OpenRouter Provider
+Configure OpenRouter in `/config`:
+
+```
+/config set aiProvider.provider openrouter
+/config set aiProvider.openrouterApiKey <your-openrouter-api-key>
+```
+
+Tip: you can also use `/ai` and tap **Set OpenRouter Key** to paste your key interactively.
+
+#### Custom OpenRouter Models (UX)
+Use `/ai` while on OpenRouter, then tap **H Model / S Model / O Model** to:
+- Pick a preset model
+- Or choose **Custom…** and paste a model id like `openai/gpt-4o-mini`
+
 ## Monitoring
 
 ### `/status`
 Check active tasks and their status.
+
+### `/cancel <taskId>`
+Cancel a running task by ID (you can use the first 8 chars shown in `/status`).
+
+### `/limits`
+Show your remaining rate limits (hourly/daily).
 
 ### `/check`
 Verify Claude CLI installation and setup.
@@ -195,6 +209,9 @@ Welcome message and command overview.
 ### `/help`
 Show help message with available commands.
 
+### `/scan`
+Scan for already-synced repositories in the workspace (useful after restoring data or adding repos on disk).
+
 ## Inline Keyboards
 
 Many commands provide interactive inline keyboard buttons for:
@@ -210,7 +227,7 @@ Many commands provide interactive inline keyboard buttons for:
 
 2. **Auto-commit**: Enable auto-commit to automatically save changes after tasks:
    ```
-   /config set preferences.autoCommit true
+   (auto-commit is currently always attempted on successful tasks)
    ```
 
 3. **Provider display**: The AI provider (Claude/GLM) is shown in task output.

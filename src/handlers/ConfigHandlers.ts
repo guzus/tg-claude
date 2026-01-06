@@ -9,6 +9,7 @@ import { ConversationManager } from '../services/ConversationManager';
 import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
+import { stateManager } from '../services/StateManager';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -50,23 +51,197 @@ export class ConfigHandlers extends BaseHandler {
     };
 
     const models = this.getProviderModelMap(provider, config);
+    const isCustom = {
+      haiku: !!config.aiProvider?.haikuModel,
+      sonnet: !!config.aiProvider?.sonnetModel,
+      opus: !!config.aiProvider?.opusModel
+    };
     const modelLines = [
-      `Haiku: \`${UIHelpers.escapeMarkdown(models.haiku)}\``,
-      `Sonnet: \`${UIHelpers.escapeMarkdown(models.sonnet)}\``,
-      `Opus: \`${UIHelpers.escapeMarkdown(models.opus)}\``,
+      `Haiku: \`${UIHelpers.escapeMarkdown(models.haiku)}\`${isCustom.haiku ? ' _(custom)_' : ''}`,
+      `Sonnet: \`${UIHelpers.escapeMarkdown(models.sonnet)}\`${isCustom.sonnet ? ' _(custom)_' : ''}`,
+      `Opus: \`${UIHelpers.escapeMarkdown(models.opus)}\`${isCustom.opus ? ' _(custom)_' : ''}`,
     ].join('\n');
+
+    const keyStatus = (() => {
+      if (provider === 'glm') return config.aiProvider?.glmApiKey ? '✓' : '–';
+      if (provider === 'openrouter') return config.aiProvider?.openrouterApiKey ? '✓' : '–';
+      return '–';
+    })();
 
     // Build buttons for providers other than current
     const buttons = (['anthropic', 'glm', 'openrouter'] as AIProvider[])
       .filter(p => p !== provider)
       .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
-    const message = `*${providerLabels[provider]}*\n\n${modelLines}`;
+    const message =
+      `*${providerLabels[provider]}*\n` +
+      (provider === 'anthropic' ? `` : `Key: *${keyStatus}*\n`) +
+      `\n${modelLines}`;
+
+    const keyboardRows: { text: string; callback_data: string }[][] = [];
+    if (buttons.length > 0) keyboardRows.push(buttons);
+
+    if (provider === 'glm') {
+      keyboardRows.push([{ text: config.aiProvider?.glmApiKey ? '🔑 Update GLM Key' : '🔑 Set GLM Key', callback_data: 'apikey_set_glm' }]);
+    } else if (provider === 'openrouter') {
+      keyboardRows.push([{ text: config.aiProvider?.openrouterApiKey ? '🔑 Update OpenRouter Key' : '🔑 Set OpenRouter Key', callback_data: 'apikey_set_openrouter' }]);
+      keyboardRows.push([
+        { text: 'H Model', callback_data: 'model_menu_openrouter_haiku' },
+        { text: 'S Model', callback_data: 'model_menu_openrouter_sonnet' },
+        { text: 'O Model', callback_data: 'model_menu_openrouter_opus' }
+      ]);
+      keyboardRows.push([{ text: '↩︎ Reset Models to Defaults', callback_data: 'model_reset_openrouter' }]);
+    }
 
     await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
-      reply_markup: { inline_keyboard: [buttons] }
+      reply_markup: { inline_keyboard: keyboardRows }
     });
+  }
+
+  /**
+   * Handle API key entry from a plain text message (triggered by inline buttons)
+   */
+  async handleApiKeyEntry(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const text = msg.text?.trim() || '';
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const pending = stateManager.getPendingApiKeyEntry(userId);
+    if (!pending) {
+      // Not actually pending anymore; treat as normal message
+      return;
+    }
+
+    // Allow user to type "cancel"
+    if (text.toLowerCase() === 'cancel') {
+      stateManager.clearPendingApiKeyEntry(userId);
+      await this.bot.sendMessage(chatId, 'Cancelled.');
+      return;
+    }
+
+    const key = text;
+    if (!key) {
+      await this.bot.sendMessage(chatId, '❌ Empty key. Paste the API key, or type `cancel`.', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const current = await this.userConfigManager.getConfig(userId);
+    const aiProvider = current.aiProvider || { provider: 'anthropic' as AIProvider };
+    const updates = pending.provider === 'glm'
+      ? { aiProvider: { ...aiProvider, glmApiKey: key } }
+      : { aiProvider: { ...aiProvider, openrouterApiKey: key } };
+
+    await this.userConfigManager.updateConfig(userId, updates);
+    stateManager.clearPendingApiKeyEntry(userId);
+
+    // Best-effort delete the user's message containing the secret
+    try {
+      if (msg.message_id) {
+        const botWithDelete = this.bot as unknown as {
+          deleteMessage?: (chatId: number, messageId: string) => Promise<boolean>;
+        };
+        await botWithDelete.deleteMessage?.(chatId, String(msg.message_id));
+      }
+    } catch {
+      // Ignore if we can't delete (permissions/Telegram behavior)
+    }
+
+    const masked = this.maskSecret(key);
+    const providerLabel = pending.provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const switchCb = pending.provider === 'glm' ? 'ai_switch_glm' : 'ai_switch_openrouter';
+
+    await this.bot.editMessageText(
+      `✅ *${providerLabel} key saved*\n\n` +
+      `Stored: \`${UIHelpers.escapeMarkdown(masked)}\`\n\n` +
+      `_Tip: if the key message wasn’t deleted automatically, delete it manually._`,
+      {
+        chat_id: pending.chatId,
+        message_id: pending.messageId,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: `Switch to ${providerLabel}`, callback_data: switchCb }],
+            [{ text: '🏠 Main Menu', callback_data: 'main_menu' }]
+          ]
+        }
+      }
+    );
+  }
+
+  /**
+   * Handle model entry from a plain text message (triggered by inline buttons)
+   */
+  async handleModelEntry(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const text = msg.text?.trim() || '';
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const pending = stateManager.getPendingModelEntry(userId);
+    if (!pending) return;
+
+    if (text.toLowerCase() === 'cancel') {
+      stateManager.clearPendingModelEntry(userId);
+      await this.bot.sendMessage(chatId, 'Cancelled.');
+      return;
+    }
+
+    const model = text;
+    if (!model) {
+      await this.bot.sendMessage(chatId, '❌ Empty model. Paste a model id like `openai/gpt-4o-mini`, or type `cancel`.', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const current = await this.userConfigManager.getConfig(userId);
+    const aiProvider = current.aiProvider || { provider: 'openrouter' as AIProvider };
+    const field = pending.slot === 'haiku' ? 'haikuModel' : pending.slot === 'sonnet' ? 'sonnetModel' : 'opusModel';
+    const updatedAiProvider = { ...aiProvider, [field]: model } as typeof aiProvider;
+
+    await this.userConfigManager.updateConfig(userId, { aiProvider: updatedAiProvider });
+    stateManager.clearPendingModelEntry(userId);
+
+    await this.bot.editMessageText(
+      `✅ *OpenRouter model saved*\n\n` +
+      `Slot: *${pending.slot.toUpperCase()}*\n` +
+      `Model: \`${UIHelpers.escapeMarkdown(model)}\`\n\n` +
+      `Configure another slot below, or run /ai to verify.`,
+      {
+        chat_id: pending.chatId,
+        message_id: pending.messageId,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: 'H Model', callback_data: 'model_menu_openrouter_haiku' },
+              { text: 'S Model', callback_data: 'model_menu_openrouter_sonnet' },
+              { text: 'O Model', callback_data: 'model_menu_openrouter_opus' }
+            ],
+            [{ text: '↩︎ Reset Defaults', callback_data: 'model_reset_openrouter' }],
+            [{ text: '🏠 Main Menu', callback_data: 'main_menu' }]
+          ]
+        }
+      }
+    );
+  }
+
+  private maskSecret(secret: string): string {
+    const s = secret.trim();
+    if (s.length <= 10) return `${s.substring(0, 2)}…${s.substring(Math.max(0, s.length - 2))}`;
+    return `${s.substring(0, 4)}…${s.substring(s.length - 4)}`;
   }
 
   private getProviderModelMap(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
@@ -142,57 +317,6 @@ export class ConfigHandlers extends BaseHandler {
     }
   }
 
-  private async showConfigMenu(msg: Message): Promise<void> {
-    const chatId = msg.chat.id;
-
-    const message =
-      `⚙️ *User Configuration*\n\n` +
-      `Commands:\n` +
-      `/config show - View current configuration\n` +
-      `/config set <key> <value> - Set a config value\n` +
-      `/config claudemd - Manage CLAUDE.md template\n` +
-      `/config reset - Reset to defaults\n\n` +
-      `Configuration keys:\n` +
-      `• \`git.userName\` - Git user name\n` +
-      `• \`git.userEmail\` - Git user email\n` +
-      `• \`techStack.typescript\` - TS (bun/npm/pnpm/yarn)\n` +
-      `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
-      `• \`aiProvider.provider\` - AI provider (anthropic/glm/openrouter)\n` +
-      `• \`aiProvider.glmApiKey\` - GLM (Z.ai) API key\n` +
-      `• \`aiProvider.openrouterApiKey\` - OpenRouter API key\n` +
-      `• \`aiProvider.haikuModel\` - Custom Haiku model\n` +
-      `• \`aiProvider.sonnetModel\` - Custom Sonnet model\n` +
-      `• \`aiProvider.opusModel\` - Custom Opus model\n` +
-      `• \`preferences.dangerModeEnabled\` - Danger mode\n` +
-      `• \`limits.maxConcurrentTasks\` - Max tasks\n\n` +
-      `Example:\n` +
-      `\`/config set aiProvider.provider glm\``;
-
-    await this.bot.sendMessage(chatId, message, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: '📄 View Config', callback_data: 'config_show' },
-            { text: '🔄 Reset Config', callback_data: 'config_reset_confirm' }
-          ],
-          [
-            { text: '👤 Git Settings', callback_data: 'config_git' },
-            { text: '⚙️ Preferences', callback_data: 'config_preferences' }
-          ],
-          [
-            { text: '🛠️ Tech Stack', callback_data: 'config_techstack' },
-            { text: '🤖 AI Provider', callback_data: 'config_aiprovider' }
-          ],
-          [
-            { text: '📊 Limits', callback_data: 'config_limits' },
-            { text: '🔙 Back to Main Menu', callback_data: 'main_menu' }
-          ]
-        ]
-      }
-    });
-  }
-
   private async showConfig(msg: Message): Promise<void> {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
@@ -203,12 +327,7 @@ export class ConfigHandlers extends BaseHandler {
     }
 
     const config = await this.userConfigManager.getConfig(userId);
-    const provider = config.aiProvider?.provider || 'anthropic';
-    const hasKey = (() => {
-      if (provider === 'glm') return config.aiProvider?.glmApiKey ? '✓' : '–';
-      if (provider === 'openrouter') return config.aiProvider?.openrouterApiKey ? '✓' : '–';
-      return '–';
-    })();
+    const provider: AIProvider = config.aiProvider?.provider || 'anthropic';
 
     const providerLabels: Record<string, string> = {
       anthropic: 'Claude',
@@ -218,21 +337,76 @@ export class ConfigHandlers extends BaseHandler {
 
     const models = this.getProviderModelMap(provider, config);
 
-    const lines = [
-      `*Config*`,
-      ``,
-      `AI: *${providerLabels[provider]}* · key ${hasKey}`,
-      `  H: \`${models.haiku}\`  S: \`${models.sonnet}\`  O: \`${models.opus}\``,
-      `Git: \`${config.git?.userName || '–'}\` <\`${config.git?.userEmail || '–'}\`>`,
-      `Stack: ts/\`${config.techStack?.typescript || 'bun'}\` py/\`${config.techStack?.python || 'uv'}\``,
-    ];
+    const glmKeyMasked = config.aiProvider?.glmApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.glmApiKey))}\`)` : '–';
+    const openRouterKeyMasked = config.aiProvider?.openrouterApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.openrouterApiKey))}\`)` : '–';
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    const repoId = currentRepo?.id || config.currentRepositoryId;
+    const mcpServerCount = repoId ? Object.keys(config.mcpConfigs?.[repoId]?.mcpServers || {}).length : 0;
+
+    const timeoutMs = config.limits?.taskTimeoutMs;
+    const timeoutStr = timeoutMs ? UIHelpers.formatDuration(Math.round(timeoutMs / 1000)) : '–';
+
+    const lines: string[] = [];
+
+    lines.push('*Your Configuration*');
+    lines.push('');
+
+    // Repo
+    lines.push('📁 *Repository*');
+    lines.push(`Current: ${currentRepo ? `*${UIHelpers.escapeMarkdown(currentRepo.name)}* (\`${currentRepo.id.substring(0, 8)}\`)` : '–'}`);
+    lines.push('');
+
+    // AI
+    lines.push('🤖 *AI*');
+    lines.push(`Provider: *${providerLabels[provider]}*`);
+    lines.push(`GLM key: ${glmKeyMasked}`);
+    lines.push(`OpenRouter key: ${openRouterKeyMasked}`);
+    lines.push(`Models (effective): H \`${UIHelpers.escapeMarkdown(models.haiku)}\`  S \`${UIHelpers.escapeMarkdown(models.sonnet)}\`  O \`${UIHelpers.escapeMarkdown(models.opus)}\``);
+    lines.push('');
+
+    // Git
+    lines.push('👤 *Git*');
+    lines.push(`Name: \`${UIHelpers.escapeMarkdown(config.git?.userName || '–')}\``);
+    lines.push(`Email: \`${UIHelpers.escapeMarkdown(config.git?.userEmail || '–')}\``);
+    lines.push(`Default branch: \`${UIHelpers.escapeMarkdown(config.git?.defaultBranch || 'main')}\``);
+    lines.push('');
+
+    // Stack
+    lines.push('🛠️ *Tech Stack*');
+    lines.push(`TypeScript: \`${UIHelpers.escapeMarkdown(config.techStack?.typescript || 'bun')}\``);
+    lines.push(`Python: \`${UIHelpers.escapeMarkdown(config.techStack?.python || 'uv')}\``);
+    lines.push('');
+
+    // Preferences
+    lines.push('⚙️ *Preferences*');
+    lines.push(`Notify on complete: \`${String(config.preferences?.notifyOnTaskComplete ?? true)}\``);
+    lines.push('');
+
+    // Limits
+    lines.push('📊 *Limits*');
+    lines.push(`Max concurrent tasks: \`${String(config.limits?.maxConcurrentTasks ?? 3)}\``);
+    lines.push(`Task timeout: \`${timeoutStr}\``);
+    lines.push('');
+
+    // MCP
+    lines.push('🔌 *MCP*');
+    lines.push(`Current repo servers: \`${mcpServerCount}\``);
+    lines.push('');
+
+    // Other
+    lines.push('🗂️ *Other*');
+    lines.push(`CLAUDE.md template: ${config.claudeMdTemplate ? `set (\`${config.claudeMdTemplate.length} chars\`)` : '–'}`);
+    lines.push(`Deleted repos remembered: \`${String(config.deletedRepositories?.length ?? 0)}\``);
+    lines.push(`Updated: \`${config.updatedAt.toISOString()}\``);
 
     await this.bot.sendMessage(chatId, lines.join('\n'), {
       parse_mode: 'Markdown',
       reply_markup: {
         inline_keyboard: [
           [
-            { text: 'Reset', callback_data: 'config_reset_confirm' }
+            { text: '🔄 Reset', callback_data: 'config_reset_confirm' },
+            { text: '🏠 Main Menu', callback_data: 'main_menu' }
           ]
         ]
       }

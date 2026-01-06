@@ -14,6 +14,58 @@ const execAsync = promisify(exec);
  */
 export class RepositoryHandlers extends BaseHandler {
   /**
+   * /scan command - Rescan workspace for already-synced repositories
+   */
+  async handleScan(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    const before = (await this.repositoryManager.listRepositories(userId)).length;
+    const statusMsg = await this.bot.sendMessage(chatId, '🔍 Scanning for repositories...');
+
+    try {
+      await this.repositoryManager.rescan();
+      const repos = await this.repositoryManager.listRepositories(userId);
+      const after = repos.length;
+      const found = Math.max(0, after - before);
+
+      if (repos.length === 0) {
+        await this.bot.editMessageText(
+          `📭 No repositories found.\n\n` +
+          `Try:\n` +
+          `• \`/repo clone owner/repo\`\n` +
+          `• \`/repo add /path/to/repo\``,
+          { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      const keyboard = UIHelpers.createRepositoryListKeyboard(repos, currentRepo?.id || null);
+
+      await this.bot.editMessageText(
+        `✅ Scan complete.\n\n` +
+        `Repositories: *${repos.length}*${found > 0 ? ` (+${found} new)` : ''}\n\n` +
+        `Pick one below or use \`/repo\`.`,
+        {
+          chat_id: chatId,
+          message_id: statusMsg.message_id,
+          parse_mode: 'Markdown',
+          reply_markup: keyboard
+        }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(`❌ Scan failed: ${errorMessage}`, {
+        chat_id: chatId,
+        message_id: statusMsg.message_id
+      });
+    }
+  }
+
+  /**
    * /repo command - Repository management
    */
   async handleRepo(msg: Message, match: RegExpExecArray | null): Promise<void> {

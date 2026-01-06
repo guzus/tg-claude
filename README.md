@@ -102,10 +102,14 @@ Data is stored in `./persistent/` on your host.
 |---------|-------------|
 | `/beast <task>` | Autonomous mode (iterates until complete) |
 | `/repo` | Manage repositories (clone/new/list/switch) |
+| `/scan` | Scan for existing repositories |
 | `/remote` | Manage git remote (show/set/test) |
 | `/bot` | Manage bots via Mothership (in development) |
 | `/status` | Check active tasks |
+| `/cancel <id>` | Cancel a running task |
+| `/limits` | Check your rate limits |
 | `/config` | User configuration |
+| `/ai` | Toggle AI provider (Claude/GLM/OpenRouter) |
 | `/mcp` | Manage MCP servers per repository |
 | `/help` | Show help |
 
@@ -132,6 +136,8 @@ Get your API key from [Z.ai](https://z.ai/manage-apikey/apikey-list). See the [D
 /config set aiProvider.provider openrouter
 /config set aiProvider.openrouterApiKey YOUR_OPENROUTER_API_KEY
 ```
+
+Tip: use `/ai` and tap **Set OpenRouter Key** to paste your key interactively.
 
 Get your API key from [OpenRouter](https://openrouter.ai/settings/keys).
 

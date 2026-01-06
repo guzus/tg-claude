@@ -68,6 +68,14 @@ export class BotHandlers {
     return this.utilityHandlers.handleVersion(msg);
   }
 
+  async handleLimits(msg: Message): Promise<void> {
+    return this.utilityHandlers.handleLimits(msg);
+  }
+
+  async handleCancel(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.utilityHandlers.handleCancel(msg, match);
+  }
+
   // ==================== Task Commands ====================
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -87,6 +95,10 @@ export class BotHandlers {
 
   async handleRemote(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.repositoryHandlers.handleRemote(msg, match);
+  }
+
+  async handleScan(msg: Message): Promise<void> {
+    return this.repositoryHandlers.handleScan(msg);
   }
 
   async handleNewRepo(msg: Message, match: RegExpExecArray | null): Promise<void> {
@@ -144,6 +156,16 @@ export class BotHandlers {
     // Check if user has a pending /new_repo command waiting for name
     if (userId && text && stateManager.hasPendingNewRepoName(userId)) {
       return this.repositoryHandlers.handleNewRepoNameInput(userId, chatId, text);
+    }
+
+    // Check if user is entering an API key (GLM/OpenRouter)
+    if (userId && text && stateManager.hasPendingApiKeyEntry(userId)) {
+      return this.configHandlers.handleApiKeyEntry(msg);
+    }
+
+    // Check if user is entering a model ID (OpenRouter)
+    if (userId && text && stateManager.hasPendingModelEntry(userId)) {
+      return this.configHandlers.handleModelEntry(msg);
     }
 
     // Otherwise treat as task command

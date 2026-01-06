@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
+import { config } from '../config';
 
 /**
  * Handlers for utility and diagnostic commands
@@ -70,7 +71,8 @@ export class UtilityHandlers extends BaseHandler {
       `/help - Show this help message\n\n` +
       `💡 *Quick Start:*\n` +
       `1. Use \`/repo clone owner/repo\` to clone a repository\n` +
-      `2. Send a message to start working on it`;
+      `2. Send a plain message to start working on it\n` +
+      `   Example: \`add error handling to the API\``;
 
     const mainMenuKeyboard = UIHelpers.createMainMenuKeyboard(currentRepo !== null);
 
@@ -94,6 +96,74 @@ export class UtilityHandlers extends BaseHandler {
   async handleHelp(msg: Message): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
     await this.handleStart(msg);
+  }
+
+  /**
+   * /limits command - Show remaining rate limit quota
+   */
+  async handleLimits(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    const remaining = this.rateLimiter.getRemainingRequests(userId);
+
+    await this.bot.sendMessage(
+      chatId,
+      `⚙️ *Rate Limits*\n\n` +
+      `Hourly: *${remaining.hourly}* remaining (max ${config.maxRequestsPerUserPerHour}/hr)\n` +
+      `Daily: *${remaining.daily}* remaining (max ${config.maxRequestsPerUserPerDay}/day)\n\n` +
+      `Tip: heavy usage? consider /beast for fewer back-and-forth messages.`,
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  /**
+   * /cancel command - Cancel an active task by ID prefix
+   */
+  async handleCancel(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const arg = match?.[1]?.trim();
+
+    if (!arg) {
+      await this.bot.sendMessage(
+        chatId,
+        `❌ Usage: \`/cancel <taskId>\`\n\n` +
+        `Use /status to see active task IDs (first 8 chars).`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const prefix = arg.replace(/^#/, '').trim();
+    const activeTasks = this.executor.getActiveTasksForUser(userId);
+    const task = activeTasks.find(t => t.id.startsWith(prefix)) || activeTasks.find(t => t.id.substring(0, 8) === prefix);
+
+    if (!task) {
+      await this.bot.sendMessage(
+        chatId,
+        `❌ No active task found for \`${UIHelpers.escapeMarkdown(prefix)}\`.\n\nUse /status to list running tasks.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const cancelled = this.executor.cancelTask(task.id);
+    if (!cancelled) {
+      await this.bot.sendMessage(chatId, '❌ Failed to cancel. Task may have completed.');
+      return;
+    }
+
+    const duration = UIHelpers.formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
+    await this.bot.sendMessage(
+      chatId,
+      `🛑 *Cancelled*\n\nID: \`${task.id.substring(0, 8)}\`\nTime: ${duration}`,
+      { parse_mode: 'Markdown' }
+    );
   }
 
   /**
@@ -154,8 +224,8 @@ export class UtilityHandlers extends BaseHandler {
               let authStatus: string;
               if (hasAnthropicKey || hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
                 const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
-                                 aiProvider === 'glm' ? 'GLM' :
-                                 hasOAuthToken ? 'OAuth' : 'Anthropic';
+                  aiProvider === 'glm' ? 'GLM' :
+                    hasOAuthToken ? 'OAuth' : 'Anthropic';
                 authStatus = `✅ Configured (${provider})`;
               } else {
                 authStatus = '❌ No API key configured\nSet ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN';

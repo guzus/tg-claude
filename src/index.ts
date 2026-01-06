@@ -154,12 +154,16 @@ bot.setMyCommands([
   { command: 'beast', description: '🔥 Beast mode - Autonomous AI execution' },
   { command: 'new_repo', description: '📁 Create new GitHub repository' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
+  { command: 'scan', description: 'Scan for existing repositories' },
   { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
   { command: 'bot', description: '🤖 Manage bots via Mothership (in development)' },
   { command: 'chamber', description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation' },
   { command: 'check', description: 'Check Claude CLI installation and setup' },
   { command: 'status', description: 'Check active tasks' },
+  { command: 'cancel', description: 'Cancel an active task by ID' },
+  { command: 'limits', description: 'Show your remaining rate limits' },
   { command: 'config', description: 'Manage user configuration' },
+  { command: 'ai', description: 'Quick toggle AI provider' },
   { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
   { command: 'version', description: 'Show bot version/commit hash' },
   { command: 'help', description: 'Show help message' }
@@ -172,10 +176,13 @@ bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
 bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/new_repo(.*)/, (msg, match) => handlers.handleNewRepo(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
+bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
 bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
 bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
 bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
 bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
+bot.onText(/\/cancel(.*)/, (msg, match) => handlers.handleCancel(msg, match));
+bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/ai/, (msg) => handlers.handleAi(msg));
 bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));

@@ -38,7 +38,7 @@ export class CallbackQueryHandler extends BaseHandler {
         repo: () => this.handleRepoAction(chatId, messageId, userId, subAction),
         status: () => this.showStatusMenu(chatId, messageId),
         task: () => this.showTaskHelp(chatId, messageId),
-        show: () => this.handleShowAction(chatId, messageId, subAction),
+        show: () => this.handleShowAction(chatId, messageId, userId, subAction),
         refresh: () => this.handleRefreshAction(chatId, messageId, userId, subAction),
         create: () => this.handleCreateRepoAction(chatId, messageId, userId, params),
         new: () => this.handleNewRepoAction(chatId, messageId, userId, params),
@@ -47,7 +47,9 @@ export class CallbackQueryHandler extends BaseHandler {
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
         view: () => this.handleViewAction(chatId, userId, subAction),
         beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
-        ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction)
+        ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction),
+        apikey: () => this.handleApiKeyAction(chatId, messageId, userId, subAction),
+        model: () => this.handleModelAction(chatId, messageId, userId, subAction)
       };
 
       const handler = handlers[action];
@@ -65,6 +67,134 @@ export class CallbackQueryHandler extends BaseHandler {
   private async showMainMenu(chatId: number, messageId: number, userId: number): Promise<void> {
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
     await this.editMessage(chatId, messageId, '*Claude Code Remote Control*\n\nChoose an action:', UIHelpers.createMainMenuKeyboard(!!currentRepo));
+  }
+
+  private async handleApiKeyAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    if (subAction === 'cancel') {
+      stateManager.clearPendingApiKeyEntry(userId);
+      await this.showMainMenu(chatId, messageId, userId);
+      return;
+    }
+
+    const provider = subAction.replace('set_', '') as 'glm' | 'openrouter';
+    if (provider !== 'glm' && provider !== 'openrouter') {
+      await this.bot.sendMessage(chatId, 'Invalid API key action');
+      return;
+    }
+
+    stateManager.setPendingApiKeyEntry(userId, { userId, chatId, messageId, provider });
+
+    const providerLabel = provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const field = provider === 'glm' ? '`aiProvider.glmApiKey`' : '`aiProvider.openrouterApiKey`';
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔑 *Set ${providerLabel} API Key*\n\n` +
+      `Paste your key as the next message.\n\n` +
+      `- We’ll try to delete the key message after saving\n` +
+      `- Type \`cancel\` to abort\n\n` +
+      `(_Advanced: you can still set it manually via /config set ${field} ..._)`,
+      {
+        inline_keyboard: [
+          [{ text: 'Cancel', callback_data: 'apikey_cancel' }],
+          [{ text: '🏠 Main Menu', callback_data: 'main_menu' }]
+        ]
+      }
+    );
+  }
+
+  private async handleModelAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    // reset_openrouter
+    if (subAction === 'reset_openrouter') {
+      const current = await this.userConfigManager.getConfig(userId);
+      const aiProvider = current.aiProvider || { provider: 'openrouter' };
+      await this.userConfigManager.updateConfig(userId, {
+        aiProvider: { ...aiProvider, haikuModel: undefined, sonnetModel: undefined, opusModel: undefined }
+      });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ *OpenRouter models reset*\n\nNow using defaults:\n` +
+        `H: \`${OPENROUTER_MODEL_MAPPINGS.haiku}\`\n` +
+        `S: \`${OPENROUTER_MODEL_MAPPINGS.sonnet}\`\n` +
+        `O: \`${OPENROUTER_MODEL_MAPPINGS.opus}\``,
+        { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
+      );
+      return;
+    }
+
+    // menu_openrouter_<slot>
+    if (subAction.startsWith('menu_openrouter_')) {
+      const slot = subAction.replace('menu_openrouter_', '') as 'haiku' | 'sonnet' | 'opus';
+      if (slot !== 'haiku' && slot !== 'sonnet' && slot !== 'opus') return;
+
+      const presetButtons: InlineKeyboardButton[][] = [
+        [{ text: 'minimax/minimax-m2.1 (default)', callback_data: `model_pick_openrouter_${slot}_minimax/minimax-m2.1` }],
+        [{ text: 'openai/gpt-4o-mini', callback_data: `model_pick_openrouter_${slot}_openai/gpt-4o-mini` }],
+        [{ text: 'anthropic/claude-3.5-sonnet', callback_data: `model_pick_openrouter_${slot}_anthropic/claude-3.5-sonnet` }],
+        [{ text: 'Custom…', callback_data: `model_custom_openrouter_${slot}` }],
+        [{ text: 'Back', callback_data: 'main_menu' }]
+      ];
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🎛️ *Set OpenRouter Model*\n\nSlot: *${slot.toUpperCase()}*\n\nPick a preset or choose *Custom…*`,
+        { inline_keyboard: presetButtons }
+      );
+      return;
+    }
+
+    // custom_openrouter_<slot>
+    if (subAction.startsWith('custom_openrouter_')) {
+      const slot = subAction.replace('custom_openrouter_', '') as 'haiku' | 'sonnet' | 'opus';
+      if (slot !== 'haiku' && slot !== 'sonnet' && slot !== 'opus') return;
+
+      stateManager.setPendingModelEntry(userId, { userId, chatId, messageId, provider: 'openrouter', slot });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✍️ *Custom OpenRouter Model*\n\nSlot: *${slot.toUpperCase()}*\n\nPaste a model id like:\n` +
+        `\`openai/gpt-4o-mini\`\n` +
+        `\`anthropic/claude-3.5-sonnet\`\n\n` +
+        `Type \`cancel\` to abort.`,
+        { inline_keyboard: [[{ text: 'Cancel', callback_data: 'main_menu' }]] }
+      );
+      return;
+    }
+
+    // pick_openrouter_<slot>_<model...>
+    if (subAction.startsWith('pick_openrouter_')) {
+      const rest = subAction.replace('pick_openrouter_', '');
+      const [slot, ...modelParts] = rest.split('_');
+      const model = modelParts.join('_');
+      if ((slot !== 'haiku' && slot !== 'sonnet' && slot !== 'opus') || !model) return;
+
+      const current = await this.userConfigManager.getConfig(userId);
+      const aiProvider = current.aiProvider || { provider: 'openrouter' };
+      const field = slot === 'haiku' ? 'haikuModel' : slot === 'sonnet' ? 'sonnetModel' : 'opusModel';
+      await this.userConfigManager.updateConfig(userId, { aiProvider: { ...aiProvider, [field]: model } });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ *Saved*\n\nSlot: *${slot.toUpperCase()}*\nModel: \`${UIHelpers.escapeMarkdown(model)}\`\n\nRun /ai to verify.`,
+        { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
+      );
+    }
   }
 
   private async handleRepoAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
@@ -225,14 +355,43 @@ export class CallbackQueryHandler extends BaseHandler {
     );
   }
 
-  private async handleShowAction(chatId: number, messageId: number, subAction: string): Promise<void> {
+  private async handleShowAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
     if (subAction === 'help') {
       await this.editMessage(chatId, messageId,
         '*Help*\n\n' +
         '*Repository:* `/repo`\n' +
         '*Status:* `/status`\n' +
-        '*Logs:* `/logs <id>`',
+        '*Limits:* `/limits`\n' +
+        '*AI Provider:* `/ai`\n' +
+        '*Config:* `/config`',
         { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
+      );
+    } else if (subAction === 'limits') {
+      const remaining = this.rateLimiter.getRemainingRequests(userId);
+      await this.editMessage(
+        chatId,
+        messageId,
+        `⚙️ *Rate Limits*\n\n` +
+        `Hourly remaining: *${remaining.hourly}*\n` +
+        `Daily remaining: *${remaining.daily}*\n\n` +
+        `Tip: /beast is often more efficient for big tasks.`,
+        { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
+      );
+    } else if (subAction === 'logs') {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `📋 *Logs*\n\n` +
+        `Logs are per-task.\n\n` +
+        `- Use /status to see active tasks\n` +
+        `- Tap *Full Log* on a running task\n` +
+        `- Tap *View Log* after a task completes`,
+        {
+          inline_keyboard: [
+            [{ text: '📊 Status', callback_data: 'status_menu' }],
+            [{ text: 'Back', callback_data: 'main_menu' }]
+          ]
+        }
       );
     }
   }

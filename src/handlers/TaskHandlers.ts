@@ -419,8 +419,17 @@ Always commit and push your changes after completing the task unless explicitly 
         'Please set up a repository first:\n' +
         '• /repo clone <url> - Clone a repository\n' +
         '• /repo new <name> - Create new repository\n' +
-        '• /scan - Scan for existing repositories',
-        { parse_mode: 'Markdown' }
+        '• /repo add <path> - Add existing repository\n' +
+        '• /scan - Scan for already-synced repositories',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📁 Setup Repository', callback_data: 'repo_menu' }],
+              [{ text: '📋 List Repositories', callback_data: 'repo_list' }]
+            ]
+          }
+        }
       );
       return;
     }
