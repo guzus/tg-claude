@@ -47,10 +47,12 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager, undefined, userConfigManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
-    this.ralphHandler = new RalphWiggumHandler(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    this.ralphHandler = new RalphWiggumHandler(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager);
 
     // Connect beast mode executor to callback handler for stop functionality
     this.callbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
+    // Connect ralph executor to callback handler
+    this.callbackQueryHandler.setRalphExecutor(this.ralphHandler.getRalphExecutor());
   }
 
   // ==================== Utility Commands ====================
@@ -86,8 +88,8 @@ export class BotHandlers {
   }
 
   async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    const prompt = match?.[1] || '';
-    return this.taskHandlers.executeBeastMode(msg, prompt);
+    // Redirect beast mode to Ralph loop (beast is now an alias)
+    return this.ralphHandler.handleRalph(msg, match);
   }
 
   // ==================== Repository Commands ====================

@@ -6,6 +6,7 @@ import { logger } from '../utils/logger';
 import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../types';
 import { stateManager, PendingRepoCreation } from '../services/StateManager';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
+import { RalphLoopExecutor } from '../services/RalphLoopExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import path from 'path';
@@ -14,9 +15,14 @@ const execAsync = promisify(exec);
 
 export class CallbackQueryHandler extends BaseHandler {
   private beastModeExecutor: BeastModeExecutor | null = null;
+  private ralphExecutor: RalphLoopExecutor | null = null;
 
   setBeastModeExecutor(executor: BeastModeExecutor): void {
     this.beastModeExecutor = executor;
+  }
+
+  setRalphExecutor(executor: RalphLoopExecutor): void {
+    this.ralphExecutor = executor;
   }
 
   async handleCallbackQuery(query: CallbackQuery): Promise<void> {
@@ -47,6 +53,7 @@ export class CallbackQueryHandler extends BaseHandler {
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
         view: () => this.handleViewAction(chatId, userId, subAction),
         beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
+        ralph: () => this.handleRalphAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction),
         apikey: () => this.handleApiKeyAction(chatId, messageId, userId, subAction),
         model: () => this.handleModelAction(chatId, messageId, userId, subAction)
@@ -794,6 +801,24 @@ export class CallbackQueryHandler extends BaseHandler {
         logger.info('Beast mode stopped', { sessionId, userId });
       } else {
         await this.bot.sendMessage(chatId, 'Could not stop. Session may have completed.');
+      }
+    }
+  }
+
+  private async handleRalphAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (subAction.startsWith('stop:')) {
+      const sessionId = subAction.replace('stop:', '');
+
+      if (!this.ralphExecutor) {
+        await this.bot.sendMessage(chatId, 'Ralph loop not available');
+        return;
+      }
+
+      if (this.ralphExecutor.stopSession(sessionId)) {
+        await this.editMessage(chatId, messageId, '*Ralph Loop Stopped*\n\nUncommitted changes remain in working directory.');
+        logger.info('Ralph loop stopped', { sessionId, userId });
+      } else {
+        await this.bot.sendMessage(chatId, 'Could not stop. Loop may have completed.');
       }
     }
   }
