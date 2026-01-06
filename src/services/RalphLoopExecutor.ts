@@ -82,7 +82,9 @@ export class RalphLoopExecutor {
   /**
    * Ensure ralph-wiggum plugin is installed
    */
-  private async ensureRalphPluginInstalled(workingDir: string): Promise<void> {
+  private async ensureRalphPluginInstalled(
+    workingDir: string
+  ): Promise<{ ok: true } | { ok: false; error: string; pluginSpec: string }> {
     const preset = PLUGIN_PRESETS['ralph-wiggum'];
     if (!preset) {
       throw new Error('Ralph Wiggum plugin preset not found');
@@ -99,12 +101,15 @@ export class RalphLoopExecutor {
         stdio: ['pipe', 'pipe', 'pipe']
       });
       logger.info('Ralph Wiggum plugin ready', { workingDir, pluginSpec });
+      return { ok: true };
     } catch (error) {
       // Log warning but don't fail - plugin might already be installed
+      const errMsg = error instanceof Error ? error.message : String(error);
       logger.warn('Plugin install returned non-zero', {
         workingDir,
-        error: error instanceof Error ? error.message : String(error)
+        error: errMsg
       });
+      return { ok: false, error: errMsg, pluginSpec };
     }
   }
 
@@ -238,7 +243,24 @@ export class RalphLoopExecutor {
   private async runRalphLoop(state: RalphLoopState): Promise<void> {
     try {
       // Ensure ralph-wiggum plugin is installed
-      await this.ensureRalphPluginInstalled(state.workingDir);
+      const pluginResult = await this.ensureRalphPluginInstalled(state.workingDir);
+      if (!pluginResult.ok) {
+        // Let the user know the loop may not be enforced if the plugin isn't available
+        try {
+          const msg =
+            `⚠️ Could not install the \`ralph-wiggum\` plugin.\n\n` +
+            `Install error:\n` +
+            `\`${UIHelpers.escapeMarkdown(pluginResult.error.substring(0, 500))}\`\n\n` +
+            `Try:\n` +
+            `- \`/plugin preset ralph-wiggum\`\n` +
+            `- \`/plugin install ${UIHelpers.escapeMarkdown(pluginResult.pluginSpec)}\`\n` +
+            `- Or update Claude Code CLI if the marketplace has changed.\n\n` +
+            `Continuing anyway…`;
+          await this.bot.sendMessage(state.chatId, msg, { parse_mode: 'Markdown' });
+        } catch {
+          // Ignore notification errors
+        }
+      }
 
       // Send initial status message
       const repository = this.repositoryManager.getCurrentRepository(state.userId) ?? null;
@@ -428,12 +450,16 @@ ${state.originalRequest}
     const emoji = state.status === RalphLoopStatus.RUNNING ? '🔄' :
       state.status === RalphLoopStatus.COMPLETED ? '✅' : '⚠️';
 
-    let msg = `${emoji} **Ralph Loop**\n\n`;
-    msg += `📋 ${state.originalRequest.substring(0, 100)}${state.originalRequest.length > 100 ? '...' : ''}\n\n`;
+    const requestSnippet = state.originalRequest.substring(0, 100) + (state.originalRequest.length > 100 ? '...' : '');
+    const escapedRequest = UIHelpers.escapeMarkdown(requestSnippet);
+    const escapedPromise = UIHelpers.escapeMarkdown(state.config.completionPromise);
+
+    let msg = `${emoji} *Ralph Loop*\n\n`;
+    msg += `📋 ${escapedRequest}\n\n`;
     msg += `⏱️ Time: ${UIHelpers.formatDuration(elapsed)}\n`;
-    msg += `🎯 Promise: \`${state.config.completionPromise}\`\n`;
+    msg += `🎯 Promise: ${escapedPromise}\n`;
     if (repository) {
-      msg += `📁 Repo: ${repository.name}\n`;
+      msg += `📁 Repo: ${UIHelpers.escapeMarkdown(repository.name)}\n`;
     }
 
     return msg;
@@ -485,11 +511,14 @@ ${state.originalRequest}
             state.status === RalphLoopStatus.TIMEOUT ? 'Timeout' :
               state.status === RalphLoopStatus.STOPPED ? 'Stopped' : 'Failed';
 
-      let report = `${statusEmoji} **Ralph Loop ${statusText}**\n\n`;
-      report += `📋 ${state.originalRequest.substring(0, 200)}\n\n`;
-      report += `📊 **Summary**:\n`;
-      report += `• Duration: ${UIHelpers.formatDuration(duration)}\n`;
-      report += `• Promise: ${state.config.completionPromise}\n`;
+      const escapedReq = UIHelpers.escapeMarkdown(state.originalRequest.substring(0, 200));
+      const escapedPromise = UIHelpers.escapeMarkdown(state.config.completionPromise);
+
+      let report = `${statusEmoji} *Ralph Loop ${statusText}*\n\n`;
+      report += `📋 ${escapedReq}\n\n`;
+      report += `📊 *Summary:*\n`;
+      report += `- Duration: ${UIHelpers.formatDuration(duration)}\n`;
+      report += `- Promise: ${escapedPromise}\n`;
 
       await this.bot.sendMessage(state.chatId, report, { parse_mode: 'Markdown' });
     } catch (error) {

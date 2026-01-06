@@ -26,9 +26,12 @@ RUN apk add --no-cache git openssh-client curl bash github-cli su-exec \
     # Chromium for Playwright MCP support
     chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
-# Playwright configuration (use system Chromium; avoid downloading browsers at runtime)
-ENV PLAYWRIGHT_BROWSERS_PATH=0
+# Playwright configuration (use system Chromium; avoid downloading browsers at build/runtime)
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+
+# Pre-install Playwright MCP so `/mcp preset playwright` doesn't need a first-run download
+RUN npm install -g @playwright/mcp@latest
 
 # Create non-root user for security (required for --dangerously-skip-permissions)
 RUN addgroup -g 10001 appgroup && adduser -u 10001 -G appgroup -s /bin/sh -D appuser
