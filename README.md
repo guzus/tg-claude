@@ -119,7 +119,7 @@ You can use [GLM-4](https://docs.z.ai/devpack/tool/claude) as an alternative AI 
 
 ```
 /config set aiProvider.provider glm
-/config set aiProvider.apiKey YOUR_ZAI_API_KEY
+/config set aiProvider.glmApiKey YOUR_ZAI_API_KEY
 ```
 
 Get your API key from [Z.ai](https://z.ai/manage-apikey/apikey-list). See the [Deployment Guide](./docs/DEPLOYMENT.md#using-glm-instead-of-claude-optional) for details.
@@ -130,7 +130,7 @@ Get your API key from [Z.ai](https://z.ai/manage-apikey/apikey-list). See the [D
 
 ```
 /config set aiProvider.provider openrouter
-/config set aiProvider.apiKey YOUR_OPENROUTER_API_KEY
+/config set aiProvider.openrouterApiKey YOUR_OPENROUTER_API_KEY
 ```
 
 Get your API key from [OpenRouter](https://openrouter.ai/settings/keys).

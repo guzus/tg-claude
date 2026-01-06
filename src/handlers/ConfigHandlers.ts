@@ -8,6 +8,7 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
 import { logger } from '../utils/logger';
+import { UIHelpers } from '../utils/UIHelpers';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -48,15 +49,47 @@ export class ConfigHandlers extends BaseHandler {
       openrouter: 'OpenRouter'
     };
 
+    const models = this.getProviderModelMap(provider, config);
+    const modelLines = [
+      `Haiku: \`${UIHelpers.escapeMarkdown(models.haiku)}\``,
+      `Sonnet: \`${UIHelpers.escapeMarkdown(models.sonnet)}\``,
+      `Opus: \`${UIHelpers.escapeMarkdown(models.opus)}\``,
+    ].join('\n');
+
     // Build buttons for providers other than current
     const buttons = (['anthropic', 'glm', 'openrouter'] as AIProvider[])
       .filter(p => p !== provider)
       .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
-    await this.bot.sendMessage(chatId, `*${providerLabels[provider]}*`, {
+    const message = `*${providerLabels[provider]}*\n\n${modelLines}`;
+
+    await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
       reply_markup: { inline_keyboard: [buttons] }
     });
+  }
+
+  private getProviderModelMap(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+    const ai = config.aiProvider;
+
+    if (provider === 'glm') {
+      return {
+        haiku: ai?.haikuModel || GLM_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || GLM_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    if (provider === 'openrouter') {
+      return {
+        haiku: ai?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    // Anthropic (Claude subscription via Claude Code): show Claude Code's internal slots.
+    return { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' };
   }
 
   /**
@@ -125,7 +158,8 @@ export class ConfigHandlers extends BaseHandler {
       `• \`techStack.typescript\` - TS (bun/npm/pnpm/yarn)\n` +
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
       `• \`aiProvider.provider\` - AI provider (anthropic/glm/openrouter)\n` +
-      `• \`aiProvider.apiKey\` - Provider API key\n` +
+      `• \`aiProvider.glmApiKey\` - GLM (Z.ai) API key\n` +
+      `• \`aiProvider.openrouterApiKey\` - OpenRouter API key\n` +
       `• \`aiProvider.haikuModel\` - Custom Haiku model\n` +
       `• \`aiProvider.sonnetModel\` - Custom Sonnet model\n` +
       `• \`aiProvider.opusModel\` - Custom Opus model\n` +
@@ -170,11 +204,15 @@ export class ConfigHandlers extends BaseHandler {
 
     const config = await this.userConfigManager.getConfig(userId);
     const provider = config.aiProvider?.provider || 'anthropic';
-    const hasKey = config.aiProvider?.apiKey ? '✓' : '–';
+    const hasKey = (() => {
+      if (provider === 'glm') return config.aiProvider?.glmApiKey ? '✓' : '–';
+      if (provider === 'openrouter') return config.aiProvider?.openrouterApiKey ? '✓' : '–';
+      return '–';
+    })();
 
     // Get model based on provider
     const getModel = () => {
-      if (provider === 'glm') return GLM_MODEL_MAPPINGS.sonnet;
+      if (provider === 'glm') return config.aiProvider?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
       if (provider === 'openrouter') return config.aiProvider?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
       return 'claude-sonnet-4';
     };
@@ -326,7 +364,7 @@ export class ConfigHandlers extends BaseHandler {
       if (!validProviders.includes(value as AIProvider)) {
         throw new Error(`Invalid AI provider: ${value}. Valid: ${validProviders.join(', ')}`);
       }
-    } else if (field === 'apiKey') {
+    } else if (field === 'glmApiKey' || field === 'openrouterApiKey') {
       // API key can be any non-empty string
       if (!value || value.trim() === '') {
         throw new Error('API key cannot be empty');
@@ -334,7 +372,7 @@ export class ConfigHandlers extends BaseHandler {
     } else if (field === 'model' || field === 'haikuModel' || field === 'sonnetModel' || field === 'opusModel') {
       // Model can be any string (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4")
     } else {
-      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, apiKey, haikuModel, sonnetModel, opusModel`);
+      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, glmApiKey, openrouterApiKey, haikuModel, sonnetModel, opusModel`);
     }
   }
 

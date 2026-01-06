@@ -109,7 +109,7 @@ I find your perspective particularly interesting given our different origins...
 
 ## Prerequisites
 
-- GLM API key configured: `/config set aiProvider.provider glm` and `/config set aiProvider.apiKey <key>`
+- GLM API key configured: `/config set aiProvider.provider glm` and `/config set aiProvider.glmApiKey <key>`
 - GitHub CLI authenticated (for private repo creation)
 
 ## Notes

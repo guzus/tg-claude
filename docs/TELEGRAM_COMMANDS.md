@@ -111,20 +111,35 @@ Examples:
 ### `/mcp`
 MCP (Model Context Protocol) server management per repository.
 
+> **Note:** MCP servers are configured **per repository**. Each repository has its own set of MCP servers. When you switch repositories with `/repo switch`, you'll have a different MCP configuration.
+
 | Subcommand | Description |
 |------------|-------------|
 | `/mcp list` | List configured MCP servers |
-| `/mcp add <name> <command>` | Add MCP server |
+| `/mcp add <name> <command> [args]` | Add MCP server |
 | `/mcp remove <name>` | Remove MCP server |
-| `/mcp env <name> <key> <value>` | Set environment variable |
+| `/mcp clear` | Remove all MCP servers |
 
 Examples:
 ```
 /mcp list
-/mcp add filesystem npx @anthropic-ai/mcp-server-filesystem /path
-/mcp env filesystem API_KEY sk-xxx
+/mcp add filesystem npx -y @modelcontextprotocol/server-filesystem /workspace
+/mcp add github npx -y @modelcontextprotocol/server-github
+/mcp add puppeteer npx -y @modelcontextprotocol/server-puppeteer
+/mcp add memory npx -y @modelcontextprotocol/server-memory
 /mcp remove filesystem
+/mcp clear
 ```
+
+#### Popular MCP Servers
+
+| Server | Command | Description |
+|--------|---------|-------------|
+| Puppeteer | `npx -y @modelcontextprotocol/server-puppeteer` | Browser automation, screenshots |
+| GitHub | `npx -y @modelcontextprotocol/server-github` | GitHub API integration |
+| Filesystem | `npx -y @modelcontextprotocol/server-filesystem /path` | Enhanced file operations |
+| Memory | `npx -y @modelcontextprotocol/server-memory` | Persistent memory across sessions |
+| Postgres | `npx -y @modelcontextprotocol/server-postgres` | PostgreSQL database access |
 
 ## AI Provider
 
@@ -133,7 +148,7 @@ Configure the AI provider in `/config`:
 
 ```
 /config set aiProvider.provider glm
-/config set aiProvider.apiKey <your-z-ai-api-key>
+/config set aiProvider.glmApiKey <your-z-ai-api-key>
 ```
 
 To switch back to Anthropic:

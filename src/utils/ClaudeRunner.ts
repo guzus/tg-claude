@@ -5,7 +5,7 @@ export interface ClaudeRunOptions {
   prompt: string;
   workingDir?: string;
   provider?: AIProvider;
-  apiKey?: string;
+  aiProvider?: AIProviderConfig;
   timeout?: number;
   dangerMode?: boolean;
 }
@@ -26,31 +26,63 @@ export interface ClaudeStreamResult {
 /**
  * Configure environment variables for the specified AI provider
  */
-export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string, aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
+export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
   if (provider === 'glm') {
+    // GLM (Z.ai) must use an explicit Z.ai API key. Do NOT fall back to ANTHROPIC_AUTH_TOKEN:
+    // that token is commonly used for OpenRouter and will cause confusing 401s from Z.ai.
+    // Prefer provider-specific key, then env.
+    const glmKey = aiProviderConfig?.glmApiKey || process.env.GLM_API_KEY;
+    if (!glmKey) {
+      throw new Error('GLM provider requires aiProvider.glmApiKey or GLM_API_KEY');
+    }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
-    env.ANTHROPIC_AUTH_TOKEN = apiKey || process.env.GLM_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
-    env.API_TIMEOUT_MS = '3000000';
-    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = GLM_MODEL_MAPPINGS.haiku;
-    env.ANTHROPIC_DEFAULT_SONNET_MODEL = GLM_MODEL_MAPPINGS.sonnet;
-    env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
+    env.ANTHROPIC_AUTH_TOKEN = glmKey;
+    // Ensure Claude Code OAuth does not override the external provider token.
+    // If CLAUDE_CODE_OAUTH_TOKEN is present, the CLI may prefer it and you'll get auth errors
+    // that look like "token expired" / "please login" even though your GLM key is correct.
+    delete env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Keep request timeouts sane by default; allow override via env if GLM is slow in your region.
+    // This timeout is used by Claude Code CLI's HTTP layer.
+    env.API_TIMEOUT_MS = process.env.GLM_API_TIMEOUT_MS || process.env.API_TIMEOUT_MS || '300000'; // 5 minutes
+    // Allow user overrides via config (same shape as OpenRouter), else use defaults.
+    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || GLM_MODEL_MAPPINGS.haiku;
+    env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
+    env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || GLM_MODEL_MAPPINGS.opus;
+    // Unset ANTHROPIC_API_KEY to prevent conflicts
+    delete env.ANTHROPIC_API_KEY;
   } else if (provider === 'openrouter') {
-    // OpenRouter uses ANTHROPIC_AUTH_TOKEN and requires ANTHROPIC_API_KEY to be blank
+    // OpenRouter uses ANTHROPIC_AUTH_TOKEN
     // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
+    // Prefer provider-specific key, then env.
+    const orKey = aiProviderConfig?.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+    if (!orKey) {
+      throw new Error('OpenRouter provider requires aiProvider.openrouterApiKey or OPENROUTER_API_KEY');
+    }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
-    env.ANTHROPIC_AUTH_TOKEN = apiKey || process.env.OPENROUTER_API_KEY || '';
-    env.ANTHROPIC_API_KEY = '';  // Must be blank to prevent conflicts
+    env.ANTHROPIC_AUTH_TOKEN = orKey;
+    // Ensure Claude Code OAuth does not override the external provider token.
+    delete env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Unset ANTHROPIC_API_KEY to prevent conflicts with AUTH_TOKEN
+    delete env.ANTHROPIC_API_KEY;
     // Use custom models if configured, else defaults
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus;
   } else {
+    // Default Anthropic provider (Claude subscription via Claude Code OAuth).
+    //
+    // Important: We must NOT reuse external provider keys as `ANTHROPIC_API_KEY`.
     delete env.ANTHROPIC_BASE_URL;
-    env.ANTHROPIC_MODEL = 'sonnet';
-    if (apiKey) {
-      env.ANTHROPIC_API_KEY = apiKey;
+    delete env.ANTHROPIC_AUTH_TOKEN;  // Clear any conflicting auth token
+    // Always prefer OAuth for Anthropic mode in this project.
+    // (If you want to run Claude Code with an Anthropic API key, set it explicitly in the
+    // environment and adjust this behavior.)
+    delete env.ANTHROPIC_API_KEY;
+
+    if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
     }
   }
 
@@ -72,21 +104,14 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
     prompt,
     workingDir = process.cwd(),
     provider = 'anthropic',
-    apiKey,
+    aiProvider,
     timeout = 300000,
     dangerMode = true
   } = options;
 
   return new Promise((resolve, reject) => {
-    const env = configureProviderEnv(provider, apiKey);
-    const isRoot = process.getuid && process.getuid() === 0;
-    
-    if (isRoot) {
-      env.IS_SANDBOX = '1';
-      env.CLAUDE_AUTO_APPROVE = '1';
-      env.CI = 'true';
-    }
-    
+    const env = configureProviderEnv(provider, aiProvider);
+
     const args = [
       '--print',
       '--verbose',
@@ -109,12 +134,12 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
 
     claudeProcess.stdout?.on('data', (data: Buffer) => {
       rawOutput += data.toString();
-      
+
       const lines = data.toString().split('\n').filter(line => line.trim());
       for (const line of lines) {
         try {
           const event = JSON.parse(line);
-          
+
           if (event.type === 'assistant' && event.message?.content) {
             for (const block of event.message.content) {
               if (block.type === 'tool_use') {
@@ -129,7 +154,7 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
               }
             }
           }
-          
+
           if (event.type === 'result') {
             finalText += typeof event.result === 'string' ? event.result : '';
           }

@@ -108,7 +108,10 @@ export class ClaudeExecutor extends EventEmitter {
         // Not a git repo or no commits yet - ignore
       }
 
-      const isRoot = process.getuid && process.getuid() === 0;
+      // Configure AI provider environment variables (pass full config for custom models)
+      const provider = aiProvider?.provider || 'anthropic';
+      const env = configureProviderEnv(provider, aiProvider);
+
       // Use --output-format stream-json for structured streaming output
       const args = [
         '-p',  // Print mode (non-interactive)
@@ -120,21 +123,6 @@ export class ClaudeExecutor extends EventEmitter {
         prompt
       ];
 
-      // Configure AI provider environment variables (pass full config for custom models)
-      const provider = aiProvider?.provider || 'anthropic';
-      const env = configureProviderEnv(provider, aiProvider?.apiKey, aiProvider);
-      
-      // Override for default Anthropic to use opus model
-      if (provider === 'anthropic') {
-        env.ANTHROPIC_MODEL = 'opus';
-      }
-      
-      if (isRoot) {
-        env.IS_SANDBOX = '1';
-        env.CLAUDE_AUTO_APPROVE = '1';
-        env.CI = 'true';
-      }
-
       logger.info('Using AI provider', { provider });
 
       const claudeProcess = spawn('claude', args, {
@@ -145,14 +133,7 @@ export class ClaudeExecutor extends EventEmitter {
         detached: false
       });
 
-      if (isRoot && claudeProcess.stdin) {
-        claudeProcess.stdin.write('y\n');
-        claudeProcess.stdin.write('yes\n');
-        claudeProcess.stdin.write('y\n');
-        setTimeout(() => claudeProcess.stdin?.end(), 100);
-      } else {
-        claudeProcess.stdin?.end();
-      }
+      claudeProcess.stdin?.end();
 
       if (!claudeProcess.pid) {
         throw new Error('Failed to spawn Claude process');

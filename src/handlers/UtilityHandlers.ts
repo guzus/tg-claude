@@ -146,15 +146,31 @@ export class UtilityHandlers extends BaseHandler {
             versionCheck.on('close', async () => {
               const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
+              // Check auth via environment variables
+              const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+              const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+              const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+              const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+              const aiProvider = process.env.AI_PROVIDER || 'anthropic';
+
+              let authStatus: string;
+              if (hasAnthropicKey || hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
+                const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
+                                 aiProvider === 'glm' ? 'GLM' :
+                                 hasOAuthToken ? 'OAuth' : 'Anthropic';
+                authStatus = `✅ Configured (${provider})`;
+              } else {
+                authStatus = '❌ No API key configured\nSet ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN';
+              }
+
               await this.bot.sendMessage(
                 chatId,
                 '✅ *Claude CLI Status*\n\n' +
                 `📍 Path: \`${claudePath.trim()}\`\n` +
                 `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
+                `🔐 *Auth Status:*\n${authStatus}\n\n` +
                 `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
-                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
-                `🔐 API Key: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '⚠️ Using CLI auth'}\n\n` +
-                `To test, try:\n\`/task say hello\``,
+                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}`,
                 { parse_mode: 'Markdown' }
               );
             });
