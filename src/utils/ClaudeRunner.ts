@@ -1,5 +1,6 @@
 import { spawn } from 'child_process';
 import { AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, AIProvider, AIProviderConfig } from '../types';
+import { logger } from './logger';
 
 export interface ClaudeRunOptions {
   prompt: string;
@@ -34,12 +35,26 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
     if (!glmKey) {
       throw new Error('GLM provider requires GLM_API_KEY or ANTHROPIC_AUTH_TOKEN');
     }
+    // If we're falling back to ANTHROPIC_AUTH_TOKEN, it's often because the user forgot to set
+    // a dedicated GLM key. This can silently break if that token is actually for OpenRouter.
+    if (!apiKey && !process.env.GLM_API_KEY && process.env.ANTHROPIC_AUTH_TOKEN) {
+      logger.warn('GLM provider using ANTHROPIC_AUTH_TOKEN fallback; consider setting aiProvider.apiKey or GLM_API_KEY', {
+        provider,
+      });
+    }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
     env.ANTHROPIC_AUTH_TOKEN = glmKey;
-    env.API_TIMEOUT_MS = '3000000';
-    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = GLM_MODEL_MAPPINGS.haiku;
-    env.ANTHROPIC_DEFAULT_SONNET_MODEL = GLM_MODEL_MAPPINGS.sonnet;
-    env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
+    // Ensure Claude Code OAuth does not override the external provider token.
+    // If CLAUDE_CODE_OAUTH_TOKEN is present, the CLI may prefer it and you'll get auth errors
+    // that look like "token expired" / "please login" even though your GLM key is correct.
+    delete env.CLAUDE_CODE_OAUTH_TOKEN;
+    // Keep request timeouts sane by default; allow override via env if GLM is slow in your region.
+    // This timeout is used by Claude Code CLI's HTTP layer.
+    env.API_TIMEOUT_MS = process.env.GLM_API_TIMEOUT_MS || process.env.API_TIMEOUT_MS || '300000'; // 5 minutes
+    // Allow user overrides via config (same shape as OpenRouter), else use defaults.
+    env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || GLM_MODEL_MAPPINGS.haiku;
+    env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
+    env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || GLM_MODEL_MAPPINGS.opus;
     // Unset ANTHROPIC_API_KEY to prevent conflicts
     delete env.ANTHROPIC_API_KEY;
   } else if (provider === 'openrouter') {
@@ -51,6 +66,8 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
     env.ANTHROPIC_AUTH_TOKEN = orKey;
+    // Ensure Claude Code OAuth does not override the external provider token.
+    delete env.CLAUDE_CODE_OAUTH_TOKEN;
     // Unset ANTHROPIC_API_KEY to prevent conflicts with AUTH_TOKEN
     delete env.ANTHROPIC_API_KEY;
     // Use custom models if configured, else defaults
@@ -124,12 +141,12 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
 
     claudeProcess.stdout?.on('data', (data: Buffer) => {
       rawOutput += data.toString();
-      
+
       const lines = data.toString().split('\n').filter(line => line.trim());
       for (const line of lines) {
         try {
           const event = JSON.parse(line);
-          
+
           if (event.type === 'assistant' && event.message?.content) {
             for (const block of event.message.content) {
               if (block.type === 'tool_use') {
@@ -144,7 +161,7 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
               }
             }
           }
-          
+
           if (event.type === 'result') {
             finalText += typeof event.result === 'string' ? event.result : '';
           }

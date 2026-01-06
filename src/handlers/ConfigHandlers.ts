@@ -174,7 +174,7 @@ export class ConfigHandlers extends BaseHandler {
 
     // Get model based on provider
     const getModel = () => {
-      if (provider === 'glm') return GLM_MODEL_MAPPINGS.sonnet;
+      if (provider === 'glm') return config.aiProvider?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
       if (provider === 'openrouter') return config.aiProvider?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
       return 'claude-sonnet-4';
     };
