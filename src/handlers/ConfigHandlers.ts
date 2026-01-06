@@ -11,6 +11,34 @@ import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../services/StateManager';
 
+// MCP Server Presets - popular MCP servers that can be easily added
+const MCP_PRESETS: Record<string, { server: McpServer; description: string }> = {
+  playwright: {
+    server: { command: 'npx', args: ['@playwright/mcp@latest'] },
+    description: 'Browser automation via Playwright (Microsoft)'
+  },
+  filesystem: {
+    server: { command: 'npx', args: ['-y', '@anthropic/mcp-filesystem'] },
+    description: 'File system access'
+  },
+  github: {
+    server: { command: 'npx', args: ['-y', '@anthropic/mcp-github'] },
+    description: 'GitHub API integration'
+  },
+  memory: {
+    server: { command: 'npx', args: ['-y', '@anthropic/mcp-memory'] },
+    description: 'Persistent memory/knowledge graph'
+  },
+  puppeteer: {
+    server: { command: 'npx', args: ['-y', '@anthropic/mcp-puppeteer'] },
+    description: 'Browser automation via Puppeteer'
+  },
+  fetch: {
+    server: { command: 'npx', args: ['-y', '@anthropic/mcp-fetch'] },
+    description: 'HTTP fetch capabilities'
+  }
+};
+
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
 
@@ -661,6 +689,12 @@ export class ConfigHandlers extends BaseHandler {
         case 'add':
           await this.addMcpServer(msg, args.slice(1), currentRepo.id);
           break;
+        case 'preset':
+          await this.handleMcpPreset(msg, args.slice(1), currentRepo.id);
+          break;
+        case 'presets':
+          await this.showMcpPresets(msg);
+          break;
         case 'remove':
         case 'rm':
           await this.removeMcpServer(msg, args.slice(1), currentRepo.id);
@@ -687,18 +721,23 @@ export class ConfigHandlers extends BaseHandler {
     const mcpConfig = config?.mcpConfigs?.[repoId];
     const serverCount = mcpConfig ? Object.keys(mcpConfig.mcpServers).length : 0;
 
+    const presetNames = Object.keys(MCP_PRESETS).join(', ');
+
     const message =
       `🔌 *MCP Servers* (current repo)\n\n` +
       `Configured servers: ${serverCount}\n\n` +
       `*Commands:*\n` +
-      `/mcp add <name> <command> [args...] - Add server\n` +
+      `/mcp preset <name> - Add from presets\n` +
+      `/mcp presets - Show available presets\n` +
+      `/mcp add <name> <cmd> [args...] - Add custom\n` +
       `/mcp remove <name> - Remove server\n` +
       `/mcp list - Show all servers\n` +
       `/mcp clear - Remove all servers\n\n` +
+      `*Quick presets:* ${presetNames}\n\n` +
       `*Examples:*\n` +
-      `\`/mcp add filesystem npx -y @anthropic/mcp-filesystem\`\n` +
-      `\`/mcp add github npx -y @anthropic/mcp-github\`\n` +
-      `\`/mcp remove filesystem\``;
+      `\`/mcp preset playwright\` ← Browser automation\n` +
+      `\`/mcp preset filesystem\` ← File access\n` +
+      `\`/mcp add custom npx my-mcp-server\``;
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   }
@@ -843,5 +882,84 @@ export class ConfigHandlers extends BaseHandler {
 
     await this.bot.sendMessage(chatId, '✅ All MCP servers cleared for this repository.');
     logger.info('MCP servers cleared', { userId, repoId });
+  }
+
+  private async showMcpPresets(msg: Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const presetLines = Object.entries(MCP_PRESETS).map(([name, { description }]) => {
+      return `• \`${name}\` - ${description}`;
+    });
+
+    const message =
+      `🎯 *Available MCP Presets*\n\n` +
+      presetLines.join('\n') +
+      `\n\n*Usage:* \`/mcp preset <name>\`\n` +
+      `Example: \`/mcp preset playwright\``;
+
+    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  }
+
+  private async handleMcpPreset(msg: Message, args: string[], repoId: string): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (args.length < 1) {
+      await this.showMcpPresets(msg);
+      return;
+    }
+
+    const presetName = args[0].toLowerCase();
+    const preset = MCP_PRESETS[presetName];
+
+    if (!preset) {
+      const availablePresets = Object.keys(MCP_PRESETS).join(', ');
+      await this.bot.sendMessage(chatId,
+        `❌ Unknown preset: \`${presetName}\`\n\n` +
+        `Available presets: ${availablePresets}\n\n` +
+        `Use \`/mcp presets\` to see descriptions.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Configuration manager not available');
+      return;
+    }
+
+    const config = await this.userConfigManager.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig: McpConfig = mcpConfigs[repoId] || { mcpServers: {} };
+
+    // Check if already exists
+    if (repoMcpConfig.mcpServers[presetName]) {
+      await this.bot.sendMessage(chatId,
+        `⚠️ MCP server \`${presetName}\` already exists.\n\n` +
+        `Use \`/mcp remove ${presetName}\` first to replace it.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    repoMcpConfig.mcpServers[presetName] = preset.server;
+    mcpConfigs[repoId] = repoMcpConfig;
+
+    await this.userConfigManager.updateConfig(userId, { mcpConfigs });
+
+    const currentRepo = this.repoManager.getCurrentRepository(userId);
+    if (currentRepo) {
+      await this.repoManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+    }
+
+    const argsStr = preset.server.args?.join(' ') || '';
+    await this.bot.sendMessage(chatId,
+      `✅ MCP preset added: \`${presetName}\`\n\n` +
+      `${preset.description}\n\n` +
+      `Command: \`${preset.server.command} ${argsStr}\``,
+      { parse_mode: 'Markdown' }
+    );
+
+    logger.info('MCP preset added', { userId, repoId, presetName });
   }
 }
