@@ -210,23 +210,19 @@ export class ConfigHandlers extends BaseHandler {
       return '–';
     })();
 
-    // Get model based on provider
-    const getModel = () => {
-      if (provider === 'glm') return config.aiProvider?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
-      if (provider === 'openrouter') return config.aiProvider?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
-      return 'claude-sonnet-4';
-    };
-
     const providerLabels: Record<string, string> = {
       anthropic: 'Claude',
       glm: 'GLM',
       openrouter: 'OpenRouter'
     };
 
+    const models = this.getProviderModelMap(provider, config);
+
     const lines = [
       `*Config*`,
       ``,
-      `AI: *${providerLabels[provider]}* · \`${getModel()}\` · key ${hasKey}`,
+      `AI: *${providerLabels[provider]}* · key ${hasKey}`,
+      `  H: \`${models.haiku}\`  S: \`${models.sonnet}\`  O: \`${models.opus}\``,
       `Git: \`${config.git?.userName || '–'}\` <\`${config.git?.userEmail || '–'}\`>`,
       `Stack: ts/\`${config.techStack?.typescript || 'bun'}\` py/\`${config.techStack?.python || 'uv'}\``,
     ];
