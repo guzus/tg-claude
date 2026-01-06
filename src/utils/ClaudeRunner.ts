@@ -32,9 +32,10 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   if (provider === 'glm') {
     // GLM (Z.ai) must use an explicit Z.ai API key. Do NOT fall back to ANTHROPIC_AUTH_TOKEN:
     // that token is commonly used for OpenRouter and will cause confusing 401s from Z.ai.
-    const glmKey = apiKey || process.env.GLM_API_KEY;
+    // Prefer provider-specific key, then env, then legacy shared key.
+    const glmKey = aiProviderConfig?.glmApiKey || process.env.GLM_API_KEY || apiKey;
     if (!glmKey) {
-      throw new Error('GLM provider requires aiProvider.apiKey (recommended) or GLM_API_KEY');
+      throw new Error('GLM provider requires aiProvider.glmApiKey (recommended), GLM_API_KEY, or (legacy) aiProvider.apiKey');
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
     env.ANTHROPIC_AUTH_TOKEN = glmKey;
@@ -54,9 +55,10 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   } else if (provider === 'openrouter') {
     // OpenRouter uses ANTHROPIC_AUTH_TOKEN
     // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
-    const orKey = apiKey || process.env.OPENROUTER_API_KEY;
+    // Prefer provider-specific key, then env, then legacy shared key.
+    const orKey = aiProviderConfig?.openrouterApiKey || process.env.OPENROUTER_API_KEY || apiKey;
     if (!orKey) {
-      throw new Error('OpenRouter provider requires OPENROUTER_API_KEY');
+      throw new Error('OpenRouter provider requires aiProvider.openrouterApiKey (recommended), OPENROUTER_API_KEY, or (legacy) aiProvider.apiKey');
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
     env.ANTHROPIC_AUTH_TOKEN = orKey;

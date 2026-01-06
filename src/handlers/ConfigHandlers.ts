@@ -125,7 +125,9 @@ export class ConfigHandlers extends BaseHandler {
       `• \`techStack.typescript\` - TS (bun/npm/pnpm/yarn)\n` +
       `• \`techStack.python\` - Python (uv/pip/poetry/pipenv)\n` +
       `• \`aiProvider.provider\` - AI provider (anthropic/glm/openrouter)\n` +
-      `• \`aiProvider.apiKey\` - Provider API key\n` +
+      `• \`aiProvider.glmApiKey\` - GLM (Z.ai) API key\n` +
+      `• \`aiProvider.openrouterApiKey\` - OpenRouter API key\n` +
+      `• \`aiProvider.apiKey\` - Legacy shared external API key\n` +
       `• \`aiProvider.haikuModel\` - Custom Haiku model\n` +
       `• \`aiProvider.sonnetModel\` - Custom Sonnet model\n` +
       `• \`aiProvider.opusModel\` - Custom Opus model\n` +
@@ -170,7 +172,11 @@ export class ConfigHandlers extends BaseHandler {
 
     const config = await this.userConfigManager.getConfig(userId);
     const provider = config.aiProvider?.provider || 'anthropic';
-    const hasKey = config.aiProvider?.apiKey ? '✓' : '–';
+    const hasKey = (() => {
+      if (provider === 'glm') return (config.aiProvider?.glmApiKey || config.aiProvider?.apiKey) ? '✓' : '–';
+      if (provider === 'openrouter') return (config.aiProvider?.openrouterApiKey || config.aiProvider?.apiKey) ? '✓' : '–';
+      return '–';
+    })();
 
     // Get model based on provider
     const getModel = () => {
@@ -326,7 +332,7 @@ export class ConfigHandlers extends BaseHandler {
       if (!validProviders.includes(value as AIProvider)) {
         throw new Error(`Invalid AI provider: ${value}. Valid: ${validProviders.join(', ')}`);
       }
-    } else if (field === 'apiKey') {
+    } else if (field === 'apiKey' || field === 'glmApiKey' || field === 'openrouterApiKey') {
       // API key can be any non-empty string
       if (!value || value.trim() === '') {
         throw new Error('API key cannot be empty');
@@ -334,7 +340,7 @@ export class ConfigHandlers extends BaseHandler {
     } else if (field === 'model' || field === 'haikuModel' || field === 'sonnetModel' || field === 'opusModel') {
       // Model can be any string (e.g., "openai/gpt-4o", "anthropic/claude-sonnet-4")
     } else {
-      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, apiKey, haikuModel, sonnetModel, opusModel`);
+      throw new Error(`Unknown aiProvider field: ${field}. Valid: provider, glmApiKey, openrouterApiKey, apiKey, haikuModel, sonnetModel, opusModel`);
     }
   }
 

@@ -94,7 +94,10 @@ export type AIProvider = 'anthropic' | 'glm' | 'openrouter';
 
 export interface AIProviderConfig {
   provider: AIProvider;
-  apiKey?: string;        // Provider-specific API key (stored separately from Anthropic)
+  apiKey?: string;        // Legacy/shared external API key (kept for backwards compatibility)
+  // Provider-specific keys (recommended so switching providers doesn't reuse the wrong token)
+  glmApiKey?: string;
+  openrouterApiKey?: string;
   model?: string;         // Optional model override (legacy)
   haikuModel?: string;    // Custom model for Haiku slot
   sonnetModel?: string;   // Custom model for Sonnet slot
