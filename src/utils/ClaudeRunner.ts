@@ -30,27 +30,41 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   const env = { ...process.env };
 
   if (provider === 'glm') {
+    const glmKey = apiKey || process.env.GLM_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+    if (!glmKey) {
+      throw new Error('GLM provider requires GLM_API_KEY or ANTHROPIC_AUTH_TOKEN');
+    }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
-    env.ANTHROPIC_AUTH_TOKEN = apiKey || process.env.GLM_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN || '';
+    env.ANTHROPIC_AUTH_TOKEN = glmKey;
     env.API_TIMEOUT_MS = '3000000';
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = GLM_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = GLM_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = GLM_MODEL_MAPPINGS.opus;
+    // Unset ANTHROPIC_API_KEY to prevent conflicts
+    delete env.ANTHROPIC_API_KEY;
   } else if (provider === 'openrouter') {
-    // OpenRouter uses ANTHROPIC_AUTH_TOKEN and requires ANTHROPIC_API_KEY to be blank
+    // OpenRouter uses ANTHROPIC_AUTH_TOKEN
     // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
+    const orKey = apiKey || process.env.OPENROUTER_API_KEY;
+    if (!orKey) {
+      throw new Error('OpenRouter provider requires OPENROUTER_API_KEY');
+    }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
-    env.ANTHROPIC_AUTH_TOKEN = apiKey || process.env.OPENROUTER_API_KEY || '';
-    env.ANTHROPIC_API_KEY = '';  // Must be blank to prevent conflicts
+    env.ANTHROPIC_AUTH_TOKEN = orKey;
+    // Unset ANTHROPIC_API_KEY to prevent conflicts with AUTH_TOKEN
+    delete env.ANTHROPIC_API_KEY;
     // Use custom models if configured, else defaults
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus;
   } else {
+    // Default Anthropic provider - use OAuth (CLAUDE_CODE_OAUTH_TOKEN) unless explicit API key
     delete env.ANTHROPIC_BASE_URL;
-    env.ANTHROPIC_MODEL = 'sonnet';
     if (apiKey) {
       env.ANTHROPIC_API_KEY = apiKey;
+    } else {
+      // Unset ANTHROPIC_API_KEY to allow OAuth token to be used
+      delete env.ANTHROPIC_API_KEY;
     }
   }
 

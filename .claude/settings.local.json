@@ -19,7 +19,8 @@
       "Bash(claude --version:*)",
       "Bash(ls:*)",
       "Bash(ssh hetzner:*)",
-      "WebFetch(domain:docs.anthropic.com)"
+      "WebFetch(domain:docs.anthropic.com)",
+      "Bash(API key\" errors. Now explicitly delete ANTHROPIC_API_KEY for all provider\ncases to ensure OAuth works correctly.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
     ],
     "deny": [],
     "ask": []
