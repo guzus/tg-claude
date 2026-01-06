@@ -47,6 +47,10 @@ dist/
 workspace/
 data/
 config/
+persistent/
+
+# Local CLI symlinks/binaries
+mothership
 
 # Claude Code local settings
 .claude/settings.local.json

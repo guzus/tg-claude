@@ -142,8 +142,8 @@ export class CallbackQueryHandler extends BaseHandler {
 
       const presetButtons: InlineKeyboardButton[][] = [
         [{ text: 'minimax/minimax-m2.1 (default)', callback_data: `model_pick_openrouter_${slot}_minimax/minimax-m2.1` }],
-        [{ text: 'openai/gpt-4o-mini', callback_data: `model_pick_openrouter_${slot}_openai/gpt-4o-mini` }],
-        [{ text: 'anthropic/claude-3.5-sonnet', callback_data: `model_pick_openrouter_${slot}_anthropic/claude-3.5-sonnet` }],
+        [{ text: 'openai/gpt-5.2', callback_data: `model_pick_openrouter_${slot}_openai/gpt-5.2` }],
+        [{ text: 'anthropic/claude-sonnet-4.5', callback_data: `model_pick_openrouter_${slot}_anthropic/claude-sonnet-4.5` }],
         [{ text: 'Custom…', callback_data: `model_custom_openrouter_${slot}` }],
         [{ text: 'Back', callback_data: 'main_menu' }]
       ];
@@ -168,8 +168,8 @@ export class CallbackQueryHandler extends BaseHandler {
         chatId,
         messageId,
         `✍️ *Custom OpenRouter Model*\n\nSlot: *${slot.toUpperCase()}*\n\nPaste a model id like:\n` +
-        `\`openai/gpt-4o-mini\`\n` +
-        `\`anthropic/claude-3.5-sonnet\`\n\n` +
+        `\`openai/gpt-5.2\`\n` +
+        `\`anthropic/claude-sonnet-4.5\`\n\n` +
         `Type \`cancel\` to abort.`,
         { inline_keyboard: [[{ text: 'Cancel', callback_data: 'main_menu' }]] }
       );

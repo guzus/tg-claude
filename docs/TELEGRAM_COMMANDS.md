@@ -162,7 +162,7 @@ Tip: you can also use `/ai` and tap **Set OpenRouter Key** to paste your key int
 #### Custom OpenRouter Models (UX)
 Use `/ai` while on OpenRouter, then tap **H Model / S Model / O Model** to:
 - Pick a preset model
-- Or choose **Custom…** and paste a model id like `openai/gpt-4o-mini`
+- Or choose **Custom…** and paste a model id like `openai/gpt-5.2` (or `anthropic/claude-sonnet-4.5`)
 
 ## Monitoring
 

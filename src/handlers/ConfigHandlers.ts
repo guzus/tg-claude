@@ -202,7 +202,11 @@ export class ConfigHandlers extends BaseHandler {
 
     const model = text;
     if (!model) {
-      await this.bot.sendMessage(chatId, '❌ Empty model. Paste a model id like `openai/gpt-4o-mini`, or type `cancel`.', { parse_mode: 'Markdown' });
+      await this.bot.sendMessage(
+        chatId,
+        '❌ Empty model. Paste a model id like `openai/gpt-5.2` (or `anthropic/claude-sonnet-4.5`), or type `cancel`.',
+        { parse_mode: 'Markdown' }
+      );
       return;
     }
 

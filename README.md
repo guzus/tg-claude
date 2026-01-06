@@ -94,7 +94,7 @@ cp .env.example .env  # Edit with your tokens
 docker compose up -d
 ```
 
-Data is stored in `./persistent/` on your host.
+Data is stored in `./persistent/` on your host (and is **gitignored**).
 
 ## Commands
 
@@ -114,6 +114,8 @@ Data is stored in `./persistent/` on your host.
 | `/help` | Show help |
 
 Just send a plain text message to execute tasks with Claude.
+
+> Note: `/bot` (Mothership) commands are optional and require the Mothership CLI + Nomad. If you don't need bot deployment, you can ignore them.
 
 ## Configuration
 
@@ -144,9 +146,9 @@ Get your API key from [OpenRouter](https://openrouter.ai/settings/keys).
 **Custom Models**: By default, OpenRouter uses [Minimax](https://openrouter.ai/minimax/minimax-m2.1) for all model slots. You can customize each slot independently:
 
 ```
-/config set aiProvider.haikuModel openai/gpt-4o-mini
-/config set aiProvider.sonnetModel anthropic/claude-sonnet-4
-/config set aiProvider.opusModel anthropic/claude-opus-4
+/config set aiProvider.haikuModel openai/gpt-5.2
+/config set aiProvider.sonnetModel anthropic/claude-sonnet-4.5
+/config set aiProvider.opusModel anthropic/claude-opus-4.5
 ```
 
 Browse available models at [OpenRouter Models](https://openrouter.ai/models).

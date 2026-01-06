@@ -215,20 +215,19 @@ export class UtilityHandlers extends BaseHandler {
               const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
               // Check auth via environment variables
-              const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
               const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
               const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
               const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
               const aiProvider = process.env.AI_PROVIDER || 'anthropic';
 
               let authStatus: string;
-              if (hasAnthropicKey || hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
+              if (hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
                 const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
                   aiProvider === 'glm' ? 'GLM' :
                     hasOAuthToken ? 'OAuth' : 'Anthropic';
                 authStatus = `✅ Configured (${provider})`;
               } else {
-                authStatus = '❌ No API key configured\nSet ANTHROPIC_API_KEY, OPENROUTER_API_KEY, or CLAUDE_CODE_OAUTH_TOKEN';
+                authStatus = '❌ No API key configured\nSet OPENROUTER_API_KEY or CLAUDE_CODE_OAUTH_TOKEN';
               }
 
               await this.bot.sendMessage(
