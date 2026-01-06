@@ -89,20 +89,26 @@ export class UserConfigManager {
       // One-time migration: remove legacy shared aiProvider.apiKey and move it into the
       // provider-specific field based on the configured provider.
       // (We no longer support the shared apiKey because switching providers can reuse the wrong token.)
-      const aiProvider = (config as any).aiProvider;
-      if (aiProvider && typeof aiProvider === 'object' && typeof aiProvider.apiKey === 'string' && aiProvider.apiKey.trim()) {
-        const legacyKey = aiProvider.apiKey.trim();
-        if (aiProvider.provider === 'glm' && !aiProvider.glmApiKey) {
-          aiProvider.glmApiKey = legacyKey;
-        } else if (aiProvider.provider === 'openrouter' && !aiProvider.openrouterApiKey) {
-          aiProvider.openrouterApiKey = legacyKey;
-        }
-        delete aiProvider.apiKey;
-        // Persist migration
-        try {
-          await fs.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
-        } catch {
-          // Non-fatal; config still migrated in-memory
+      const aiProviderUnknown = (config as { aiProvider?: unknown }).aiProvider;
+      if (aiProviderUnknown && typeof aiProviderUnknown === 'object' && !Array.isArray(aiProviderUnknown)) {
+        const aiProvider = aiProviderUnknown as Record<string, unknown>;
+        const legacyKey = typeof aiProvider.apiKey === 'string' ? aiProvider.apiKey.trim() : '';
+        const provider = aiProvider.provider === 'glm' || aiProvider.provider === 'openrouter' ? aiProvider.provider : null;
+
+        if (legacyKey && provider) {
+          if (provider === 'glm' && typeof aiProvider.glmApiKey !== 'string') {
+            aiProvider.glmApiKey = legacyKey;
+          } else if (provider === 'openrouter' && typeof aiProvider.openrouterApiKey !== 'string') {
+            aiProvider.openrouterApiKey = legacyKey;
+          }
+          delete aiProvider['apiKey'];
+
+          // Persist migration
+          try {
+            await fs.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
+          } catch {
+            // Non-fatal; config still migrated in-memory
+          }
         }
       }
 
