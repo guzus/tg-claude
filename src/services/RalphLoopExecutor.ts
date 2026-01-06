@@ -601,7 +601,8 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       const repository = this.repositoryManager.getCurrentRepository(state.userId) ?? null;
       const keyboard = state.status === RalphLoopStatus.RUNNING ? {
         inline_keyboard: [[
-          { text: '🛑 Stop Ralph Loop', callback_data: `ralph_stop:${state.sessionId}` }
+          { text: '🛑 Stop Ralph Loop', callback_data: `ralph_stop:${state.sessionId}` },
+          ...(state.taskId ? [{ text: '📋 Log', callback_data: `view_log:${state.taskId}` }] : [])
         ]]
       } : undefined;
 
@@ -685,7 +686,16 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       report += `- Duration: ${UIHelpers.formatDuration(duration)}\n`;
       report += `- Promise: ${escapedPromise}\n`;
 
-      await this.bot.sendMessage(state.chatId, report, { parse_mode: 'Markdown' });
+      const keyboard = state.taskId ? {
+        inline_keyboard: [[
+          { text: '📋 View Log', callback_data: `view_log:${state.taskId}` }
+        ]]
+      } : undefined;
+
+      await this.bot.sendMessage(state.chatId, report, {
+        parse_mode: 'Markdown',
+        reply_markup: keyboard
+      });
     } catch (error) {
       logger.error('Failed to send Ralph final report', {
         sessionId: state.sessionId,
