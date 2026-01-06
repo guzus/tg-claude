@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
-import { RepositoryType } from '../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../types';
 import { stateManager, PendingRepoCreation } from '../services/StateManager';
 import { BeastModeExecutor } from '../services/BeastModeExecutor';
 import { promisify } from 'util';
@@ -434,7 +434,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
     // Extract provider from "switch_<provider>"
     const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
-    await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
+    const updatedConfig = await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
 
     const providerLabels: Record<string, string> = {
       anthropic: 'Claude',
@@ -447,12 +447,41 @@ export class CallbackQueryHandler extends BaseHandler {
       .filter(p => p !== newProvider)
       .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
+    const models = this.getProviderModelMap(newProvider, updatedConfig);
+    const modelLines = [
+      `Haiku: \`${UIHelpers.escapeMarkdown(models.haiku)}\``,
+      `Sonnet: \`${UIHelpers.escapeMarkdown(models.sonnet)}\``,
+      `Opus: \`${UIHelpers.escapeMarkdown(models.opus)}\``,
+    ].join('\n');
+
     await this.editMessage(
       chatId,
       messageId,
-      `*${providerLabels[newProvider]}*`,
+      `*${providerLabels[newProvider]}*\n\n${modelLines}`,
       { inline_keyboard: [buttons] }
     );
+  }
+
+  private getProviderModelMap(provider: 'anthropic' | 'glm' | 'openrouter', config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+    const ai = config.aiProvider;
+
+    if (provider === 'glm') {
+      return {
+        haiku: ai?.haikuModel || GLM_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || GLM_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    if (provider === 'openrouter') {
+      return {
+        haiku: ai?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    return { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' };
   }
 
   private async handleCancelTask(chatId: number, messageId: number, userId: number, taskId: string): Promise<void> {

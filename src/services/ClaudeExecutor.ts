@@ -110,7 +110,7 @@ export class ClaudeExecutor extends EventEmitter {
 
       // Configure AI provider environment variables (pass full config for custom models)
       const provider = aiProvider?.provider || 'anthropic';
-      const env = configureProviderEnv(provider, aiProvider?.apiKey, aiProvider);
+      const env = configureProviderEnv(provider, aiProvider);
 
       // Use --output-format stream-json for structured streaming output
       const args = [

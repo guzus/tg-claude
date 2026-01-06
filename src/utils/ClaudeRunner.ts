@@ -5,7 +5,7 @@ export interface ClaudeRunOptions {
   prompt: string;
   workingDir?: string;
   provider?: AIProvider;
-  apiKey?: string;
+  aiProvider?: AIProviderConfig;
   timeout?: number;
   dangerMode?: boolean;
 }
@@ -26,16 +26,16 @@ export interface ClaudeStreamResult {
 /**
  * Configure environment variables for the specified AI provider
  */
-export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?: string, aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
+export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
   const env = { ...process.env };
 
   if (provider === 'glm') {
     // GLM (Z.ai) must use an explicit Z.ai API key. Do NOT fall back to ANTHROPIC_AUTH_TOKEN:
     // that token is commonly used for OpenRouter and will cause confusing 401s from Z.ai.
-    // Prefer provider-specific key, then env, then explicit override passed in.
-    const glmKey = aiProviderConfig?.glmApiKey || process.env.GLM_API_KEY || apiKey;
+    // Prefer provider-specific key, then env.
+    const glmKey = aiProviderConfig?.glmApiKey || process.env.GLM_API_KEY;
     if (!glmKey) {
-      throw new Error('GLM provider requires aiProvider.glmApiKey (recommended) or GLM_API_KEY');
+      throw new Error('GLM provider requires aiProvider.glmApiKey or GLM_API_KEY');
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
     env.ANTHROPIC_AUTH_TOKEN = glmKey;
@@ -55,10 +55,10 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   } else if (provider === 'openrouter') {
     // OpenRouter uses ANTHROPIC_AUTH_TOKEN
     // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
-    // Prefer provider-specific key, then env, then explicit override passed in.
-    const orKey = aiProviderConfig?.openrouterApiKey || process.env.OPENROUTER_API_KEY || apiKey;
+    // Prefer provider-specific key, then env.
+    const orKey = aiProviderConfig?.openrouterApiKey || process.env.OPENROUTER_API_KEY;
     if (!orKey) {
-      throw new Error('OpenRouter provider requires aiProvider.openrouterApiKey (recommended) or OPENROUTER_API_KEY');
+      throw new Error('OpenRouter provider requires aiProvider.openrouterApiKey or OPENROUTER_API_KEY');
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.openrouter;
     env.ANTHROPIC_AUTH_TOKEN = orKey;
@@ -104,13 +104,13 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
     prompt,
     workingDir = process.cwd(),
     provider = 'anthropic',
-    apiKey,
+    aiProvider,
     timeout = 300000,
     dangerMode = true
   } = options;
 
   return new Promise((resolve, reject) => {
-    const env = configureProviderEnv(provider, apiKey);
+    const env = configureProviderEnv(provider, aiProvider);
 
     const args = [
       '--print',

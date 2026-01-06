@@ -8,6 +8,7 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { ConversationManager } from '../services/ConversationManager';
 import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
 import { logger } from '../utils/logger';
+import { UIHelpers } from '../utils/UIHelpers';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -48,15 +49,47 @@ export class ConfigHandlers extends BaseHandler {
       openrouter: 'OpenRouter'
     };
 
+    const models = this.getProviderModelMap(provider, config);
+    const modelLines = [
+      `Haiku: \`${UIHelpers.escapeMarkdown(models.haiku)}\``,
+      `Sonnet: \`${UIHelpers.escapeMarkdown(models.sonnet)}\``,
+      `Opus: \`${UIHelpers.escapeMarkdown(models.opus)}\``,
+    ].join('\n');
+
     // Build buttons for providers other than current
     const buttons = (['anthropic', 'glm', 'openrouter'] as AIProvider[])
       .filter(p => p !== provider)
       .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
 
-    await this.bot.sendMessage(chatId, `*${providerLabels[provider]}*`, {
+    const message = `*${providerLabels[provider]}*\n\n${modelLines}`;
+
+    await this.bot.sendMessage(chatId, message, {
       parse_mode: 'Markdown',
       reply_markup: { inline_keyboard: [buttons] }
     });
+  }
+
+  private getProviderModelMap(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+    const ai = config.aiProvider;
+
+    if (provider === 'glm') {
+      return {
+        haiku: ai?.haikuModel || GLM_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || GLM_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    if (provider === 'openrouter') {
+      return {
+        haiku: ai?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
+        sonnet: ai?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
+        opus: ai?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus,
+      };
+    }
+
+    // Anthropic (Claude subscription via Claude Code): show Claude Code's internal slots.
+    return { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' };
   }
 
   /**
