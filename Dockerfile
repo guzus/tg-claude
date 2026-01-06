@@ -31,9 +31,11 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 # Create non-root user for security (required for --dangerously-skip-permissions)
 RUN addgroup -g 10001 appgroup && adduser -u 10001 -G appgroup -s /bin/sh -D appuser
 
-# Install claude-code globally and make accessible to appuser
-RUN bun install -g @anthropic-ai/claude-code && \
-    chmod -R 755 /usr/local/bin && \
+# Install claude-code in a shared location accessible to all users
+ENV BUN_INSTALL=/opt/bun
+RUN mkdir -p $BUN_INSTALL && \
+    bun install -g @anthropic-ai/claude-code && \
+    chmod -R 755 $BUN_INSTALL /usr/local/bin && \
     chown -R appuser:appgroup /home/appuser
 
 RUN mkdir -p /workspace /app/data /app/logs /app/config /app/bots
