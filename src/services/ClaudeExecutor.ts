@@ -112,11 +112,6 @@ export class ClaudeExecutor extends EventEmitter {
       const provider = aiProvider?.provider || 'anthropic';
       const env = configureProviderEnv(provider, aiProvider?.apiKey, aiProvider);
 
-      // Override for default Anthropic to use opus model
-      if (provider === 'anthropic') {
-        env.ANTHROPIC_MODEL = 'opus';
-      }
-
       // Use --output-format stream-json for structured streaming output
       const args = [
         '-p',  // Print mode (non-interactive)

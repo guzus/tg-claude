@@ -60,11 +60,16 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   } else {
     // Default Anthropic provider - use OAuth (CLAUDE_CODE_OAUTH_TOKEN) unless explicit API key
     delete env.ANTHROPIC_BASE_URL;
+    delete env.ANTHROPIC_AUTH_TOKEN;  // Clear any conflicting auth token
     if (apiKey) {
       env.ANTHROPIC_API_KEY = apiKey;
     } else {
       // Unset ANTHROPIC_API_KEY to allow OAuth token to be used
       delete env.ANTHROPIC_API_KEY;
+      // Explicitly ensure OAuth token is set if available
+      if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+        env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      }
     }
   }
 
