@@ -168,8 +168,7 @@ export class UtilityHandlers extends BaseHandler {
                 `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
                 `🔐 *Auth Status:*\n${authStatus}\n\n` +
                 `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
-                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
-                `To test, try:\n\`/task say hello\``,
+                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}`,
                 { parse_mode: 'Markdown' }
               );
             });
