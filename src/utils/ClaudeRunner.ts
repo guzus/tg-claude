@@ -79,14 +79,7 @@ export function runClaudeWithTools(options: ClaudeRunOptions): Promise<ClaudeStr
 
   return new Promise((resolve, reject) => {
     const env = configureProviderEnv(provider, apiKey);
-    const isRoot = process.getuid && process.getuid() === 0;
-    
-    if (isRoot) {
-      env.IS_SANDBOX = '1';
-      env.CLAUDE_AUTO_APPROVE = '1';
-      env.CI = 'true';
-    }
-    
+
     const args = [
       '--print',
       '--verbose',

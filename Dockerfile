@@ -29,11 +29,19 @@ ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 RUN bun install -g @anthropic-ai/claude-code
 
-RUN mkdir -p /workspace /app/data /app/logs /app/config
+# Create non-root user for security (required for --dangerously-skip-permissions)
+RUN addgroup -g 1000 appgroup && adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+
+RUN mkdir -p /workspace /app/data /app/logs /app/config /app/bots
 
 # For Railway single-volume setup: mount /persistent
 # Then set DATA_PATH=/persistent in Railway env vars
 RUN mkdir -p /persistent/workspace /persistent/app/data /persistent/app/logs /persistent/app/config
+
+# Set ownership for non-root user
+RUN chown -R appuser:appgroup /app /workspace /persistent
+
+USER appuser
 
 EXPOSE 5555
 
