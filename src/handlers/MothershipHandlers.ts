@@ -107,7 +107,7 @@ export class MothershipHandlers {
 *Workflow:*
 1. Check setup: \`/bot check\`
 2. Create bot using mothership CLI or use example
-3. Edit bot code with \`/task\`
+3. Edit bot code by sending a message
 4. Run (build + deploy): \`/bot run ping-bot <token>\`
 5. Monitor: \`/bot status ping-bot\`
 `;

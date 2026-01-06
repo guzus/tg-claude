@@ -220,7 +220,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
   private async showTaskHelp(chatId: number, messageId: number): Promise<void> {
     await this.editMessage(chatId, messageId,
-      '*Run Task*\n\nUse `/task <description>` to execute.\n\nExample: `/task add error handling`',
+      '*Run Task*\n\nSend a message to execute a task.\n\nExample: `add error handling`',
       { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
     );
   }
@@ -230,7 +230,6 @@ export class CallbackQueryHandler extends BaseHandler {
       await this.editMessage(chatId, messageId,
         '*Help*\n\n' +
         '*Repository:* `/repo`\n' +
-        '*Task:* `/task <desc>`\n' +
         '*Status:* `/status`\n' +
         '*Logs:* `/logs <id>`',
         { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }

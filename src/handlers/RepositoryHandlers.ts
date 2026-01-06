@@ -177,7 +177,7 @@ export class RepositoryHandlers extends BaseHandler {
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
         `📂 Path: \`${escapedPath}\`\n` +
         `🌿 Branch: ${escapedBranch}\n\n` +
-        `This repository is now active. Use /task to work on it.`,
+        `This repository is now active. Send a message to start.`,
         {
           chat_id: chatId,
           message_id: statusMsg.message_id,
@@ -286,7 +286,7 @@ export class RepositoryHandlers extends BaseHandler {
         `🆔 ID: \`${repo.id.substring(0, 8)}\`\n` +
         `📂 Path: \`${escapedPath}\`\n` +
         `${repo.gitUrl ? `🔗 Remote: ${escapedUrl}\n` : ''}\n` +
-        `This repository is now active. Use /task to work on it.`,
+        `This repository is now active. Send a message to start.`,
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
@@ -373,7 +373,7 @@ export class RepositoryHandlers extends BaseHandler {
         `✅ Switched to repository: *${escapedName}*\n\n` +
         `📂 Path: \`${escapedPath}\`\n` +
         `${repo.gitUrl ? `🔗 Remote: ${escapedUrl}\n` : ''}\n` +
-        `Use /task to work on this repository.`,
+        `Send a message to start working.`,
         { parse_mode: 'Markdown' }
       );
     } catch (error) {

@@ -63,8 +63,6 @@ export class UtilityHandlers extends BaseHandler {
       `Available commands:\n\n` +
       `📁 *Repository Management:*\n` +
       `/repo - Manage repositories (clone/new/list/switch)\n\n` +
-      `🛠️ *Development:*\n` +
-      `/task <description> - Execute a task\n\n` +
       `ℹ️ *Status & Help:*\n` +
       `/status - Check active tasks\n` +
       `/cancel <taskId> - Cancel a task\n` +
@@ -72,7 +70,7 @@ export class UtilityHandlers extends BaseHandler {
       `/help - Show this help message\n\n` +
       `💡 *Quick Start:*\n` +
       `1. Use \`/repo clone owner/repo\` to clone a repository\n` +
-      `2. Use \`/task <description>\` to execute tasks`;
+      `2. Send a message to start working on it`;
 
     const mainMenuKeyboard = UIHelpers.createMainMenuKeyboard(currentRepo !== null);
 

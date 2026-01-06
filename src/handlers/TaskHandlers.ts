@@ -352,7 +352,7 @@ export class TaskHandlers extends BaseHandler {
   }
 
   /**
-   * /task command
+   * Handle task command (deprecated - use plain messages instead)
    */
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
@@ -361,7 +361,7 @@ export class TaskHandlers extends BaseHandler {
     const chatId = msg.chat.id;
 
     if (!match || !match[1]) {
-      await this.bot.sendMessage(chatId, '❌ Usage: /task <description>');
+      await this.bot.sendMessage(chatId, '❌ Please provide a task description');
       return;
     }
 
@@ -400,7 +400,7 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
-   * Handle plain text messages (no /task prefix needed)
+   * Handle plain text messages
    */
   async handlePlainMessage(msg: Message): Promise<void> {
     if (!(await this.checkAccess(msg))) return;
