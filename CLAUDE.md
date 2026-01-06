@@ -25,8 +25,8 @@
    - Register command regex in `src/index.ts` with `bot.onText()`
    - For callbacks: add handler in `CallbackQueryHandler.ts` handlers map
 
-9. Deploy Workflow:
-   - `gh workflow run deploy.yml` triggers deployment
+9. Manual Deploy Workflow For Testing:
+   - `gh workflow run deploy.yml --ref "$(git rev-parse --abbrev-ref HEAD)` triggers deployment
    - `gh run watch` monitors the running workflow
 
 10. Claude Review Workflow:

@@ -313,13 +313,14 @@ export class RalphLoopExecutor {
       // Determine final status based on task outcome
       await this.determineOutcome(state);
 
+      // Update status message to remove "Stop" button and show final state
+      await this.updateStatusMessage(state);
+
       // Send final report
       await this.sendFinalReport(state);
 
-      // Commit and push if successful
-      if (state.status === RalphLoopStatus.COMPLETED) {
-        await this.finalCommitAndPush(state);
-      }
+      // Always try to commit and push changes (work may have been done even if not completed)
+      await this.finalCommitAndPush(state);
 
     } finally {
       this.cleanupSession(state);
@@ -353,6 +354,10 @@ ${state.originalRequest}
 4. Fix any failures
 5. When COMPLETELY done and verified, output exactly: **${state.config.completionPromise}**
 
+## ITERATION TRACKING
+At the START of each iteration, output: **[RALPH_LOOP_ITERATION]**
+This helps track progress. Output this marker each time you begin a new cycle of work.
+
 ## CRITICAL
 - Only output the completion promise when genuinely done
 - Do NOT use it as an escape when stuck
@@ -363,11 +368,45 @@ ${state.originalRequest}
   }
 
   /**
+   * Count iterations from task output
+   */
+  private countIterationsFromOutput(taskId: string): number {
+    const task = this.executor.getTask(taskId);
+    if (!task?.output) return 1;
+
+    // Count explicit iteration markers
+    const markerMatches = task.output.match(/\[RALPH_LOOP_ITERATION\]/g);
+    if (markerMatches && markerMatches.length > 0) {
+      return markerMatches.length;
+    }
+
+    // Fallback: count common iteration patterns
+    const iterationPatterns = [
+      /iteration\s*#?\d+/gi,
+      /loop\s*#?\d+/gi,
+      /cycle\s*#?\d+/gi,
+      /round\s*#?\d+/gi,
+      /attempt\s*#?\d+/gi
+    ];
+
+    let maxCount = 0;
+    for (const pattern of iterationPatterns) {
+      const matches = task.output.match(pattern);
+      if (matches) {
+        maxCount = Math.max(maxCount, matches.length);
+      }
+    }
+
+    return Math.max(1, maxCount);
+  }
+
+  /**
    * Monitor task progress
    */
   private async monitorTask(state: RalphLoopState, taskId: string): Promise<void> {
     return new Promise((resolve) => {
       const startTime = Date.now();
+      let lastIteration = state.iteration;
 
       const interval = setInterval(async () => {
         // Check timeout
@@ -375,6 +414,11 @@ ${state.originalRequest}
           clearInterval(interval);
           state.status = RalphLoopStatus.TIMEOUT;
           state.endTime = new Date();
+          logger.warn('Ralph loop timeout', {
+            sessionId: state.sessionId,
+            iterations: state.iteration,
+            durationMs: Date.now() - startTime
+          });
           resolve();
           return;
         }
@@ -382,6 +426,11 @@ ${state.originalRequest}
         // Check if stopped
         if (state.status !== RalphLoopStatus.RUNNING) {
           clearInterval(interval);
+          logger.info('Ralph loop stopped externally', {
+            sessionId: state.sessionId,
+            status: state.status,
+            iterations: state.iteration
+          });
           resolve();
           return;
         }
@@ -390,9 +439,26 @@ ${state.originalRequest}
         const task = this.executor.getTask(taskId);
         if (!task) {
           clearInterval(interval);
+          logger.warn('Ralph loop task not found', {
+            sessionId: state.sessionId,
+            taskId
+          });
           resolve();
           return;
         }
+
+        // Update iteration count from output
+        const newIteration = this.countIterationsFromOutput(taskId);
+        if (newIteration !== lastIteration) {
+          logger.info('Ralph loop iteration change', {
+            sessionId: state.sessionId,
+            previousIteration: lastIteration,
+            currentIteration: newIteration,
+            maxIterations: state.config.maxIterations
+          });
+          lastIteration = newIteration;
+        }
+        state.iteration = newIteration;
 
         // Update status message periodically
         await this.updateStatusMessage(state);
@@ -401,6 +467,12 @@ ${state.originalRequest}
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
           clearInterval(interval);
           state.endTime = new Date();
+          logger.info('Ralph loop task finished', {
+            sessionId: state.sessionId,
+            taskStatus: task.status,
+            iterations: state.iteration,
+            durationMs: Date.now() - startTime
+          });
           resolve();
         }
       }, TASK_POLL_INTERVAL_MS);
@@ -411,31 +483,65 @@ ${state.originalRequest}
    * Determine outcome based on task result
    */
   private async determineOutcome(state: RalphLoopState): Promise<void> {
-    if (state.status !== RalphLoopStatus.RUNNING) return;
+    if (state.status !== RalphLoopStatus.RUNNING) {
+      logger.info('Ralph loop outcome already determined', {
+        sessionId: state.sessionId,
+        status: state.status,
+        iterations: state.iteration
+      });
+      return;
+    }
 
     // Check task output for completion promise
     if (state.taskId) {
       const task = this.executor.getTask(state.taskId);
-      if (task?.output?.includes(state.config.completionPromise)) {
+      const hasPromise = task?.output?.includes(state.config.completionPromise);
+
+      logger.info('Ralph loop determining outcome', {
+        sessionId: state.sessionId,
+        taskStatus: task?.status,
+        hasCompletionPromise: hasPromise,
+        iterations: state.iteration,
+        outputLength: task?.output?.length ?? 0
+      });
+
+      if (hasPromise) {
         state.status = RalphLoopStatus.COMPLETED;
+        logger.info('Ralph loop completed via promise', {
+          sessionId: state.sessionId,
+          iterations: state.iteration
+        });
         return;
       }
 
       // Check if task completed successfully
       if (task?.status === TaskStatus.COMPLETED) {
         state.status = RalphLoopStatus.COMPLETED;
+        logger.info('Ralph loop completed via task status', {
+          sessionId: state.sessionId,
+          iterations: state.iteration
+        });
         return;
       }
 
       // Check if task failed
       if (task?.status === TaskStatus.FAILED || task?.status === TaskStatus.TIMEOUT) {
         state.status = RalphLoopStatus.FAILED;
+        logger.warn('Ralph loop failed', {
+          sessionId: state.sessionId,
+          taskStatus: task?.status,
+          iterations: state.iteration
+        });
         return;
       }
     }
 
     // Default to failed if we can't determine
     state.status = RalphLoopStatus.FAILED;
+    logger.warn('Ralph loop failed - could not determine outcome', {
+      sessionId: state.sessionId,
+      iterations: state.iteration
+    });
   }
 
   /**
@@ -478,6 +584,7 @@ ${state.originalRequest}
 
     let msg = `${emoji} *Ralph Loop*\n\n`;
     msg += `📋 ${escapedRequest}\n\n`;
+    msg += `🔁 Loops: ${state.iteration}/${state.config.maxIterations}\n`;
     msg += `⏱️ Time: ${UIHelpers.formatDuration(elapsed)}\n`;
     msg += `🎯 Promise: ${escapedPromise}\n`;
     if (repository) {
@@ -539,6 +646,7 @@ ${state.originalRequest}
       let report = `${statusEmoji} *Ralph Loop ${statusText}*\n\n`;
       report += `📋 ${escapedReq}\n\n`;
       report += `📊 *Summary:*\n`;
+      report += `- Loops: ${state.iteration}\n`;
       report += `- Duration: ${UIHelpers.formatDuration(duration)}\n`;
       report += `- Promise: ${escapedPromise}\n`;
 
@@ -552,20 +660,76 @@ ${state.originalRequest}
   }
 
   /**
+   * Get GitHub commit URL from working directory
+   */
+  private getCommitUrl(workingDir: string, commitHash: string): string | null {
+    try {
+      const remoteUrl = execSync('git config --get remote.origin.url', {
+        cwd: workingDir,
+        encoding: 'utf-8',
+        timeout: 5000
+      }).trim();
+
+      // Convert SSH or HTTPS URL to web URL
+      // git@github.com:user/repo.git -> https://github.com/user/repo
+      // https://github.com/user/repo.git -> https://github.com/user/repo
+      const webUrl = remoteUrl
+        .replace(/^git@github\.com:/, 'https://github.com/')
+        .replace(/^git@([^:]+):/, 'https://$1/')
+        .replace(/\.git$/, '');
+
+      return `${webUrl}/commit/${commitHash}`;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Final commit and push
    */
   private async finalCommitAndPush(state: RalphLoopState): Promise<void> {
+    logger.info('Ralph loop attempting commit', {
+      sessionId: state.sessionId,
+      status: state.status,
+      iterations: state.iteration,
+      workingDir: state.workingDir
+    });
+
     try {
       const commitHash = await this.executor.autoCommitChanges(state.workingDir);
       if (commitHash) {
+        logger.info('Ralph loop committed changes', {
+          sessionId: state.sessionId,
+          commitHash,
+          iterations: state.iteration
+        });
+
         const pushResult = await this.executor.autoPushChanges(state.workingDir);
 
+        logger.info('Ralph loop push result', {
+          sessionId: state.sessionId,
+          commitHash,
+          pushResult
+        });
+
+        const commitUrl = this.getCommitUrl(state.workingDir, commitHash);
+        const shortHash = commitHash.substring(0, 8);
+
         let message = '💾 **Ralph Loop Changes**\n\n';
-        message += `Commit: \`${commitHash.substring(0, 8)}\`\n`;
+        if (commitUrl) {
+          message += `Commit: [${shortHash}](${commitUrl})\n`;
+        } else {
+          message += `Commit: \`${shortHash}\`\n`;
+        }
         message += pushResult === 'success' ? '✅ Pushed' :
           pushResult === 'no_remote' ? '⚠️ No remote' : '⚠️ Push failed';
 
         await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
+      } else {
+        logger.info('Ralph loop no changes to commit', {
+          sessionId: state.sessionId,
+          iterations: state.iteration
+        });
       }
     } catch (error) {
       logger.error('Failed to commit/push Ralph changes', {
