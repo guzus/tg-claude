@@ -30,7 +30,8 @@ ENV PLAYWRIGHT_BROWSERS_PATH=0
 RUN npm install -g --no-fund --no-audit @playwright/mcp@latest
 
 # Install runtime JS dependencies (keep this layer cacheable across code changes)
-COPY package.json bun.lockb ./
+# Only copy package.json (not lockfile) - bun versions may differ between local and Docker
+COPY package.json ./
 RUN bun install --production --ignore-scripts --no-save
 
 # Copy built app after deps so rebuilds don't invalidate `bun install` cache
