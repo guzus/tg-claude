@@ -29,10 +29,6 @@ const MCP_PRESETS: Record<string, { server: McpServer; description: string }> = 
     server: { command: 'npx', args: ['-y', '@anthropic/mcp-memory'] },
     description: 'Persistent memory/knowledge graph'
   },
-  puppeteer: {
-    server: { command: 'npx', args: ['-y', '@anthropic/mcp-puppeteer'] },
-    description: 'Browser automation via Puppeteer'
-  },
   fetch: {
     server: { command: 'npx', args: ['-y', '@anthropic/mcp-fetch'] },
     description: 'HTTP fetch capabilities'
