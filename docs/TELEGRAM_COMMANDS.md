@@ -12,12 +12,30 @@ add tests for the auth module
 refactor the database service
 ```
 
-### `/beast <prompt>`
-Autonomous AI execution mode. Claude iteratively works on a task, analyzing results and continuing until completion.
+### `/ralph <task>`
+Autonomous loop mode. Claude works iteratively on a task until it's complete (or you stop it).
+
+> **Note:** `/ralph` uses the **`ralph-wiggum` Claude plugin**. The bot will try to install it automatically, but you can also install/manage plugins explicitly via `/plugin` (see below).
 
 ```
-/beast implement the full authentication system with tests
+/ralph implement the full authentication system with tests
 ```
+
+Options:
+- `--max <n>` - Max iterations (default: 50, max: 100)
+- `--promise "TEXT"` - Completion signal (default: `RALPH_COMPLETE`)
+- `--timeout <min>` - Max duration in minutes (default: 60, max: 120)
+
+Examples:
+```
+/ralph Fix all failing tests and ensure 100% pass rate
+/ralph Implement the user auth feature --max 100
+/ralph Refactor the API --promise "ALL_DONE"
+```
+
+Stopping:
+- A status message is posted with a **Stop Ralph Loop** button
+- Stopping cancels the active task; any uncommitted changes remain in the working directory
 
 ## Repository Management
 
@@ -97,6 +115,29 @@ Examples:
 /config set git.userName "John Doe"
 /config set techStack.typescript bun
 /config set preferences.notifyOnTaskComplete true
+```
+
+### `/plugin`
+Manage **Claude plugins per repository** (install/list/remove, plus presets).
+
+> Plugins are installed in the context of the currently selected repository. Use `/repo current` / `/repo switch` to control where plugins are managed.
+
+| Subcommand | Description |
+|------------|-------------|
+| `/plugin` | Show help |
+| `/plugin presets` | Show available presets |
+| `/plugin preset <name>` | Install from presets (e.g. `ralph-wiggum`) |
+| `/plugin install <name>@<registry>` | Install a plugin by spec |
+| `/plugin list` | Show installed plugins |
+| `/plugin remove <name>` | Remove/uninstall a plugin |
+
+Examples:
+```
+/plugin presets
+/plugin preset ralph-wiggum
+/plugin install ralph-wiggum@claude-plugins-official
+/plugin list
+/plugin remove ralph-wiggum
 ```
 
 ### `/mcp`
