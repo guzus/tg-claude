@@ -165,6 +165,7 @@ bot.setMyCommands([
   { command: 'config', description: 'Manage user configuration' },
   { command: 'ai', description: 'Quick toggle AI provider' },
   { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
+  { command: 'plugin', description: '🧩 Manage Claude plugins (ralph-wiggum, etc.)' },
   { command: 'version', description: 'Show bot version/commit hash' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {
@@ -185,6 +186,7 @@ bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
 bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
 bot.onText(/\/ai/, (msg) => handlers.handleAi(msg));
 bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
+bot.onText(/\/plugin(.*)/, (msg, match) => handlers.handlePlugin(msg, match));
 bot.onText(/\/ralph(.*)/, (msg, match) => handlers.handleRalph(msg, match));
 bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
 bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));

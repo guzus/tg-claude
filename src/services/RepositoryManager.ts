@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
 import { v4 as uuidv4 } from 'uuid';
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
@@ -7,6 +8,7 @@ import { WORKSPACE_PATH } from '../config';
 import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
 import { ClaudeSettingsManager } from './ClaudeSettingsManager';
+import { PLUGIN_PRESETS } from '../handlers/ConfigHandlers';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
@@ -186,6 +188,7 @@ export class RepositoryManager {
 
       await this.persistCurrentRepository(userId, repoId);
       await this.syncClaudeSettings(userId, repoPath, repoId);
+      await this.installDefaultPlugins(repoPath);
 
       logger.info('Repository cloned', { repoId, repoName });
       return repository;
@@ -238,6 +241,7 @@ export class RepositoryManager {
 
       await this.persistCurrentRepository(userId, repoId);
       await this.syncClaudeSettings(userId, repoPath, repoId);
+      await this.installDefaultPlugins(repoPath);
 
       logger.info('Repository created', { repoId, name });
       return repository;
@@ -511,5 +515,34 @@ export class RepositoryManager {
       count += session.repositories.size;
     }
     return count;
+  }
+
+  /**
+   * Install default Claude plugins for a repository
+   * Called automatically when a repository is created/cloned
+   */
+  async installDefaultPlugins(repoPath: string): Promise<void> {
+    const defaultPlugins = Object.entries(PLUGIN_PRESETS)
+      .filter(([, preset]) => preset.isDefault)
+      .map(([, preset]) => `${preset.name}@${preset.registry}`);
+
+    for (const pluginSpec of defaultPlugins) {
+      try {
+        execSync(`claude plugin install ${pluginSpec}`, {
+          cwd: repoPath,
+          encoding: 'utf-8',
+          timeout: 60000,
+          stdio: ['pipe', 'pipe', 'pipe']
+        });
+        logger.info('Default plugin installed', { pluginSpec, repoPath });
+      } catch (error) {
+        // Don't fail repo creation if plugin install fails
+        logger.warn('Failed to install default plugin', {
+          pluginSpec,
+          repoPath,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   }
 }

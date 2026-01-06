@@ -121,6 +121,10 @@ export class BotHandlers {
     return this.configHandlers.handleMcp(msg, match);
   }
 
+  async handlePlugin(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.configHandlers.handlePlugin(msg, match);
+  }
+
   // ==================== Ralph Wiggum Plugin ====================
 
   async handleRalph(msg: Message, match: RegExpExecArray | null): Promise<void> {

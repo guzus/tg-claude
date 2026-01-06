@@ -35,6 +35,23 @@ const MCP_PRESETS: Record<string, { server: McpServer; description: string }> = 
   }
 };
 
+// Claude Plugin Presets - official and community plugins
+export interface PluginPreset {
+  name: string;
+  registry: string;
+  description: string;
+  isDefault?: boolean;
+}
+
+export const PLUGIN_PRESETS: Record<string, PluginPreset> = {
+  'ralph-wiggum': {
+    name: 'ralph-wiggum',
+    registry: 'claude-plugins-official',
+    description: 'Autonomous loop that keeps working until task completion',
+    isDefault: true
+  }
+};
+
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
 
@@ -957,5 +974,286 @@ export class ConfigHandlers extends BaseHandler {
     );
 
     logger.info('MCP preset added', { userId, repoId, presetName });
+  }
+
+  // ==================== Plugin Commands ====================
+
+  /**
+   * /plugin command - Manage Claude plugins
+   */
+  async handlePlugin(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const args = match?.[1]?.trim().split(/\s+/) || [];
+    const subcommand = args[0];
+
+    const currentRepo = this.repoManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.bot.sendMessage(chatId, '❌ No repository selected. Use `/repo` first.', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    if (!subcommand) {
+      await this.showPluginHelp(chatId);
+      return;
+    }
+
+    try {
+      switch (subcommand.toLowerCase()) {
+        case 'install':
+          await this.installPlugin(msg, args.slice(1), currentRepo.path);
+          break;
+        case 'preset':
+          await this.handlePluginPreset(msg, args.slice(1), currentRepo.path);
+          break;
+        case 'presets':
+          await this.showPluginPresets(msg);
+          break;
+        case 'list':
+        case 'show':
+          await this.listPlugins(msg, currentRepo.path);
+          break;
+        case 'remove':
+        case 'rm':
+        case 'uninstall':
+          await this.removePlugin(msg, args.slice(1), currentRepo.path);
+          break;
+        default:
+          await this.bot.sendMessage(chatId, `❌ Unknown subcommand: ${subcommand}\nUse /plugin for help.`);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
+      logger.error('Plugin command failed', { userId, subcommand, error: errorMessage });
+    }
+  }
+
+  private async showPluginHelp(chatId: number): Promise<void> {
+    const presetNames = Object.keys(PLUGIN_PRESETS).join(', ');
+    const defaultPlugins = Object.entries(PLUGIN_PRESETS)
+      .filter(([, p]) => p.isDefault)
+      .map(([name]) => name)
+      .join(', ');
+
+    const message =
+      `🔌 *Claude Plugins*\n\n` +
+      `*Commands:*\n` +
+      `/plugin install <name>@<registry> - Install plugin\n` +
+      `/plugin preset <name> - Install from presets\n` +
+      `/plugin presets - Show available presets\n` +
+      `/plugin list - Show installed plugins\n` +
+      `/plugin remove <name> - Remove plugin\n\n` +
+      `*Available presets:* ${presetNames}\n` +
+      `*Auto-installed:* ${defaultPlugins || 'none'}\n\n` +
+      `*Examples:*\n` +
+      `\`/plugin preset ralph-wiggum\`\n` +
+      `\`/plugin install my-plugin@my-registry\``;
+
+    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  }
+
+  private async showPluginPresets(msg: Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const presetLines = Object.entries(PLUGIN_PRESETS).map(([name, preset]) => {
+      const defaultTag = preset.isDefault ? ' *(default)*' : '';
+      return `• \`${name}\` - ${preset.description}${defaultTag}`;
+    });
+
+    const message =
+      `🎯 *Available Plugin Presets*\n\n` +
+      presetLines.join('\n') +
+      `\n\n*Usage:* \`/plugin preset <name>\`\n` +
+      `Example: \`/plugin preset ralph-wiggum\``;
+
+    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  }
+
+  private async installPlugin(msg: Message, args: string[], repoPath: string): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (args.length < 1) {
+      await this.bot.sendMessage(chatId,
+        `❌ Usage: /plugin install <name>@<registry>\n\n` +
+        `Example: \`/plugin install ralph-wiggum@claude-plugins-official\``,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const pluginSpec = args[0];
+    if (!pluginSpec.includes('@')) {
+      await this.bot.sendMessage(chatId,
+        `❌ Invalid format. Use: \`name@registry\`\n\n` +
+        `Example: \`/plugin install ralph-wiggum@claude-plugins-official\``,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const statusMsg = await this.bot.sendMessage(chatId, `⏳ Installing plugin: \`${pluginSpec}\`...`, { parse_mode: 'Markdown' });
+
+    try {
+      await this.executePluginCommand('install', pluginSpec, repoPath);
+
+      await this.bot.editMessageText(
+        `✅ Plugin installed: \`${pluginSpec}\``,
+        { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' }
+      );
+
+      logger.info('Plugin installed', { userId, pluginSpec, repoPath });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(
+        `❌ Failed to install plugin: ${errorMessage}`,
+        { chat_id: chatId, message_id: statusMsg.message_id }
+      );
+    }
+  }
+
+  private async handlePluginPreset(msg: Message, args: string[], repoPath: string): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (args.length < 1) {
+      await this.showPluginPresets(msg);
+      return;
+    }
+
+    const presetName = args[0].toLowerCase();
+    const preset = PLUGIN_PRESETS[presetName];
+
+    if (!preset) {
+      const availablePresets = Object.keys(PLUGIN_PRESETS).join(', ');
+      await this.bot.sendMessage(chatId,
+        `❌ Unknown preset: \`${presetName}\`\n\n` +
+        `Available presets: ${availablePresets}\n\n` +
+        `Use \`/plugin presets\` to see descriptions.`,
+        { parse_mode: 'Markdown' }
+      );
+      return;
+    }
+
+    const pluginSpec = `${preset.name}@${preset.registry}`;
+    const statusMsg = await this.bot.sendMessage(chatId, `⏳ Installing preset: \`${presetName}\`...`, { parse_mode: 'Markdown' });
+
+    try {
+      await this.executePluginCommand('install', pluginSpec, repoPath);
+
+      await this.bot.editMessageText(
+        `✅ Plugin preset installed: \`${presetName}\`\n\n${preset.description}`,
+        { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' }
+      );
+
+      logger.info('Plugin preset installed', { userId, presetName, pluginSpec, repoPath });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(
+        `❌ Failed to install preset: ${errorMessage}`,
+        { chat_id: chatId, message_id: statusMsg.message_id }
+      );
+    }
+  }
+
+  private async listPlugins(msg: Message, repoPath: string): Promise<void> {
+    const chatId = msg.chat.id;
+
+    try {
+      const output = await this.executePluginCommand('list', '', repoPath);
+
+      if (!output || output.trim() === '' || output.includes('No plugins installed')) {
+        await this.bot.sendMessage(chatId, '📭 No plugins installed.\n\nUse `/plugin preset ralph-wiggum` to install the Ralph Wiggum loop.', { parse_mode: 'Markdown' });
+        return;
+      }
+
+      await this.bot.sendMessage(chatId,
+        `🔌 *Installed Plugins*\n\n\`\`\`\n${output}\n\`\`\``,
+        { parse_mode: 'Markdown' }
+      );
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.sendMessage(chatId, `❌ Failed to list plugins: ${errorMessage}`);
+    }
+  }
+
+  private async removePlugin(msg: Message, args: string[], repoPath: string): Promise<void> {
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+
+    if (args.length < 1) {
+      await this.bot.sendMessage(chatId, `❌ Usage: /plugin remove <name>`);
+      return;
+    }
+
+    const pluginName = args[0];
+    const statusMsg = await this.bot.sendMessage(chatId, `⏳ Removing plugin: \`${pluginName}\`...`, { parse_mode: 'Markdown' });
+
+    try {
+      await this.executePluginCommand('uninstall', pluginName, repoPath);
+
+      await this.bot.editMessageText(
+        `✅ Plugin removed: \`${pluginName}\``,
+        { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' }
+      );
+
+      logger.info('Plugin removed', { userId, pluginName, repoPath });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      await this.bot.editMessageText(
+        `❌ Failed to remove plugin: ${errorMessage}`,
+        { chat_id: chatId, message_id: statusMsg.message_id }
+      );
+    }
+  }
+
+  /**
+   * Execute a claude plugin command
+   */
+  private async executePluginCommand(action: 'install' | 'uninstall' | 'list', arg: string, repoPath: string): Promise<string> {
+    const { execSync } = await import('child_process');
+
+    const cmd = arg ? `claude plugin ${action} ${arg}` : `claude plugin ${action}`;
+
+    try {
+      const output = execSync(cmd, {
+        cwd: repoPath,
+        encoding: 'utf-8',
+        timeout: 60000,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return output.trim();
+    } catch (error) {
+      if (error && typeof error === 'object' && 'stderr' in error) {
+        const stderr = (error as { stderr: string }).stderr;
+        if (stderr) throw new Error(stderr);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Install default plugins for a repository
+   * Called when setting up a new repository
+   */
+  async installDefaultPlugins(repoPath: string): Promise<void> {
+    const defaultPlugins = Object.entries(PLUGIN_PRESETS)
+      .filter(([, preset]) => preset.isDefault)
+      .map(([, preset]) => `${preset.name}@${preset.registry}`);
+
+    for (const pluginSpec of defaultPlugins) {
+      try {
+        await this.executePluginCommand('install', pluginSpec, repoPath);
+        logger.info('Default plugin installed', { pluginSpec, repoPath });
+      } catch (error) {
+        logger.warn('Failed to install default plugin', {
+          pluginSpec,
+          repoPath,
+          error: error instanceof Error ? error.message : String(error)
+        });
+      }
+    }
   }
 }

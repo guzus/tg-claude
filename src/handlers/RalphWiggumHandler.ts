@@ -16,7 +16,6 @@ import { logger } from '../utils/logger';
  */
 export class RalphWiggumHandler extends BaseHandler {
   private ralphExecutor: RalphLoopExecutor;
-  private userConfigManager?: UserConfigManager;
 
   constructor(
     bot: TelegramBot,
@@ -26,9 +25,8 @@ export class RalphWiggumHandler extends BaseHandler {
     repositoryManager: RepositoryManager,
     userConfigManager?: UserConfigManager
   ) {
-    super(bot, executor, rateLimiter, auditLogger, repositoryManager);
+    super(bot, executor, rateLimiter, auditLogger, repositoryManager, undefined, userConfigManager);
     this.ralphExecutor = new RalphLoopExecutor(bot, executor, repositoryManager);
-    this.userConfigManager = userConfigManager;
   }
 
   /**
@@ -125,7 +123,7 @@ export class RalphWiggumHandler extends BaseHandler {
     const data = query.data;
     if (!data?.startsWith('ralph_stop:')) return;
 
-    const sessionId = data.replace('ralph_stop:', '');
+    const _sessionId = data.replace('ralph_stop:', '');
     const userId = query.from.id;
     const chatId = query.message?.chat.id;
 
