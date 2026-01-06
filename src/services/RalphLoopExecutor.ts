@@ -328,43 +328,25 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Build the Ralph loop prompt
+   * Build the Ralph loop command using the plugin's /ralph-loop format
    */
   private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    return `# Ralph Loop Task
+    // Build the task prompt with clear completion criteria
+    const repoContext = repository
+      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
+      : '';
 
-You are in a **Ralph Wiggum Loop** - an autonomous development mode.
+    const taskPrompt = `${repoContext}${state.originalRequest}
 
-## How This Works
-- The ralph-wiggum plugin intercepts exit attempts via stop hooks
-- Your work persists in files and git history
-- Keep iterating until the task is FULLY complete
-- Maximum ${state.config.maxIterations} iterations allowed
+ITERATION TRACKING: At the START of each iteration, output: [RALPH_LOOP_ITERATION]
 
-## Repository
-${repository ? `- **Name**: ${repository.name}\n- **Branch**: ${repository.branch || 'main'}` : 'No repository context'}
+When COMPLETELY done and verified, output: <promise>${state.config.completionPromise}</promise>`;
 
-## Task
-${state.originalRequest}
+    // Escape the prompt for shell (double quotes inside the command)
+    const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
-## Instructions
-1. Analyze the task and plan your approach
-2. Implement the solution
-3. Run tests to verify
-4. Fix any failures
-5. When COMPLETELY done and verified, output exactly: **${state.config.completionPromise}**
-
-## ITERATION TRACKING
-At the START of each iteration, output: **[RALPH_LOOP_ITERATION]**
-This helps track progress. Output this marker each time you begin a new cycle of work.
-
-## CRITICAL
-- Only output the completion promise when genuinely done
-- Do NOT use it as an escape when stuck
-- Each iteration builds on previous work
-- Files and git history persist between iterations
-
-**BEGIN - Execute with full autonomy until complete.**`;
+    // Use the plugin's /ralph-loop command format
+    return `/ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
   }
 
   /**

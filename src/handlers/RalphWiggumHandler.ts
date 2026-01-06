@@ -175,33 +175,31 @@ export class RalphWiggumHandler extends BaseHandler {
   private async showHelp(chatId: number): Promise<void> {
     const message = `🔄 **Ralph Wiggum Loop**
 
-_"Ralph is a Bash loop"_ - Autonomous task completion
+_Iterative AI development with self-referential feedback loops_
 
 **Usage:**
 \`/ralph <task description>\`
 
 **Options:**
-\`--max <n>\` - Max iterations (default: 50)
-\`--promise "TEXT"\` - Completion signal (default: RALPH_COMPLETE)
-\`--timeout <min>\` - Max duration in minutes (default: 60)
+\`--max-iterations <n>\` - Stop after N iterations (default: 50, max: 100)
+\`--timeout <min>\` - Max duration in minutes (default: 60, max: 120)
 
 **Examples:**
-\`/ralph Fix all failing tests and ensure 100% pass rate\`
-\`/ralph Implement the user auth feature --max 100\`
-\`/ralph Refactor the API --promise "ALL_DONE"\`
+\`/ralph Fix all failing tests\`
+\`/ralph Implement user auth --max-iterations 30\`
+\`/ralph Build the REST API for todos\`
 
 **How It Works:**
 1. Claude works on your task autonomously
-2. A stop hook prevents early exit
-3. Previous work persists in files/git
-4. Loop continues until completion promise is output
-5. Maximum iterations prevent infinite loops
+2. Stop hook intercepts exit attempts and re-feeds the prompt
+3. Previous work persists in files and git history
+4. Each iteration sees modified files from previous work
+5. Loop ends when task is complete or max iterations reached
 
 **Tips:**
-• Define clear success criteria
-• Use test-driven development
+• Define clear completion criteria in your task
 • Break complex tasks into phases
-• Set realistic iteration limits`;
+• Use test-driven development for automatic verification`;
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   }
