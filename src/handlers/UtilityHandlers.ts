@@ -146,48 +146,32 @@ export class UtilityHandlers extends BaseHandler {
             versionCheck.on('close', async () => {
               const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
-              // Check auth status with 5s timeout
-              const authCheck = spawn('claude', ['auth', 'status']);
-              let authOutput = '';
-              let authError = '';
-              let authTimedOut = false;
+              // Check auth via environment variables
+              const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY;
+              const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+              const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+              const aiProvider = process.env.AI_PROVIDER || 'anthropic';
 
-              const authTimeout = setTimeout(() => {
-                authTimedOut = true;
-                authCheck.kill('SIGTERM');
-              }, 5000);
+              let authStatus: string;
+              if (hasAnthropicKey || hasOpenRouterKey || hasAuthToken) {
+                const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
+                                 aiProvider === 'glm' ? 'GLM' : 'Anthropic';
+                authStatus = `✅ Configured (${provider})`;
+              } else {
+                authStatus = '❌ No API key configured\nSet ANTHROPIC_API_KEY or OPENROUTER_API_KEY';
+              }
 
-              authCheck.stdout?.on('data', (data: Buffer) => {
-                authOutput += data.toString();
-              });
-              authCheck.stderr?.on('data', (data: Buffer) => {
-                authError += data.toString();
-              });
-
-              authCheck.on('close', async (authCode: number) => {
-                clearTimeout(authTimeout);
-
-                let authStatus: string;
-                if (authTimedOut) {
-                  authStatus = '⏱️ Timeout (auth check took >5s)';
-                } else if (authCode === 0) {
-                  authStatus = `✅ Authenticated\n\`\`\`\n${authOutput.trim().substring(0, 300)}\n\`\`\``;
-                } else {
-                  authStatus = `❌ Not authenticated\n${(authError || authOutput).trim().substring(0, 200)}`;
-                }
-
-                await this.bot.sendMessage(
-                  chatId,
-                  '✅ *Claude CLI Status*\n\n' +
-                  `📍 Path: \`${claudePath.trim()}\`\n` +
-                  `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
-                  `🔐 *Auth Status:*\n${authStatus}\n\n` +
-                  `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
-                  `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
-                  `To test, try:\n\`/task say hello\``,
-                  { parse_mode: 'Markdown' }
-                );
-              });
+              await this.bot.sendMessage(
+                chatId,
+                '✅ *Claude CLI Status*\n\n' +
+                `📍 Path: \`${claudePath.trim()}\`\n` +
+                `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
+                `🔐 *Auth Status:*\n${authStatus}\n\n` +
+                `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
+                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}\n\n` +
+                `To test, try:\n\`/task say hello\``,
+                { parse_mode: 'Markdown' }
+              );
             });
           }
           resolve(null);
