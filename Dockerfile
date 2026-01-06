@@ -20,7 +20,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./
 RUN bun install --production --ignore-scripts --no-save
 
-RUN apk add --no-cache git openssh-client curl bash github-cli \
+RUN apk add --no-cache git openssh-client curl bash github-cli su-exec \
     # Chromium for Puppeteer MCP support
     chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
@@ -47,8 +47,11 @@ RUN mkdir -p /persistent/workspace /persistent/app/data /persistent/app/logs /pe
 # Set ownership for non-root user
 RUN chown -R appuser:appgroup /app /workspace /persistent
 
-USER appuser
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 5555
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["bun", "run", "dist/index.js"]
