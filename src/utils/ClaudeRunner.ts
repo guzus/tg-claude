@@ -1,6 +1,5 @@
 import { spawn } from 'child_process';
 import { AI_PROVIDER_ENDPOINTS, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, AIProvider, AIProviderConfig } from '../types';
-import { logger } from './logger';
 
 export interface ClaudeRunOptions {
   prompt: string;
@@ -31,16 +30,11 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
   const env = { ...process.env };
 
   if (provider === 'glm') {
-    const glmKey = apiKey || process.env.GLM_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN;
+    // GLM (Z.ai) must use an explicit Z.ai API key. Do NOT fall back to ANTHROPIC_AUTH_TOKEN:
+    // that token is commonly used for OpenRouter and will cause confusing 401s from Z.ai.
+    const glmKey = apiKey || process.env.GLM_API_KEY;
     if (!glmKey) {
-      throw new Error('GLM provider requires GLM_API_KEY or ANTHROPIC_AUTH_TOKEN');
-    }
-    // If we're falling back to ANTHROPIC_AUTH_TOKEN, it's often because the user forgot to set
-    // a dedicated GLM key. This can silently break if that token is actually for OpenRouter.
-    if (!apiKey && !process.env.GLM_API_KEY && process.env.ANTHROPIC_AUTH_TOKEN) {
-      logger.warn('GLM provider using ANTHROPIC_AUTH_TOKEN fallback; consider setting aiProvider.apiKey or GLM_API_KEY', {
-        provider,
-      });
+      throw new Error('GLM provider requires aiProvider.apiKey (recommended) or GLM_API_KEY');
     }
     env.ANTHROPIC_BASE_URL = AI_PROVIDER_ENDPOINTS.glm;
     env.ANTHROPIC_AUTH_TOKEN = glmKey;
