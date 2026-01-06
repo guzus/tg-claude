@@ -9,6 +9,7 @@ import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
 import { ClaudeSettingsManager } from './ClaudeSettingsManager';
 import { PLUGIN_PRESETS } from '../presets';
+import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
@@ -522,6 +523,9 @@ export class RepositoryManager {
    * Called automatically when a repository is created/cloned
    */
   async installDefaultPlugins(repoPath: string): Promise<void> {
+    // Ensure default plugin marketplaces exist before trying to install presets
+    ensureDefaultPluginMarketplaces(repoPath);
+
     const defaultPlugins = Object.entries(PLUGIN_PRESETS)
       .filter(([, preset]) => preset.isDefault)
       .map(([, preset]) => `${preset.name}@${preset.registry}`);

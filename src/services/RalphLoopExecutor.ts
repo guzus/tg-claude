@@ -5,6 +5,7 @@ import * as path from 'path';
 import { execSync } from 'child_process';
 import { ClaudeExecutor } from './ClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
+import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 import { TaskStatus, Repository, AIProviderConfig } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
@@ -93,6 +94,9 @@ export class RalphLoopExecutor {
     const pluginSpec = `${preset.name}@${preset.registry}`;
 
     try {
+      // Ensure default marketplaces exist before installing the plugin
+      ensureDefaultPluginMarketplaces(workingDir);
+
       // Try to install (will be a no-op if already installed)
       execSync(`claude plugin install ${pluginSpec}`, {
         cwd: workingDir,
@@ -109,6 +113,24 @@ export class RalphLoopExecutor {
         workingDir,
         error: errMsg
       });
+
+      // If it looks like a marketplace issue, try adding marketplaces and retry once.
+      if (errMsg.includes('marketplace') || errMsg.includes('Plugin') && errMsg.includes('not found')) {
+        try {
+          ensureDefaultPluginMarketplaces(workingDir);
+          execSync(`claude plugin install ${pluginSpec}`, {
+            cwd: workingDir,
+            encoding: 'utf-8',
+            timeout: 60000,
+            stdio: ['pipe', 'pipe', 'pipe']
+          });
+          logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
+          return { ok: true };
+        } catch (retryError) {
+          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          return { ok: false, error: retryMsg, pluginSpec };
+        }
+      }
       return { ok: false, error: errMsg, pluginSpec };
     }
   }

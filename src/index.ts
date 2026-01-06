@@ -13,6 +13,7 @@ import { ConversationManager } from './services/ConversationManager';
 import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
+import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
 import { BotHandlers } from './handlers/BotHandlers';
 import { ChamberHandlers } from './handlers/ChamberHandlers';
 
@@ -31,6 +32,15 @@ try {
     error: error instanceof Error ? error.message : String(error)
   });
   process.exit(1);
+}
+
+// Best-effort: ensure default Claude plugin marketplaces exist for this runtime
+try {
+  ensureDefaultPluginMarketplaces(process.cwd());
+} catch (error) {
+  logger.debug('Skipping plugin marketplace bootstrap', {
+    error: error instanceof Error ? error.message : String(error)
+  });
 }
 
 // Initialize services

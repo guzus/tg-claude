@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../services/StateManager';
 import { MCP_PRESETS, PLUGIN_PRESETS } from '../presets';
+import { ensureDefaultPluginMarketplaces } from '../services/ClaudePluginMarketplace';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -1178,6 +1179,11 @@ export class ConfigHandlers extends BaseHandler {
     const cmd = arg ? `claude plugin ${action} ${arg}` : `claude plugin ${action}`;
 
     try {
+      if (action === 'install') {
+        // Ensure marketplaces are present before installing
+        ensureDefaultPluginMarketplaces(repoPath);
+      }
+
       const output = execSync(cmd, {
         cwd: repoPath,
         encoding: 'utf-8',
