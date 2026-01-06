@@ -3,7 +3,7 @@ import type { McpServer } from '../types';
 // MCP Server Presets - popular MCP servers that can be easily added
 export const MCP_PRESETS: Record<string, { server: McpServer; description: string }> = {
   playwright: {
-    server: { command: 'npx', args: ['@playwright/mcp@latest'] },
+    server: { command: 'npx', args: ['-y', '@playwright/mcp@latest'] },
     description: 'Browser automation via Playwright (Microsoft)'
   },
   filesystem: {

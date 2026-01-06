@@ -21,12 +21,14 @@ COPY --from=builder /app/package.json ./
 RUN bun install --production --ignore-scripts --no-save
 
 RUN apk add --no-cache git openssh-client curl bash github-cli su-exec \
-    # Chromium for Puppeteer MCP support
+    # Node/npm for MCP servers that are typically launched via `npx`
+    nodejs npm \
+    # Chromium for Playwright MCP support
     chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
-# Puppeteer configuration
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Playwright configuration (use system Chromium; avoid downloading browsers at runtime)
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Create non-root user for security (required for --dangerously-skip-permissions)
 RUN addgroup -g 10001 appgroup && adduser -u 10001 -G appgroup -s /bin/sh -D appuser

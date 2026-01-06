@@ -157,7 +157,7 @@ Examples:
 /mcp list
 /mcp add filesystem npx -y @modelcontextprotocol/server-filesystem /workspace
 /mcp add github npx -y @modelcontextprotocol/server-github
-/mcp add puppeteer npx -y @modelcontextprotocol/server-puppeteer
+/mcp add playwright npx -y @playwright/mcp@latest
 /mcp add memory npx -y @modelcontextprotocol/server-memory
 /mcp remove filesystem
 /mcp clear
@@ -167,7 +167,7 @@ Examples:
 
 | Server | Command | Description |
 |--------|---------|-------------|
-| Puppeteer | `npx -y @modelcontextprotocol/server-puppeteer` | Browser automation, screenshots |
+| Playwright | `npx -y @playwright/mcp@latest` | Browser automation via Playwright (Microsoft) |
 | GitHub | `npx -y @modelcontextprotocol/server-github` | GitHub API integration |
 | Filesystem | `npx -y @modelcontextprotocol/server-filesystem /path` | Enhanced file operations |
 | Memory | `npx -y @modelcontextprotocol/server-memory` | Persistent memory across sessions |
