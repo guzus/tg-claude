@@ -9,18 +9,13 @@
       "Bash(git checkout:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)",
-      "Bash(gh pr create --title \"feat: add Puppeteer MCP support\" --body \"$\\(cat <<''EOF''\n## Summary\n- Add Chromium and dependencies to Docker image for Puppeteer MCP server\n- Configure `PUPPETEER_EXECUTABLE_PATH` and `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` env vars\n- Update MCP documentation with popular servers \\(Puppeteer, GitHub, Memory, Postgres\\)\n\n## Changes\n- `Dockerfile`: Added chromium, nss, freetype, harfbuzz, ca-certificates, ttf-freefont packages\n- `docs/TELEGRAM_COMMANDS.md`: Enhanced MCP section with server examples and popular servers table\n\n## Usage\nAfter merging, users can add Puppeteer MCP via Telegram:\n```\n/mcp add puppeteer npx -y @modelcontextprotocol/server-puppeteer\n```\n\n## Test plan\n- [ ] Build Docker image successfully\n- [ ] Verify Chromium is accessible at `/usr/bin/chromium-browser`\n- [ ] Test Puppeteer MCP server via `/mcp add` command\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\nEOF\n\\)\")",
       "Bash(gh workflow run:*)",
       "Bash(gh run list:*)",
       "Bash(gh run watch:*)",
       "Bash(gh run view:*)",
-      "Bash(timeout 10 claude auth:*)",
-      "Bash(claude --version:*)",
       "Bash(ls:*)",
       "Bash(ssh hetzner:*)",
-      "WebFetch(domain:docs.anthropic.com)",
-      "Bash(API key\" errors. Now explicitly delete ANTHROPIC_API_KEY for all provider\ncases to ensure OAuth works correctly.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")"
+      "WebFetch(domain:docs.anthropic.com)"
     ],
     "deny": [],
     "ask": []
