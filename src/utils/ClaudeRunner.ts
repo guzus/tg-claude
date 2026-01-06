@@ -58,18 +58,21 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', apiKey?
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus;
   } else {
-    // Default Anthropic provider - use OAuth (CLAUDE_CODE_OAUTH_TOKEN) unless explicit API key
+    // Default Anthropic provider (Claude subscription via Claude Code OAuth).
+    //
+    // Important: `aiProvider.apiKey` is used for GLM/OpenRouter. If a user switches back to
+    // Anthropic via `/ai` or `/config set aiProvider.provider anthropic`, we must NOT reuse
+    // that key as `ANTHROPIC_API_KEY` (it will often be a Z.ai/OpenRouter key and Claude Code
+    // will show "Invalid API key · Fix external API key").
     delete env.ANTHROPIC_BASE_URL;
     delete env.ANTHROPIC_AUTH_TOKEN;  // Clear any conflicting auth token
-    if (apiKey) {
-      env.ANTHROPIC_API_KEY = apiKey;
-    } else {
-      // Unset ANTHROPIC_API_KEY to allow OAuth token to be used
-      delete env.ANTHROPIC_API_KEY;
-      // Explicitly ensure OAuth token is set if available
-      if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
-        env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
-      }
+    // Always prefer OAuth for Anthropic mode in this project.
+    // (If you want to run Claude Code with an Anthropic API key, set it explicitly in the
+    // environment and adjust this behavior.)
+    delete env.ANTHROPIC_API_KEY;
+
+    if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+      env.CLAUDE_CODE_OAUTH_TOKEN = process.env.CLAUDE_CODE_OAUTH_TOKEN;
     }
   }
 
