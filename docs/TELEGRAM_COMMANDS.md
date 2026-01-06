@@ -148,7 +148,7 @@ Configure the AI provider in `/config`:
 
 ```
 /config set aiProvider.provider glm
-/config set aiProvider.apiKey <your-z-ai-api-key>
+/config set aiProvider.glmApiKey <your-z-ai-api-key>
 ```
 
 To switch back to Anthropic:

@@ -94,7 +94,6 @@ export type AIProvider = 'anthropic' | 'glm' | 'openrouter';
 
 export interface AIProviderConfig {
   provider: AIProvider;
-  apiKey?: string;        // Legacy/shared external API key (kept for backwards compatibility)
   // Provider-specific keys (recommended so switching providers doesn't reuse the wrong token)
   glmApiKey?: string;
   openrouterApiKey?: string;

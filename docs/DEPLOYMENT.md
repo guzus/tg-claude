@@ -195,7 +195,7 @@ In Telegram, configure your bot to use GLM:
 
 ```
 /config set aiProvider.provider glm
-/config set aiProvider.apiKey YOUR_ZAI_API_KEY
+/config set aiProvider.glmApiKey YOUR_ZAI_API_KEY
 ```
 
 ### Switch Back to Claude

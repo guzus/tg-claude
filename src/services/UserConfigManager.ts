@@ -86,6 +86,26 @@ export class UserConfigManager {
       config.createdAt = new Date(config.createdAt);
       config.updatedAt = new Date(config.updatedAt);
 
+      // One-time migration: remove legacy shared aiProvider.apiKey and move it into the
+      // provider-specific field based on the configured provider.
+      // (We no longer support the shared apiKey because switching providers can reuse the wrong token.)
+      const aiProvider = (config as any).aiProvider;
+      if (aiProvider && typeof aiProvider === 'object' && typeof aiProvider.apiKey === 'string' && aiProvider.apiKey.trim()) {
+        const legacyKey = aiProvider.apiKey.trim();
+        if (aiProvider.provider === 'glm' && !aiProvider.glmApiKey) {
+          aiProvider.glmApiKey = legacyKey;
+        } else if (aiProvider.provider === 'openrouter' && !aiProvider.openrouterApiKey) {
+          aiProvider.openrouterApiKey = legacyKey;
+        }
+        delete aiProvider.apiKey;
+        // Persist migration
+        try {
+          await fs.writeFile(filePath, JSON.stringify(config, null, 2), 'utf-8');
+        } catch {
+          // Non-fatal; config still migrated in-memory
+        }
+      }
+
       this.configs.set(userId, config);
 
       logger.debug('Loaded user config', { userId });
