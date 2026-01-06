@@ -754,7 +754,8 @@ export class CallbackQueryHandler extends BaseHandler {
       }
     }
 
-    return lines.join('\n') || 'No parsed content available.';
+    const content = lines.join('\n') || 'No parsed content available.';
+    return UIHelpers.escapeMarkdown(content);
   }
 
   private async handleDownloadLog(chatId: number, userId: number, taskId: string): Promise<void> {
