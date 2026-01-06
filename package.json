@@ -1,6 +1,6 @@
 {
   "name": "claude-telegram-bot",
-  "version": "1.0.0",
+  "version": "0.2.1",
   "description": "TypeScript Telegram bot for controlling Claude Code remotely",
   "main": "src/index.ts",
   "scripts": {
