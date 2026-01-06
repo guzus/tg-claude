@@ -8,10 +8,9 @@ export class PromptBuilder {
   static buildEnhancedPrompt(
     userRequest: string,
     repository: Repository,
-    conversationContext?: string,
-    beastMode: boolean = false
+    conversationContext?: string
   ): string {
-    const systemPrompt = this.getSystemPrompt(beastMode);
+    const systemPrompt = this.getSystemPrompt();
     const repoContext = this.getRepositoryContext(repository);
     const conversationSection = conversationContext
       ? `## Previous Conversation\n\n${conversationContext}\n\n`
@@ -25,7 +24,7 @@ ${conversationSection}## Current Request
 
 ${userRequest}
 
-${beastMode ? this.getBeastModeInstructions() : this.getStandardInstructions()}`;
+${this.getStandardInstructions()}`;
 
     return prompt;
   }
@@ -33,7 +32,7 @@ ${beastMode ? this.getBeastModeInstructions() : this.getStandardInstructions()}`
   /**
    * Get system prompt with best practices from Cursor
    */
-  private static getSystemPrompt(beastMode: boolean): string {
+  private static getSystemPrompt(): string {
     return `# System Instructions
 
 You are an expert software engineer with deep knowledge across all programming languages, frameworks, and best practices. You have access to a codebase and can make changes directly.
@@ -63,9 +62,7 @@ You are an expert software engineer with deep knowledge across all programming l
 2. **Plan**: Think through the implementation approach
 3. **Execute**: Make changes systematically
 4. **Verify**: Test your changes when possible
-5. **Document**: Add comments for complex logic
-
-${beastMode ? '## Beast Mode: ON\n\nYou are in autonomous mode. You should:\n- Take initiative to complete tasks fully\n- Make multiple related changes without asking\n- Run tests and fix issues automatically\n- Continue iterating until the task is complete\n- Only stop when you\'ve achieved the goal or hit a blocker' : ''}`;
+5. **Document**: Add comments for complex logic`;
   }
 
   /**
@@ -104,57 +101,6 @@ If you need to:
 - Search for code, use grep/search tools
 
 Be thorough but concise in your approach.`;
-  }
-
-  /**
-   * Get beast mode instructions for autonomous execution
-   */
-  private static getBeastModeInstructions(): string {
-    return `## Beast Mode Instructions
-
-You are operating in **autonomous mode**. This means:
-
-### Full Autonomy
-- Make ALL necessary changes without asking for permission
-- Fix any bugs or issues you encounter automatically
-- Refactor code to improve quality as needed
-- Run tests and fix failures iteratively
-- Handle edge cases proactively
-
-### Iterative Improvement
-- After making changes, verify they work
-- If tests fail, debug and fix them
-- If the build fails, resolve the issues
-- Keep iterating until everything works
-
-### Complete Implementation
-- Implement the feature end-to-end
-- Add error handling
-- Write/update tests
-- Update documentation if needed
-- Ensure code quality and consistency
-
-### Decision Making
-- Choose the best approach based on the codebase
-- Follow existing patterns and conventions
-- Make reasonable assumptions when requirements are ambiguous
-- Prioritize working code over perfection
-
-### Stopping Criteria
-Only stop when:
-- The task is fully complete and working
-- Tests are passing (if applicable)
-- You hit a genuine blocker requiring human input
-- You need clarification on requirements
-
-### Output
-Provide a summary of:
-- What you implemented
-- Changes made to which files
-- Any tests run and their results
-- Known limitations or areas for future improvement
-
-**Remember**: You have full autonomy. Be bold, make decisions, and get the job done!`;
   }
 
   /**

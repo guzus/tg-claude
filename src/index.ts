@@ -173,7 +173,6 @@ bot.setMyCommands([
 
 // Register command handlers
 bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
-bot.onText(/\/beast (.+)/, (msg, match) => handlers.handleBeast(msg, match));
 bot.onText(/\/new_repo(.*)/, (msg, match) => handlers.handleNewRepo(msg, match));
 bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
 bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));

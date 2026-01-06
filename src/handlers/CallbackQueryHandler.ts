@@ -5,7 +5,6 @@ import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../utils/logger';
 import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../types';
 import { stateManager, PendingRepoCreation } from '../services/StateManager';
-import { BeastModeExecutor } from '../services/BeastModeExecutor';
 import { RalphLoopExecutor } from '../services/RalphLoopExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
@@ -14,12 +13,7 @@ import path from 'path';
 const execAsync = promisify(exec);
 
 export class CallbackQueryHandler extends BaseHandler {
-  private beastModeExecutor: BeastModeExecutor | null = null;
   private ralphExecutor: RalphLoopExecutor | null = null;
-
-  setBeastModeExecutor(executor: BeastModeExecutor): void {
-    this.beastModeExecutor = executor;
-  }
 
   setRalphExecutor(executor: RalphLoopExecutor): void {
     this.ralphExecutor = executor;
@@ -52,7 +46,6 @@ export class CallbackQueryHandler extends BaseHandler {
         config: () => this.handleConfigAction(chatId, messageId, userId, subAction),
         cancel: () => this.handleCancelTask(chatId, messageId, userId, subAction),
         view: () => this.handleViewAction(chatId, userId, subAction),
-        beast: () => this.handleBeastModeAction(chatId, messageId, userId, subAction),
         ralph: () => this.handleRalphAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction),
         apikey: () => this.handleApiKeyAction(chatId, messageId, userId, subAction),
@@ -381,7 +374,7 @@ export class CallbackQueryHandler extends BaseHandler {
         `⚙️ *Rate Limits*\n\n` +
         `Hourly remaining: *${remaining.hourly}*\n` +
         `Daily remaining: *${remaining.daily}*\n\n` +
-        `Tip: /beast is often more efficient for big tasks.`,
+        `Tip: /ralph is more efficient for autonomous tasks.`,
         { inline_keyboard: [[{ text: 'Back', callback_data: 'main_menu' }]] }
       );
     } else if (subAction === 'logs') {
@@ -785,24 +778,6 @@ export class CallbackQueryHandler extends BaseHandler {
       caption: `Log: \`${taskId.substring(0, 8)}\``,
       parse_mode: 'Markdown'
     }, { filename: `task-${taskId.substring(0, 8)}.log`, contentType: 'text/plain' });
-  }
-
-  private async handleBeastModeAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
-    if (subAction.startsWith('stop:')) {
-      const sessionId = subAction.replace('stop:', '');
-
-      if (!this.beastModeExecutor) {
-        await this.bot.sendMessage(chatId, 'Beast mode not available');
-        return;
-      }
-
-      if (this.beastModeExecutor.stopSession(sessionId)) {
-        await this.editMessage(chatId, messageId, '*Beast Mode Stopped*\n\nUncommitted changes remain in working directory.');
-        logger.info('Beast mode stopped', { sessionId, userId });
-      } else {
-        await this.bot.sendMessage(chatId, 'Could not stop. Session may have completed.');
-      }
-    }
   }
 
   private async handleRalphAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {

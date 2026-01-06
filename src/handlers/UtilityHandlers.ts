@@ -114,7 +114,7 @@ export class UtilityHandlers extends BaseHandler {
       `⚙️ *Rate Limits*\n\n` +
       `Hourly: *${remaining.hourly}* remaining (max ${config.maxRequestsPerUserPerHour}/hr)\n` +
       `Daily: *${remaining.daily}* remaining (max ${config.maxRequestsPerUserPerDay}/day)\n\n` +
-      `Tip: heavy usage? consider /beast for fewer back-and-forth messages.`,
+      `Tip: heavy usage? consider /ralph for autonomous task completion.`,
       { parse_mode: 'Markdown' }
     );
   }
