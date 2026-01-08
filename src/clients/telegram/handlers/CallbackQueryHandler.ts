@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../../../utils/logger';
-import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../../../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { promisify } from 'util';
@@ -598,7 +598,7 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     // Extract provider from "switch_<provider>"
-    const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
+    const newProvider = subAction.replace('switch_', '') as AIProvider;
     const updatedConfig = await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
 
     // Build buttons for other providers
@@ -621,7 +621,7 @@ export class CallbackQueryHandler extends BaseHandler {
     );
   }
 
-  private getProviderModelMap(provider: 'anthropic' | 'glm' | 'openrouter', config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+  private getProviderModelMap(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
     const ai = config.aiProvider;
 
     if (provider === 'glm') {
