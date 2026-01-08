@@ -5,11 +5,12 @@
 <h1 align="center">tg-claude</h1>
 
 <p align="center">
-  Control Claude Code remotely via Telegram with your Claude subscription.
+  Control Claude Code remotely via Telegram or Discord with your Claude subscription.
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white" alt="Telegram" height="24">
+  <img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord" height="24">
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" height="24">
   <img src="https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white" alt="Bun" height="24">
   <img src="https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white" alt="GitHub" height="24">
@@ -25,12 +26,13 @@
 flowchart TB
     subgraph User
         TG[Telegram App]
+        DC[Discord App]
     end
 
     subgraph Docker Container
         Bot[tg-claude Bot]
         Claude[Claude Code CLI]
-        
+
         subgraph Services
             Executor[ClaudeExecutor]
             Ralph[RalphLoopExecutor]
@@ -53,6 +55,7 @@ flowchart TB
     end
 
     TG -->|Commands| Bot
+    DC -->|Slash Commands| Bot
     Bot -->|Parse & Route| Executor
     Bot -->|Autonomous Tasks| Ralph
     Executor -->|Execute| Claude
@@ -66,11 +69,14 @@ flowchart TB
     Bot -->|State| Data
     Bot -->|Settings| Config
     Bot -->|Response| TG
+    Bot -->|Response| DC
 ```
 
 ## Quick Start
 
 📖 **[Full Deployment Guide](./docs/DEPLOYMENT.md)** - Complete step-by-step tutorial
+
+📖 **[Discord Integration Guide](./docs/DISCORD.md)** - Set up the Discord client
 
 ### Deploy on Railway (Easiest)
 
