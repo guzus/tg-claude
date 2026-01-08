@@ -12,6 +12,7 @@ import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Handlers for task execution commands
@@ -193,7 +194,7 @@ export class TaskHandlers extends BaseHandler {
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
           const providerName = getProviderLabel(aiProvider?.provider);
-          let statsLine = UIHelpers.formatDuration(executionTime);
+          let statsLine = formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
           }

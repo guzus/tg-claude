@@ -1,5 +1,6 @@
 import { InlineKeyboardMarkup, InlineKeyboardButton } from 'node-telegram-bot-api';
 import { Repository, StreamAction, ClaudeTaskWithStreaming } from '../../../types';
+import { formatDuration } from '../../../utils/time';
 
 export class UIHelpers {
   /**
@@ -218,25 +219,6 @@ export class UIHelpers {
     return `\n─────────\n📂 ${repoLink} · \`${escapedBranch}\``;
   }
 
-  /**
-   * Formats duration in seconds to a human-readable format with minutes
-   * @param seconds - Duration in seconds
-   * @returns Formatted string like "5m 30s" or "45s"
-   */
-  static formatDuration(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    }
-
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-
-    if (remainingSeconds === 0) {
-      return `${minutes}m`;
-    }
-
-    return `${minutes}m ${remainingSeconds}s`;
-  }
 
   /**
    * Escapes special Markdown characters for Telegram
@@ -291,7 +273,7 @@ export class UIHelpers {
     if (extraHeader) {
       lines.push(extraHeader);
     }
-    lines.push(`⏳ *${this.formatDuration(elapsed)}* · ${provider}`);
+    lines.push(`⏳ *${formatDuration(elapsed)}* · ${provider}`);
 
     // Recent completed actions (last 3, more compact)
     const recentEvents = task.events

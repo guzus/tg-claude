@@ -8,6 +8,7 @@ import { DiscordUIHelpers } from '../utils/UIHelpers';
 import { TaskStatus } from '../../../types';
 import { toSafeDiscordId } from '../utils/ids';
 import { getVersionHash } from '../../../utils/version';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Handlers for utility commands: /help, /status, /cancel, /version
@@ -51,7 +52,7 @@ export class UtilityHandlers extends BaseHandler {
     const taskList = channelTasks.map(task => {
       const elapsed = Math.round((Date.now() - task.startTime.getTime()) / 1000);
       const emoji = DiscordUIHelpers.getStatusEmoji(task.status);
-      return `${emoji} \`${task.id}\` - ${DiscordUIHelpers.formatDuration(elapsed)}`;
+      return `${emoji} \`${task.id}\` - ${formatDuration(elapsed)}`;
     }).join('\n');
 
     await interaction.reply({

@@ -1,5 +1,6 @@
 import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { ClaudeTaskWithStreaming, TaskStatus } from '../../../types';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Discord-specific UI helpers for building embeds and components
@@ -38,7 +39,7 @@ export class DiscordUIHelpers {
       .setTitle('Running Task')
       .addFields(
         { name: 'Task ID', value: `\`${task.id}\``, inline: true },
-        { name: 'Elapsed', value: DiscordUIHelpers.formatDuration(elapsed), inline: true },
+        { name: 'Elapsed', value: formatDuration(elapsed), inline: true },
         { name: 'Provider', value: provider, inline: true }
       );
 
@@ -69,7 +70,7 @@ export class DiscordUIHelpers {
       .setColor(success ? 0x00FF00 : 0xFF0000)
       .setTitle(success ? 'Task Completed' : 'Task Failed')
       .addFields(
-        { name: 'Duration', value: DiscordUIHelpers.formatDuration(executionTime), inline: true },
+        { name: 'Duration', value: formatDuration(executionTime), inline: true },
         { name: 'Provider', value: provider, inline: true }
       );
 
@@ -119,23 +120,6 @@ export class DiscordUIHelpers {
           .setStyle(ButtonStyle.Secondary)
           .setEmoji('📋')
       );
-  }
-
-  /**
-   * Format duration in human-readable format
-   */
-  static formatDuration(seconds: number): string {
-    if (seconds < 60) {
-      return `${seconds}s`;
-    } else if (seconds < 3600) {
-      const mins = Math.floor(seconds / 60);
-      const secs = seconds % 60;
-      return `${mins}m ${secs}s`;
-    } else {
-      const hours = Math.floor(seconds / 3600);
-      const mins = Math.floor((seconds % 3600) / 60);
-      return `${hours}h ${mins}m`;
-    }
   }
 
   /**

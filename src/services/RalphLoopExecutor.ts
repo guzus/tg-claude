@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
 import { getErrorMessage } from '../utils/errors';
+import { formatDuration } from '../utils/time';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -583,7 +584,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     let msg = `${emoji} *Ralph Loop*\n\n`;
     msg += `📋 ${escapedRequest}\n\n`;
     msg += `🔁 Loops: ${state.iteration}/${state.config.maxIterations}\n`;
-    msg += `⏱️ Time: ${UIHelpers.formatDuration(elapsed)}\n`;
+    msg += `⏱️ Time: ${formatDuration(elapsed)}\n`;
     msg += `🎯 Promise: ${escapedPromise}\n`;
     if (repository) {
       msg += `📁 Repo: ${UIHelpers.escapeMarkdown(repository.name)}\n`;
@@ -684,7 +685,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       report += `📋 ${escapedReq}\n\n`;
       report += `📊 *Summary:*\n`;
       report += `- Loops: ${state.iteration}\n`;
-      report += `- Duration: ${UIHelpers.formatDuration(duration)}\n`;
+      report += `- Duration: ${formatDuration(duration)}\n`;
       report += `- Promise: ${escapedPromise}\n`;
 
       const keyboard = state.taskId ? {

@@ -14,6 +14,7 @@ import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
 import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -347,7 +348,7 @@ export class ConfigHandlers extends BaseHandler {
     const mcpServerCount = repoId ? Object.keys(config.mcpConfigs?.[repoId]?.mcpServers || {}).length : 0;
 
     const timeoutMs = config.limits?.taskTimeoutMs;
-    const timeoutStr = timeoutMs ? UIHelpers.formatDuration(Math.round(timeoutMs / 1000)) : '–';
+    const timeoutStr = timeoutMs ? formatDuration(Math.round(timeoutMs / 1000)) : '–';
 
     const lines: string[] = [];
 

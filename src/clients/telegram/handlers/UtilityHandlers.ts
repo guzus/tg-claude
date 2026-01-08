@@ -5,6 +5,7 @@ import { UIHelpers } from '../utils/UIHelpers';
 import { config } from '../../../config';
 import { getVersionHash } from '../../../utils/version';
 import { getErrorMessage } from '../../../utils/errors';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Handlers for utility and diagnostic commands
@@ -149,7 +150,7 @@ export class UtilityHandlers extends BaseHandler {
       return;
     }
 
-    const duration = UIHelpers.formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
+    const duration = formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
     await this.bot.sendMessage(
       chatId,
       `🛑 *Cancelled*\n\nID: \`${task.id.substring(0, 8)}\`\nTime: ${duration}`,

@@ -1,6 +1,6 @@
 import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { UIHelpers } from '../utils/UIHelpers';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Handlers for status and monitoring commands
@@ -26,11 +26,10 @@ export class StatusHandlers extends BaseHandler {
 
     for (const task of activeTasks) {
       const elapsed = Math.round((Date.now() - task.startTime.getTime()) / 1000);
-      message += `• \`${task.id.substring(0, 8)}\` - ${task.prompt.substring(0, 40)}... (${UIHelpers.formatDuration(elapsed)})\n`;
+      message += `• \`${task.id.substring(0, 8)}\` - ${task.prompt.substring(0, 40)}... (${formatDuration(elapsed)})\n`;
     }
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   }
 
 }
-

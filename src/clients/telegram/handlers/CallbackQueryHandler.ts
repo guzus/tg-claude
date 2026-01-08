@@ -11,6 +11,7 @@ import { exec } from 'child_process';
 import path from 'path';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 const execAsync = promisify(exec);
 
@@ -652,7 +653,7 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     if (this.executor.cancelTask(actualTaskId)) {
-      const duration = UIHelpers.formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
+      const duration = formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
       await this.editMessage(chatId, messageId, `*Task Cancelled*\n\nID: \`${actualTaskId.substring(0, 8)}\`\nTime: ${duration}`);
       logger.info('Task cancelled', { taskId: actualTaskId, userId });
     } else {
