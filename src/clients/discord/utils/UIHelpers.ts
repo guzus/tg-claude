@@ -20,6 +20,13 @@ export class DiscordUIHelpers {
           '`/status` - Show active tasks',
           '`/cancel <task_id>` - Cancel a task',
           '`/version` - Show bot version',
+          '`/repo [status|remotes|path]` - Repo info for this channel',
+          '`/config` - Show channel config',
+          '`/ai <provider>` - Switch AI provider',
+          '`/model <slot> <model>` - Set model for a slot',
+          '`/mcp` - Manage MCP servers',
+          '`/plugin` - Manage Claude plugins',
+          '`/whoami` - Show identity and workspace',
         ].join('\n') },
         { name: 'Usage', value: 'Simply type your request and the bot will execute it using Claude Code.' }
       )

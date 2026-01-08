@@ -5,7 +5,10 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UtilityHandlers } from './UtilityHandlers';
 import { TaskHandlers } from './TaskHandlers';
+import { ConfigHandlers } from './ConfigHandlers';
 import { logger } from '../../../utils/logger';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { UserConfigManager } from '../../../services/UserConfigManager';
 import { getErrorMessage } from '../../../utils/errors';
 
 /**
@@ -15,15 +18,29 @@ import { getErrorMessage } from '../../../utils/errors';
 export class CommandDispatcher {
   private utilityHandlers: UtilityHandlers;
   private taskHandlers: TaskHandlers;
+  private configHandlers: ConfigHandlers;
 
   constructor(
     executor: ClaudeExecutor,
     rateLimiter: RateLimiter,
     auditLogger: AuditLogger,
-    conversationManager?: ConversationManager
+    conversationManager?: ConversationManager,
+    repositoryManager?: RepositoryManager,
+    userConfigManager?: UserConfigManager
   ) {
     this.utilityHandlers = new UtilityHandlers(executor, rateLimiter, auditLogger, conversationManager);
     this.taskHandlers = new TaskHandlers(executor, rateLimiter, auditLogger, conversationManager);
+    if (!repositoryManager || !userConfigManager) {
+      throw new Error('RepositoryManager and UserConfigManager are required for Discord config commands.');
+    }
+    this.configHandlers = new ConfigHandlers(
+      executor,
+      rateLimiter,
+      auditLogger,
+      repositoryManager,
+      userConfigManager,
+      conversationManager
+    );
   }
 
   /**
@@ -51,6 +68,27 @@ export class CommandDispatcher {
           break;
         case 'version':
           await this.utilityHandlers.handleVersion(interaction);
+          break;
+        case 'repo':
+          await this.configHandlers.handleRepo(interaction);
+          break;
+        case 'config':
+          await this.configHandlers.handleConfig(interaction);
+          break;
+        case 'ai':
+          await this.configHandlers.handleAi(interaction);
+          break;
+        case 'model':
+          await this.configHandlers.handleModel(interaction);
+          break;
+        case 'mcp':
+          await this.configHandlers.handleMcp(interaction);
+          break;
+        case 'plugin':
+          await this.configHandlers.handlePlugin(interaction);
+          break;
+        case 'whoami':
+          await this.configHandlers.handleWhoAmI(interaction);
           break;
         default:
           await interaction.reply({

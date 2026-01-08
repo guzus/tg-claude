@@ -89,7 +89,9 @@ if (config.discordToken) {
     executor,
     rateLimiter,
     auditLogger,
-    conversationManager
+    conversationManager,
+    repositoryManager,
+    userConfigManager
   );
 
   // Start Discord client

@@ -13,6 +13,8 @@ import { ClaudeExecutor } from '../../services/ClaudeExecutor';
 import { RateLimiter } from '../../services/RateLimiter';
 import { AuditLogger } from '../../services/AuditLogger';
 import { ConversationManager } from '../../services/ConversationManager';
+import { RepositoryManager } from '../../services/RepositoryManager';
+import { UserConfigManager } from '../../services/UserConfigManager';
 import { CommandDispatcher } from './handlers/CommandDispatcher';
 import { registerCommands } from './utils/commands';
 import { getErrorMessage } from '../../utils/errors';
@@ -30,7 +32,9 @@ export class DiscordClient {
     private executor: ClaudeExecutor,
     private rateLimiter: RateLimiter,
     private auditLogger: AuditLogger,
-    private conversationManager?: ConversationManager
+    private conversationManager?: ConversationManager,
+    private repositoryManager?: RepositoryManager,
+    private userConfigManager?: UserConfigManager
   ) {
     // Create Discord client with necessary intents
     this.client = new Client({
@@ -48,7 +52,9 @@ export class DiscordClient {
       executor,
       rateLimiter,
       auditLogger,
-      conversationManager
+      conversationManager,
+      repositoryManager,
+      userConfigManager
     );
 
     this.setupEventHandlers();

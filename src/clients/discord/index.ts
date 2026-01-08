@@ -12,6 +12,7 @@ export { DiscordClient } from './DiscordClient';
 export { CommandDispatcher } from './handlers/CommandDispatcher';
 export { TaskHandlers } from './handlers/TaskHandlers';
 export { UtilityHandlers } from './handlers/UtilityHandlers';
+export { ConfigHandlers } from './handlers/ConfigHandlers';
 export { BaseHandler } from './handlers/BaseHandler';
 export { isDiscordAuthorized } from './middleware/security';
 export { registerCommands, commands } from './utils/commands';

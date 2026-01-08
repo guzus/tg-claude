@@ -27,6 +27,102 @@ export const commands = [
   new SlashCommandBuilder()
     .setName('version')
     .setDescription('Show bot version'),
+  new SlashCommandBuilder()
+    .setName('repo')
+    .setDescription('Show repository info for this channel')
+    .addStringOption(option =>
+      option.setName('action')
+        .setDescription('What to show')
+        .addChoices(
+          { name: 'status', value: 'status' },
+          { name: 'remotes', value: 'remotes' },
+          { name: 'path', value: 'path' }
+        )
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
+    .setName('config')
+    .setDescription('Show configuration for this channel'),
+  new SlashCommandBuilder()
+    .setName('ai')
+    .setDescription('Switch AI provider')
+    .addStringOption(option =>
+      option.setName('provider')
+        .setDescription('Provider to use')
+        .addChoices(
+          { name: 'Claude', value: 'anthropic' },
+          { name: 'GLM', value: 'glm' },
+          { name: 'OpenRouter', value: 'openrouter' }
+        )
+        .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName('model')
+    .setDescription('Set model for a slot')
+    .addStringOption(option =>
+      option.setName('slot')
+        .setDescription('Model slot')
+        .addChoices(
+          { name: 'Haiku', value: 'haiku' },
+          { name: 'Sonnet', value: 'sonnet' },
+          { name: 'Opus', value: 'opus' }
+        )
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('model')
+        .setDescription('Model identifier')
+        .setRequired(true)
+    ),
+  new SlashCommandBuilder()
+    .setName('mcp')
+    .setDescription('Manage MCP servers for this channel')
+    .addStringOption(option =>
+      option.setName('action')
+        .setDescription('Action to perform')
+        .addChoices(
+          { name: 'list', value: 'list' },
+          { name: 'add', value: 'add' },
+          { name: 'remove', value: 'remove' },
+          { name: 'clear', value: 'clear' },
+          { name: 'preset', value: 'preset' },
+          { name: 'presets', value: 'presets' }
+        )
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('name')
+        .setDescription('Server name or preset name')
+        .setRequired(false)
+    )
+    .addStringOption(option =>
+      option.setName('command')
+        .setDescription('Command and args (for add)')
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
+    .setName('plugin')
+    .setDescription('Manage Claude plugins for this channel')
+    .addStringOption(option =>
+      option.setName('action')
+        .setDescription('Action to perform')
+        .addChoices(
+          { name: 'list', value: 'list' },
+          { name: 'install', value: 'install' },
+          { name: 'remove', value: 'remove' },
+          { name: 'preset', value: 'preset' },
+          { name: 'presets', value: 'presets' }
+        )
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('spec')
+        .setDescription('Plugin spec (name@registry) or preset name')
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
+    .setName('whoami')
+    .setDescription('Show your Discord identity and channel workspace'),
 ];
 
 /**
