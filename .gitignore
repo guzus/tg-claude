@@ -46,7 +46,7 @@ dist/
 # Docker volumes
 workspace/
 data/
-config/
+/config/
 persistent/
 
 # Local CLI symlinks/binaries

@@ -8,12 +8,26 @@ export const CONFIG_PATH = process.env.CONFIG_PATH || `${DATA_PATH}/app/config`.
 export const LOGS_PATH = process.env.LOGS_PATH || `${DATA_PATH}/app/logs`.replace(/^\/+/, '/');
 export const STATE_PATH = process.env.STATE_PATH || `${DATA_PATH}/app/data`.replace(/^\/+/, '/');
 
+const parseNumberList = (value?: string): number[] => {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(id => Number.isFinite(id));
+};
+
+const parseStringList = (value?: string): string[] => {
+  if (!value) return [];
+  return value
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+};
+
 export const config: BotConfig = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
   githubToken: process.env.GITHUB_TOKEN || '',
-  allowedUserIds: process.env.ALLOWED_USER_IDS
-    ? process.env.ALLOWED_USER_IDS.split(',').map(id => parseInt(id.trim()))
-    : [],
+  allowedUserIds: parseNumberList(process.env.ALLOWED_USER_IDS),
   maxConcurrentTasks: 10,
   taskTimeoutMs: 1800000, // 30 minutes
   maxOutputSize: 4096,
@@ -25,9 +39,7 @@ export const config: BotConfig = {
   discordToken: process.env.DISCORD_BOT_TOKEN || '',
   discordClientId: process.env.DISCORD_CLIENT_ID || '',
   discordGuildId: process.env.DISCORD_GUILD_ID || '',
-  discordAllowedUserIds: process.env.DISCORD_ALLOWED_USER_IDS
-    ? process.env.DISCORD_ALLOWED_USER_IDS.split(',').map(id => id.trim())
-    : []
+  discordAllowedUserIds: parseStringList(process.env.DISCORD_ALLOWED_USER_IDS)
 };
 
 export function validateConfig(): void {

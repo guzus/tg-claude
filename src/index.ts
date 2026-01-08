@@ -164,51 +164,132 @@ if (config.discordToken) {
   }
 })();
 
-// Set bot commands in Telegram UI
-bot.setMyCommands([
-  { command: 'start', description: 'Welcome message and command list' },
-  { command: 'ralph', description: '🔄 Ralph loop (ralph-loop plugin)' },
-  { command: 'new_repo', description: '📁 Create new GitHub repository' },
-  { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
-  { command: 'scan', description: 'Scan for existing repositories' },
-  { command: 'remote', description: 'Manage git remote (show/set/test/remove)' },
-  { command: 'bot', description: '🤖 Manage bots via Mothership (in development)' },
-  { command: 'chamber', description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation' },
-  { command: 'check', description: 'Check Claude CLI installation and setup' },
-  { command: 'status', description: 'Check active tasks' },
-  { command: 'cancel', description: 'Cancel an active task by ID' },
-  { command: 'limits', description: 'Show your remaining rate limits' },
-  { command: 'config', description: 'Manage user configuration' },
-  { command: 'ai', description: 'Quick toggle AI provider' },
-  { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
-  { command: 'plugin', description: '🧩 Manage Claude plugins (ralph-loop, etc.)' },
-  { command: 'version', description: 'Show bot version/commit hash' },
-  { command: 'help', description: 'Show help message' }
-]).catch((error) => {
-  logger.error('Failed to set bot commands', { error: error.message });
+type TelegramCommandHandler = (msg: TelegramBot.Message, match?: RegExpExecArray | null) => void;
+
+const telegramCommands: Array<{
+  command: string;
+  description: string;
+  pattern: RegExp;
+  handler: TelegramCommandHandler;
+}> = [
+  {
+    command: 'start',
+    description: 'Welcome message and command list',
+    pattern: /\/start/,
+    handler: (msg: TelegramBot.Message) => handlers.handleStart(msg)
+  },
+  {
+    command: 'ralph',
+    description: '🔄 Ralph loop (ralph-loop plugin)',
+    pattern: /\/ralph(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRalph(msg, match || null)
+  },
+  {
+    command: 'new_repo',
+    description: '📁 Create new GitHub repository',
+    pattern: /\/new_repo(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleNewRepo(msg, match || null)
+  },
+  {
+    command: 'repo',
+    description: 'Manage repositories (clone/new/list/switch)',
+    pattern: /\/repo(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRepo(msg, match || null)
+  },
+  {
+    command: 'scan',
+    description: 'Scan for existing repositories',
+    pattern: /\/scan/,
+    handler: (msg: TelegramBot.Message) => handlers.handleScan(msg)
+  },
+  {
+    command: 'remote',
+    description: 'Manage git remote (show/set/test/remove)',
+    pattern: /\/remote(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRemote(msg, match || null)
+  },
+  {
+    command: 'bot',
+    description: '🤖 Manage bots via Mothership (in development)',
+    pattern: /\/bot(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleBotCommand(msg, match || null)
+  },
+  {
+    command: 'chamber',
+    description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation',
+    pattern: /\/chamber(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => chamberHandlers.handleChamber(msg, match || null)
+  },
+  {
+    command: 'check',
+    description: 'Check Claude CLI installation and setup',
+    pattern: /\/check/,
+    handler: (msg: TelegramBot.Message) => handlers.handleCheck(msg)
+  },
+  {
+    command: 'status',
+    description: 'Check active tasks',
+    pattern: /\/status/,
+    handler: (msg: TelegramBot.Message) => handlers.handleStatus(msg)
+  },
+  {
+    command: 'cancel',
+    description: 'Cancel an active task by ID',
+    pattern: /\/cancel(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleCancel(msg, match || null)
+  },
+  {
+    command: 'limits',
+    description: 'Show your remaining rate limits',
+    pattern: /\/limits/,
+    handler: (msg: TelegramBot.Message) => handlers.handleLimits(msg)
+  },
+  {
+    command: 'config',
+    description: 'Manage user configuration',
+    pattern: /\/config(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleConfig(msg, match || null)
+  },
+  {
+    command: 'ai',
+    description: 'Quick toggle AI provider',
+    pattern: /\/ai/,
+    handler: (msg: TelegramBot.Message) => handlers.handleAi(msg)
+  },
+  {
+    command: 'mcp',
+    description: '🔌 Manage MCP servers (per-repository)',
+    pattern: /\/mcp(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleMcp(msg, match || null)
+  },
+  {
+    command: 'plugin',
+    description: '🧩 Manage Claude plugins (ralph-loop, etc.)',
+    pattern: /\/plugin(.*)/,
+    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handlePlugin(msg, match || null)
+  },
+  {
+    command: 'version',
+    description: 'Show bot version/commit hash',
+    pattern: /\/version/,
+    handler: (msg: TelegramBot.Message) => handlers.handleVersion(msg)
+  },
+  {
+    command: 'help',
+    description: 'Show help message',
+    pattern: /\/help/,
+    handler: (msg: TelegramBot.Message) => handlers.handleHelp(msg)
+  }
+];
+
+bot.setMyCommands(telegramCommands.map(({ command, description }) => ({ command, description })))
+  .catch((error) => {
+    logger.error('Failed to set bot commands', { error: error.message });
+  });
+
+telegramCommands.forEach(({ pattern, handler }) => {
+  bot.onText(pattern, handler);
 });
-
-// Register command handlers
-bot.onText(/\/start/, (msg) => handlers.handleStart(msg));
-bot.onText(/\/new_repo(.*)/, (msg, match) => handlers.handleNewRepo(msg, match));
-bot.onText(/\/repo(.*)/, (msg, match) => handlers.handleRepo(msg, match));
-bot.onText(/\/scan/, (msg) => handlers.handleScan(msg));
-bot.onText(/\/remote(.*)/, (msg, match) => handlers.handleRemote(msg, match));
-bot.onText(/\/bot(.*)/, (msg, match) => handlers.handleBotCommand(msg, match));
-bot.onText(/\/check/, (msg) => handlers.handleCheck(msg));
-bot.onText(/\/status/, (msg) => handlers.handleStatus(msg));
-bot.onText(/\/cancel(.*)/, (msg, match) => handlers.handleCancel(msg, match));
-bot.onText(/\/limits/, (msg) => handlers.handleLimits(msg));
-bot.onText(/\/config(.*)/, (msg, match) => handlers.handleConfig(msg, match));
-bot.onText(/\/ai/, (msg) => handlers.handleAi(msg));
-bot.onText(/\/mcp(.*)/, (msg, match) => handlers.handleMcp(msg, match));
-bot.onText(/\/plugin(.*)/, (msg, match) => handlers.handlePlugin(msg, match));
-bot.onText(/\/ralph(.*)/, (msg, match) => handlers.handleRalph(msg, match));
-bot.onText(/\/version/, (msg) => handlers.handleVersion(msg));
-bot.onText(/\/help/, (msg) => handlers.handleHelp(msg));
-
-// Chamber mode commands
-bot.onText(/\/chamber(.*)/, (msg, match) => chamberHandlers.handleChamber(msg, match));
 
 // Handle callback queries from inline keyboards
 bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
