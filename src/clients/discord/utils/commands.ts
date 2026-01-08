@@ -41,6 +41,23 @@ export const commands = [
         .setRequired(false)
     ),
   new SlashCommandBuilder()
+    .setName('repo_new')
+    .setDescription('Create a new GitHub repo from this channel workspace')
+    .addStringOption(option =>
+      option.setName('name')
+        .setDescription('New repository name')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('visibility')
+        .setDescription('Visibility')
+        .addChoices(
+          { name: 'private', value: 'private' },
+          { name: 'public', value: 'public' }
+        )
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
     .setName('config')
     .setDescription('Show configuration for this channel'),
   new SlashCommandBuilder()

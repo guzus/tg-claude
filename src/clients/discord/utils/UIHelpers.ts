@@ -21,6 +21,7 @@ export class DiscordUIHelpers {
           '`/cancel <task_id>` - Cancel a task',
           '`/version` - Show bot version',
           '`/repo [status|remotes|path]` - Repo info for this channel',
+          '`/repo_new <name> [visibility]` - Create GitHub repo from this workspace',
           '`/config` - Show channel config',
           '`/ai <provider>` - Switch AI provider',
           '`/model <slot> <model>` - Set model for a slot',

@@ -72,6 +72,9 @@ export class CommandDispatcher {
         case 'repo':
           await this.configHandlers.handleRepo(interaction);
           break;
+        case 'repo_new':
+          await this.configHandlers.handleRepoNew(interaction);
+          break;
         case 'config':
           await this.configHandlers.handleConfig(interaction);
           break;

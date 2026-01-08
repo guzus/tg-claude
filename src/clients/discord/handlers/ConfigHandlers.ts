@@ -77,6 +77,42 @@ export class ConfigHandlers extends BaseHandler {
     }
   }
 
+  async handleRepoNew(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!(await this.checkAccess(interaction))) return;
+
+    const name = interaction.options.getString('name', true);
+    const visibility = interaction.options.getString('visibility') || 'private';
+    const isPrivate = visibility !== 'public';
+    const context = this.getChannelContext(interaction);
+
+    try {
+      const result = await this.executor.createGitHubRepository(
+        context.workingDir,
+        isPrivate,
+        name
+      );
+
+      if (result === 'success') {
+        await interaction.reply({
+          content: `Created GitHub repo \`${name}\` (${visibility}).`,
+          flags: this.ephemeralFlags()
+        });
+        return;
+      }
+
+      const message = result === 'already_exists'
+        ? `Repo \`${name}\` already exists on GitHub.`
+        : `Failed to create GitHub repo \`${name}\`.`;
+
+      await interaction.reply({ content: message, flags: this.ephemeralFlags() });
+    } catch (error) {
+      await interaction.reply({
+        content: `Repo creation failed: ${getErrorMessage(error)}`,
+        flags: this.ephemeralFlags()
+      });
+    }
+  }
+
   async handleWhoAmI(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!(await this.checkAccess(interaction))) return;
 
