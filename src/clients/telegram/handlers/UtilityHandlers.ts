@@ -1,11 +1,14 @@
 import { Message } from 'node-telegram-bot-api';
-import { spawn } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { config } from '../../../config';
 import { getVersionHash } from '../../../utils/version';
 import { getErrorMessage } from '../../../utils/errors';
 import { formatDuration } from '../../../utils/time';
+
+const execFileAsync = promisify(execFile);
 
 /**
  * Handlers for utility and diagnostic commands
@@ -170,73 +173,67 @@ export class UtilityHandlers extends BaseHandler {
     await this.bot.sendMessage(chatId, '🔍 Checking Claude CLI setup...');
 
     try {
-      // Check if claude command exists
-      const whichClaude = spawn('which', ['claude']);
       let claudePath = '';
+      try {
+        const result = await execFileAsync('which', ['claude']);
+        claudePath = result.stdout.trim();
+      } catch {
+        claudePath = '';
+      }
 
-      whichClaude.stdout?.on('data', (data: Buffer) => {
-        claudePath += data.toString();
-      });
+      if (!claudePath) {
+        await this.bot.sendMessage(
+          chatId,
+          '❌ *Claude CLI not found*\n\n' +
+          'Please install it first:\n' +
+          '```bash\n' +
+          'npm install -g @anthropic-ai/claude-code\n' +
+          '# or\n' +
+          'curl -fsSL https://claude.ai/install.sh | sh\n' +
+          '```\n\n' +
+          'Then authenticate:\n' +
+          '```bash\nclaude login\n```',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
 
-      await new Promise((resolve) => {
-        whichClaude.on('close', async (code: number) => {
-          if (code !== 0 || !claudePath.trim()) {
-            await this.bot.sendMessage(
-              chatId,
-              '❌ *Claude CLI not found*\n\n' +
-              'Please install it first:\n' +
-              '```bash\n' +
-              'npm install -g @anthropic-ai/claude-code\n' +
-              '# or\n' +
-              'curl -fsSL https://claude.ai/install.sh | sh\n' +
-              '```\n\n' +
-              'Then authenticate:\n' +
-              '```bash\nclaude login\n```',
-              { parse_mode: 'Markdown' }
-            );
-          } else {
-            // Check version
-            const versionCheck = spawn('claude', ['--version']);
-            let version = '';
+      let version = '';
+      try {
+        const versionResult = await execFileAsync('claude', ['--version']);
+        version = versionResult.stdout.trim();
+      } catch {
+        version = '';
+      }
 
-            versionCheck.stdout?.on('data', (data: Buffer) => {
-              version += data.toString();
-            });
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
-            versionCheck.on('close', async () => {
-              const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      // Check auth via environment variables
+      const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+      const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+      const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      const aiProvider = process.env.AI_PROVIDER || 'anthropic';
 
-              // Check auth via environment variables
-              const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
-              const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
-              const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
-              const aiProvider = process.env.AI_PROVIDER || 'anthropic';
+      let authStatus: string;
+      if (hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
+        const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
+          aiProvider === 'glm' ? 'GLM' :
+            hasOAuthToken ? 'OAuth' : 'Anthropic';
+        authStatus = `✅ Configured (${provider})`;
+      } else {
+        authStatus = '❌ No API key configured\nSet OPENROUTER_API_KEY or CLAUDE_CODE_OAUTH_TOKEN';
+      }
 
-              let authStatus: string;
-              if (hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
-                const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
-                  aiProvider === 'glm' ? 'GLM' :
-                    hasOAuthToken ? 'OAuth' : 'Anthropic';
-                authStatus = `✅ Configured (${provider})`;
-              } else {
-                authStatus = '❌ No API key configured\nSet OPENROUTER_API_KEY or CLAUDE_CODE_OAUTH_TOKEN';
-              }
-
-              await this.bot.sendMessage(
-                chatId,
-                '✅ *Claude CLI Status*\n\n' +
-                `📍 Path: \`${claudePath.trim()}\`\n` +
-                `📦 Version: ${version.trim() || 'Unable to detect'}\n\n` +
-                `🔐 *Auth Status:*\n${authStatus}\n\n` +
-                `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
-                `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}`,
-                { parse_mode: 'Markdown' }
-              );
-            });
-          }
-          resolve(null);
-        });
-      });
+      await this.bot.sendMessage(
+        chatId,
+        '✅ *Claude CLI Status*\n\n' +
+        `📍 Path: \`${claudePath}\`\n` +
+        `📦 Version: ${version || 'Unable to detect'}\n\n` +
+        `🔐 *Auth Status:*\n${authStatus}\n\n` +
+        `📁 Current Repo: ${currentRepo ? currentRepo.name : '❌ None (use /repo)'}\n` +
+        `📂 Working Dir: ${currentRepo ? '`' + currentRepo.path + '`' : 'N/A'}`,
+        { parse_mode: 'Markdown' }
+      );
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
