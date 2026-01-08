@@ -34,13 +34,21 @@ export class TaskHandlers extends BaseHandler {
     // Skip messages starting with /
     if (msg.content.startsWith('/')) return;
 
+    const botId = msg.client.user?.id;
+    if (!botId) return;
+
+    // Only respond when explicitly mentioned
+    if (!msg.mentions.users.has(botId)) return;
+
     if (!(await this.checkAccess(msg))) return;
 
     const userId = msg.author.id;
     const channelId = msg.channelId;
     const channel = msg.channel as TextChannel;
     const channelName = channel.name || 'unknown';
-    const prompt = msg.content;
+    const mentionPattern = new RegExp(`<@!?${botId}>`, 'g');
+    const prompt = msg.content.replace(mentionPattern, '').trim();
+    if (!prompt) return;
     const startTime = Date.now();
     const safeUserId = toSafeDiscordId(userId);
     const safeChannelId = toSafeDiscordId(channelId);
