@@ -1,10 +1,10 @@
 import { Message } from 'node-telegram-bot-api';
-import { spawn, execSync } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
+import { spawn } from 'child_process';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { config } from '../../../config';
+import { getVersionHash } from '../../../utils/version';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Handlers for utility and diagnostic commands
@@ -19,16 +19,7 @@ export class UtilityHandlers extends BaseHandler {
     const chatId = msg.chat.id;
 
     try {
-      let commitHash: string;
-
-      // Try reading from VERSION file (Docker build), fallback to git
-      const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
-      const versionFile = versionPaths.find(p => existsSync(p));
-      if (versionFile) {
-        commitHash = readFileSync(versionFile, 'utf-8').trim();
-      } else {
-        commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
-      }
+      const commitHash = getVersionHash();
 
       const shortHash = commitHash.substring(0, 8);
 
@@ -248,10 +239,9 @@ export class UtilityHandlers extends BaseHandler {
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        '❌ Error checking setup: ' + (error instanceof Error ? error.message : String(error))
+        `❌ Error checking setup: ${getErrorMessage(error)}`
       );
     }
   }
 
 }
-

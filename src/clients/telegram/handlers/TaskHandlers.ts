@@ -10,6 +10,7 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Handlers for task execution commands
@@ -119,7 +120,7 @@ export class TaskHandlers extends BaseHandler {
               // Ignore edit errors (message not modified, rate limit, etc.)
               logger.debug('Failed to update message', {
                 taskId: task.id,
-                error: error instanceof Error ? error.message : String(error)
+                error: getErrorMessage(error)
               });
             }
           }
@@ -167,7 +168,7 @@ export class TaskHandlers extends BaseHandler {
             } catch (error) {
               logger.error('Auto-commit/push failed', {
                 taskId: task.id,
-                error: error instanceof Error ? error.message : String(error)
+                error: getErrorMessage(error)
               });
             }
           }
@@ -319,7 +320,7 @@ export class TaskHandlers extends BaseHandler {
 
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
 
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
 
@@ -504,4 +505,3 @@ Always commit and push your changes after completing the task unless explicitly 
     return null;
   }
 }
-

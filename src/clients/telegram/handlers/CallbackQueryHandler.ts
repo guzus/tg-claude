@@ -9,6 +9,7 @@ import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import path from 'path';
+import { getErrorMessage } from '../../../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -59,7 +60,11 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.bot.sendMessage(chatId, 'Unknown action');
       }
     } catch (error) {
-      logger.error('Callback query error', { error: error instanceof Error ? error.message : String(error), userId, data });
+      logger.error('Callback query error', {
+        error: getErrorMessage(error),
+        userId,
+        data
+      });
       await this.bot.sendMessage(chatId, 'An error occurred. Please try again.');
     }
   }
@@ -441,7 +446,7 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.editMessage(chatId, messageId, '*Failed*\n\nCheck gh CLI and GitHub authentication.');
       }
     } catch (error) {
-      await this.editMessage(chatId, messageId, `*Error*\n\n${error instanceof Error ? error.message : String(error)}`);
+      await this.editMessage(chatId, messageId, `*Error*\n\n${getErrorMessage(error)}`);
     }
   }
 
@@ -496,7 +501,7 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.editMessage(chatId, messageId, `Repository \`${repo.name}\` ${result === 'already_exists' ? 'already exists' : 'creation failed'}`);
         }
       } catch (error) {
-        await this.editMessage(chatId, messageId, `Error: ${error instanceof Error ? error.message : String(error)}`);
+        await this.editMessage(chatId, messageId, `Error: ${getErrorMessage(error)}`);
       }
     }
   }
@@ -533,7 +538,7 @@ export class CallbackQueryHandler extends BaseHandler {
           { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
       }
     } catch (error) {
-      await this.bot.editMessageText(`Error: ${error instanceof Error ? error.message : String(error)}`,
+      await this.bot.editMessageText(`Error: ${getErrorMessage(error)}`,
         { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
     }
   }
@@ -904,7 +909,7 @@ export class CallbackQueryHandler extends BaseHandler {
         );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.editMessage(chatId, messageId, `Error: ${errorMessage}`);
       logger.error('Failed to create new repo via callback', { userId, name, error: errorMessage });
     }

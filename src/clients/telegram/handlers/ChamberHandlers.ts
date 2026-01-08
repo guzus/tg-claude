@@ -6,6 +6,7 @@ import { config } from '../../../config';
 import { logger } from '../../../utils/logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { getErrorMessage } from '../../../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -56,7 +57,7 @@ export class ChamberHandlers {
       logger.error('Chamber command error', {
         userId,
         subcommand,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       await this.bot.sendMessage(chatId, '❌ An error occurred');
     }
@@ -88,7 +89,7 @@ export class ChamberHandlers {
     } catch (error) {
       logger.error('Failed to create GitHub repo', { 
         repoName, 
-        error: error instanceof Error ? error.message : String(error) 
+        error: getErrorMessage(error) 
       });
       return false;
     }

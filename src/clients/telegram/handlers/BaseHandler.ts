@@ -9,6 +9,7 @@ import { stateManager } from '../../../services/StateManager';
 import { isAuthorized } from '../middleware/security';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
+import { getErrorMessage } from '../../../utils/errors';
 
 export abstract class BaseHandler {
   constructor(
@@ -86,7 +87,7 @@ export abstract class BaseHandler {
     } catch (error) {
       logger.error('Failed to update pinned repository info', {
         chatId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -107,7 +108,7 @@ export abstract class BaseHandler {
     } catch (error) {
       logger.error('Failed to create pinned message', {
         chatId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -144,7 +145,7 @@ export abstract class BaseHandler {
     } catch (error) {
       logger.error('Failed to initialize from pinned message', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }

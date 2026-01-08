@@ -6,6 +6,7 @@ import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../../../services/StateManager';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import { getErrorMessage } from '../../../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -57,7 +58,7 @@ export class RepositoryHandlers extends BaseHandler {
         }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(`❌ Scan failed: ${errorMessage}`, {
         chat_id: chatId,
         message_id: statusMsg.message_id
@@ -147,7 +148,7 @@ export class RepositoryHandlers extends BaseHandler {
           );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
       logger.error('Repository command failed', {
         userId: msg.from?.id,
@@ -237,7 +238,7 @@ export class RepositoryHandlers extends BaseHandler {
         }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(`❌ Failed to clone repository:\n${errorMessage}`, {
         chat_id: chatId,
         message_id: statusMsg.message_id
@@ -296,7 +297,7 @@ export class RepositoryHandlers extends BaseHandler {
         }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to create repository:\n${errorMessage}`);
     }
   }
@@ -342,7 +343,7 @@ export class RepositoryHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to add repository:\n${errorMessage}`);
     }
   }
@@ -429,7 +430,7 @@ export class RepositoryHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to switch repository:\n${errorMessage}`);
     }
   }
@@ -473,7 +474,7 @@ export class RepositoryHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to delete repository:\n${errorMessage}`);
     }
   }
@@ -534,7 +535,7 @@ export class RepositoryHandlers extends BaseHandler {
           );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
       logger.error('Remote command failed', {
         userId: msg.from?.id,
@@ -589,7 +590,7 @@ export class RepositoryHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to get remote info:\n${errorMessage}`);
     }
   }
@@ -670,7 +671,7 @@ export class RepositoryHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to set remote:\n${errorMessage}`);
     }
   }
@@ -698,7 +699,7 @@ export class RepositoryHandlers extends BaseHandler {
         }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(
         '❌ Remote connection failed!\n\n' +
         `Error: ${errorMessage}\n\n` +
@@ -736,7 +737,7 @@ export class RepositoryHandlers extends BaseHandler {
         'The repository is now disconnected from the remote.'
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to remove remote:\n${errorMessage}`);
     }
   }
@@ -884,7 +885,7 @@ export class RepositoryHandlers extends BaseHandler {
         );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(
         `Error: ${errorMessage}`,
         { chat_id: chatId, message_id: messageId }
@@ -893,4 +894,3 @@ export class RepositoryHandlers extends BaseHandler {
     }
   }
 }
-

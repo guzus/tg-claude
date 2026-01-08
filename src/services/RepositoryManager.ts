@@ -10,6 +10,7 @@ import { UserConfigManager } from './UserConfigManager';
 import { ClaudeSettingsManager } from './ClaudeSettingsManager';
 import { PLUGIN_PRESETS } from '../presets';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
+import { getErrorMessage } from '../utils/errors';
 
 export class RepositoryManager {
   private userSessions: Map<number, UserSession> = new Map();
@@ -40,7 +41,7 @@ export class RepositoryManager {
       });
     } catch (error) {
       logger.error('Failed to initialize RepositoryManager', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -63,7 +64,7 @@ export class RepositoryManager {
       }
     } catch (error) {
       logger.warn('Failed to restore current repositories', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -87,7 +88,7 @@ export class RepositoryManager {
       });
     } catch (error) {
       logger.warn('Error during repository discovery', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -140,7 +141,7 @@ export class RepositoryManager {
     } catch (error) {
       logger.warn('Error discovering user repositories', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -197,7 +198,7 @@ export class RepositoryManager {
       logger.error('Failed to clone repository', {
         userId,
         gitUrl,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
@@ -250,7 +251,7 @@ export class RepositoryManager {
       logger.error('Failed to create repository', {
         userId,
         name,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
@@ -373,7 +374,7 @@ export class RepositoryManager {
       } catch (error) {
         logger.warn('Failed to save deleted repository', {
           repositoryId,
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
     }
@@ -382,7 +383,7 @@ export class RepositoryManager {
       try {
         await fs.rm(repository.path, { recursive: true, force: true });
       } catch (error) {
-        logger.warn('Failed to delete directory', { repositoryId, error: error instanceof Error ? error.message : String(error) });
+        logger.warn('Failed to delete directory', { repositoryId, error: getErrorMessage(error) });
       }
     }
 
@@ -436,7 +437,7 @@ export class RepositoryManager {
     } catch (error) {
       logger.warn('Failed to persist current repository', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -459,7 +460,7 @@ export class RepositoryManager {
       logger.warn('Failed to sync Claude settings', {
         userId,
         repoPath,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -544,7 +545,7 @@ export class RepositoryManager {
         logger.warn('Failed to install default plugin', {
           pluginSpec,
           repoPath,
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
     }
