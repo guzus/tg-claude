@@ -12,10 +12,10 @@ add tests for the auth module
 refactor the database service
 ```
 
-### `/ralph <task>` (plugin: `ralph-wiggum`)
+### `/ralph <task>` (plugin: `ralph-loop`)
 Autonomous loop mode. Claude works iteratively on a task until it's complete (or you stop it).
 
-> **Note:** `/ralph` uses the **`ralph-wiggum` Claude plugin**. The bot will try to install it automatically, but you can also install/manage plugins explicitly via `/plugin` (see below).
+> **Note:** `/ralph` uses the **`ralph-loop` Claude plugin**. The bot will try to install it automatically, but you can also install/manage plugins explicitly via `/plugin` (see below).
 
 ```
 /ralph implement the full authentication system with tests
@@ -126,7 +126,7 @@ Manage **Claude plugins per repository** (install/list/remove, plus presets).
 |------------|-------------|
 | `/plugin` | Show help |
 | `/plugin presets` | Show available presets |
-| `/plugin preset <name>` | Install from presets (e.g. `ralph-wiggum`) |
+| `/plugin preset <name>` | Install from presets (e.g. `ralph-loop`) |
 | `/plugin install <name>@<registry>` | Install a plugin by spec |
 | `/plugin list` | Show installed plugins |
 | `/plugin remove <name>` | Remove/uninstall a plugin |
@@ -134,10 +134,10 @@ Manage **Claude plugins per repository** (install/list/remove, plus presets).
 Examples:
 ```
 /plugin presets
-/plugin preset ralph-wiggum
-/plugin install ralph-wiggum@claude-plugins-official
+/plugin preset ralph-loop
+/plugin install ralph-loop@claude-plugins-official
 /plugin list
-/plugin remove ralph-wiggum
+/plugin remove ralph-loop
 ```
 
 ### `/mcp`

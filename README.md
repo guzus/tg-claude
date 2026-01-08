@@ -56,7 +56,7 @@ flowchart TB
     Bot -->|Parse & Route| Executor
     Bot -->|Autonomous Tasks| Ralph
     Executor -->|Execute| Claude
-    Ralph -->|Autonomous loop via ralph-wiggum plugin| Claude
+    Ralph -->|Autonomous loop via ralph-loop plugin| Claude
     Claude -->|OAuth| ClaudeAPI
     Claude -->|API Key| ZaiAPI
     Claude -->|API Key| OpenRouter
@@ -100,7 +100,7 @@ Data is stored in `./persistent/` on your host (and is **gitignored**).
 
 | Command | Description |
 |---------|-------------|
-| `/ralph <task>` | Autonomous loop mode (via `ralph-wiggum` Claude plugin) |
+| `/ralph <task>` | Autonomous loop mode (via `ralph-loop` Claude plugin) |
 | `/repo` | Manage repositories (clone/new/list/switch) |
 | `/scan` | Scan for existing repositories |
 | `/remote` | Manage git remote (show/set/test) |
@@ -111,7 +111,7 @@ Data is stored in `./persistent/` on your host (and is **gitignored**).
 | `/config` | User configuration |
 | `/ai` | Toggle AI provider (Claude/GLM/OpenRouter) |
 | `/mcp` | Manage MCP servers per repository |
-| `/plugin` | Manage Claude plugins (including `ralph-wiggum`) |
+| `/plugin` | Manage Claude plugins (including `ralph-loop`) |
 | `/help` | Show help |
 
 Just send a plain text message to execute tasks with Claude.

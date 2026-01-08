@@ -1,9 +1,9 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
-import { ChamberService } from '../services/ChamberService';
-import { RepositoryManager } from '../services/RepositoryManager';
-import { UserConfigManager } from '../services/UserConfigManager';
-import { config } from '../config';
-import { logger } from '../utils/logger';
+import { ChamberService } from '../../../services/ChamberService';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { UserConfigManager } from '../../../services/UserConfigManager';
+import { config } from '../../../config';
+import { logger } from '../../../utils/logger';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 

@@ -1,5 +1,5 @@
 import { InlineKeyboardMarkup, InlineKeyboardButton } from 'node-telegram-bot-api';
-import { Repository, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { Repository, StreamAction, ClaudeTaskWithStreaming } from '../../../types';
 
 export class UIHelpers {
   /**

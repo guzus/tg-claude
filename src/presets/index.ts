@@ -33,8 +33,8 @@ export interface PluginPreset {
 }
 
 export const PLUGIN_PRESETS: Record<string, PluginPreset> = {
-  'ralph-wiggum': {
-    name: 'ralph-wiggum',
+  'ralph-loop': {
+    name: 'ralph-loop',
     registry: 'claude-plugins-official',
     description: 'Autonomous loop that keeps working until task completion',
     isDefault: true

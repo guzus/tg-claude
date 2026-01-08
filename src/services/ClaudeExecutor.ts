@@ -363,9 +363,32 @@ export class ClaudeExecutor extends EventEmitter {
   }
 
   async autoCommitChanges(workingDir: string): Promise<string | null> {
-    const message = await this.generateCommitMessage(workingDir);
-    const result = await gitService.commit(workingDir, message);
-    return result.success ? result.hash : null;
+    try {
+      const hasChanges = await gitService.hasUncommittedChanges(workingDir);
+      if (!hasChanges) {
+        logger.debug('No uncommitted changes to auto-commit', { workingDir });
+        return null;
+      }
+
+      const message = await this.generateCommitMessage(workingDir);
+      logger.debug('Generated commit message', { workingDir, message });
+
+      const result = await gitService.commit(workingDir, message);
+
+      if (result.success) {
+        logger.info('Auto-committed changes', { workingDir, hash: result.hash, message });
+        return result.hash;
+      } else {
+        logger.warn('Auto-commit failed', { workingDir, reason: result.message });
+        return null;
+      }
+    } catch (error) {
+      logger.error('Auto-commit error', {
+        workingDir,
+        error: error instanceof Error ? error.message : String(error)
+      });
+      return null;
+    }
   }
 
   /**

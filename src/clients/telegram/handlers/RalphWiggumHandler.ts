@@ -1,12 +1,12 @@
 import TelegramBot, { Message, CallbackQuery } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { ClaudeExecutor } from '../services/ClaudeExecutor';
-import { RateLimiter } from '../services/RateLimiter';
-import { AuditLogger } from '../services/AuditLogger';
-import { RepositoryManager } from '../services/RepositoryManager';
-import { UserConfigManager } from '../services/UserConfigManager';
-import { RalphLoopExecutor, RalphLoopStatus, RalphLoopConfig } from '../services/RalphLoopExecutor';
-import { logger } from '../utils/logger';
+import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { UserConfigManager } from '../../../services/UserConfigManager';
+import { RalphLoopExecutor, RalphLoopStatus, RalphLoopConfig } from '../../../services/RalphLoopExecutor';
+import { logger } from '../../../utils/logger';
 
 /**
  * Ralph Wiggum Handler - Implements the Ralph Wiggum loop plugin

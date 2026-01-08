@@ -14,8 +14,7 @@ import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
 import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
-import { BotHandlers } from './handlers/BotHandlers';
-import { ChamberHandlers } from './handlers/ChamberHandlers';
+import { BotHandlers, ChamberHandlers } from './clients/telegram';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -161,7 +160,7 @@ const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigMa
 // Set bot commands in Telegram UI
 bot.setMyCommands([
   { command: 'start', description: 'Welcome message and command list' },
-  { command: 'ralph', description: '🔄 Ralph loop (ralph-wiggum plugin)' },
+  { command: 'ralph', description: '🔄 Ralph loop (ralph-loop plugin)' },
   { command: 'new_repo', description: '📁 Create new GitHub repository' },
   { command: 'repo', description: 'Manage repositories (clone/new/list/switch)' },
   { command: 'scan', description: 'Scan for existing repositories' },
@@ -175,7 +174,7 @@ bot.setMyCommands([
   { command: 'config', description: 'Manage user configuration' },
   { command: 'ai', description: 'Quick toggle AI provider' },
   { command: 'mcp', description: '🔌 Manage MCP servers (per-repository)' },
-  { command: 'plugin', description: '🧩 Manage Claude plugins (ralph-wiggum, etc.)' },
+  { command: 'plugin', description: '🧩 Manage Claude plugins (ralph-loop, etc.)' },
   { command: 'version', description: 'Show bot version/commit hash' },
   { command: 'help', description: 'Show help message' }
 ]).catch((error) => {

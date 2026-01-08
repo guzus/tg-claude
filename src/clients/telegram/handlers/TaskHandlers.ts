@@ -1,15 +1,15 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, ClaudeTaskWithStreaming } from '../types';
-import { logger } from '../utils/logger';
+import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
+import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { PromptBuilder } from '../utils/PromptBuilder';
-import { ClaudeExecutor } from '../services/ClaudeExecutor';
-import { RateLimiter } from '../services/RateLimiter';
-import { AuditLogger } from '../services/AuditLogger';
-import { RepositoryManager } from '../services/RepositoryManager';
-import { ConversationManager } from '../services/ConversationManager';
-import { UserConfigManager } from '../services/UserConfigManager';
+import { PromptBuilder } from '../../../utils/PromptBuilder';
+import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { ConversationManager } from '../../../services/ConversationManager';
+import { UserConfigManager } from '../../../services/UserConfigManager';
 
 /**
  * Handlers for task execution commands
