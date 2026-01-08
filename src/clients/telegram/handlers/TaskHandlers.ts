@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
+import { TaskStatus, ClaudeTaskWithStreaming, AIProvider } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../../../utils/PromptBuilder';
@@ -389,7 +389,7 @@ Always commit and push your changes after completing the task unless explicitly 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
 
-  private getProviderLabel(provider?: string): string {
+  private getProviderLabel(provider?: AIProvider): string {
     switch (provider) {
       case 'glm':
         return 'GLM';
