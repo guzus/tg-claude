@@ -17,6 +17,7 @@ import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketpl
 import { BotHandlers, ChamberHandlers } from './clients/telegram';
 import { DiscordClient } from './clients/discord';
 import { getVersionHash } from './utils/version';
+import { getErrorMessage } from './utils/errors';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -30,7 +31,7 @@ try {
   logger.info('Configuration validated successfully');
 } catch (error) {
   logger.error('Configuration validation failed', {
-    error: error instanceof Error ? error.message : String(error)
+    error: getErrorMessage(error)
   });
   process.exit(1);
 }
@@ -40,7 +41,7 @@ try {
   ensureDefaultPluginMarketplaces(process.cwd());
 } catch (error) {
   logger.debug('Skipping plugin marketplace bootstrap', {
-    error: error instanceof Error ? error.message : String(error)
+    error: getErrorMessage(error)
   });
 }
 
@@ -96,16 +97,15 @@ if (config.discordToken) {
     logger.info('Discord client started');
   }).catch((error) => {
     logger.error('Failed to start Discord client', {
-      error: error instanceof Error ? error.message : String(error)
+      error: getErrorMessage(error)
     });
   });
 }
 
 // Initialize current repositories from pinned messages for all allowed users
-(async () => {
-  // Give the bot a moment to fully initialize
-  await new Promise(resolve => setTimeout(resolve, 1000));
+const delay = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
 
+const initializeRepositoriesFromPinnedMessages = async (): Promise<void> => {
   logger.info('Initializing repositories from pinned messages');
 
   for (const userId of config.allowedUserIds) {
@@ -147,13 +147,15 @@ if (config.discordToken) {
     } catch (error) {
       logger.debug('Could not initialize repository from pinned message', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
 
   logger.info('Completed pinned message initialization');
+};
 
+const notifyDeploy = async (): Promise<void> => {
   const shortHash = getVersionHash().substring(0, 8);
   for (const userId of config.allowedUserIds) {
     try {
@@ -162,6 +164,13 @@ if (config.discordToken) {
       logger.debug('Could not send deploy notification', { userId });
     }
   }
+};
+
+(async () => {
+  // Give the bot a moment to fully initialize
+  await delay(1000);
+  await initializeRepositoriesFromPinnedMessages();
+  await notifyDeploy();
 })();
 
 type TelegramCommandHandler = (msg: TelegramBot.Message, match?: RegExpExecArray | null) => void;
@@ -284,7 +293,7 @@ const telegramCommands: Array<{
 
 bot.setMyCommands(telegramCommands.map(({ command, description }) => ({ command, description })))
   .catch((error) => {
-    logger.error('Failed to set bot commands', { error: error.message });
+    logger.error('Failed to set bot commands', { error: getErrorMessage(error) });
   });
 
 telegramCommands.forEach(({ pattern, handler }) => {
@@ -306,7 +315,7 @@ bot.on('message', (msg) => {
 // Handle polling errors
 bot.on('polling_error', (error) => {
   logger.error('Telegram polling error', {
-    error: error.message
+    error: getErrorMessage(error)
   });
 });
 

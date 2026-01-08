@@ -1,6 +1,7 @@
 import { SlashCommandBuilder, REST, Routes } from 'discord.js';
 import { config } from '../../../config';
 import { logger } from '../../../utils/logger';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Define slash commands for the Discord bot
@@ -61,7 +62,7 @@ export async function registerCommands(): Promise<void> {
     }
   } catch (error) {
     logger.error('Failed to register Discord slash commands', {
-      error: error instanceof Error ? error.message : String(error)
+      error: getErrorMessage(error)
     });
     throw error;
   }

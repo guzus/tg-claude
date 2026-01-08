@@ -6,6 +6,7 @@ import { ConversationManager } from '../../../services/ConversationManager';
 import { UtilityHandlers } from './UtilityHandlers';
 import { TaskHandlers } from './TaskHandlers';
 import { logger } from '../../../utils/logger';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Central dispatcher for Discord commands and interactions.
@@ -60,7 +61,7 @@ export class CommandDispatcher {
     } catch (error) {
       logger.error('Error handling Discord slash command', {
         command: commandName,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
 
       if (!interaction.replied && !interaction.deferred) {
@@ -86,7 +87,7 @@ export class CommandDispatcher {
     } catch (error) {
       logger.error('Error handling Discord button', {
         customId: interaction.customId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
 
       if (!interaction.replied && !interaction.deferred) {

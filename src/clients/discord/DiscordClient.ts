@@ -15,6 +15,7 @@ import { AuditLogger } from '../../services/AuditLogger';
 import { ConversationManager } from '../../services/ConversationManager';
 import { CommandDispatcher } from './handlers/CommandDispatcher';
 import { registerCommands } from './utils/commands';
+import { getErrorMessage } from '../../utils/errors';
 
 /**
  * Discord client that integrates with Claude Code.
@@ -69,7 +70,7 @@ export class DiscordClient {
         await registerCommands();
       } catch (error) {
         logger.error('Failed to register Discord commands on ready', {
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
 
@@ -87,7 +88,7 @@ export class DiscordClient {
       } catch (error) {
         logger.error('Error handling Discord interaction', {
           type: interaction.type,
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
     });
@@ -99,7 +100,7 @@ export class DiscordClient {
       } catch (error) {
         logger.error('Error handling Discord message', {
           channelId: message.channelId,
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
     });
@@ -130,7 +131,7 @@ export class DiscordClient {
       logger.info('Discord client logged in');
     } catch (error) {
       logger.error('Failed to start Discord client', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }

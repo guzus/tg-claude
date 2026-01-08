@@ -8,6 +8,7 @@ import { DiscordUIHelpers } from '../utils/UIHelpers';
 import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { toSafeDiscordId } from '../utils/ids';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Handlers for task execution in Discord.
@@ -90,7 +91,7 @@ export class TaskHandlers extends BaseHandler {
           } catch (error) {
             logger.debug('Failed to update Discord message', {
               taskId: task.id,
-              error: error instanceof Error ? error.message : String(error)
+              error: getErrorMessage(error)
             });
           }
         } else {
@@ -117,7 +118,7 @@ export class TaskHandlers extends BaseHandler {
           } catch (error) {
             logger.error('Failed to update completion message', {
               taskId: task.id,
-              error: error instanceof Error ? error.message : String(error)
+              error: getErrorMessage(error)
             });
           }
 
@@ -136,7 +137,7 @@ export class TaskHandlers extends BaseHandler {
 
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
 
       await msg.reply({
         embeds: [{
