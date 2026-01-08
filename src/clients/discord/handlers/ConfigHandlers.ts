@@ -88,7 +88,10 @@ export class ConfigHandlers extends BaseHandler {
     try {
       const isRepo = await this.isGitRepo(context.workingDir);
       if (!isRepo) {
+        const gitIdentity = await this.getGitIdentity(context.channelKey);
         await this.execGit(['init'], context.workingDir);
+        await this.execGit(['config', 'user.name', gitIdentity.name], context.workingDir);
+        await this.execGit(['config', 'user.email', gitIdentity.email], context.workingDir);
         await this.execGit(['add', '.'], context.workingDir);
         await this.execGit(['commit', '-m', 'Initial commit', '--allow-empty'], context.workingDir);
       }
@@ -455,6 +458,17 @@ export class ConfigHandlers extends BaseHandler {
   private async execGit(args: string[], cwd: string): Promise<string> {
     const result = await execFileAsync('git', args, { cwd });
     return result.stdout?.toString() || '';
+  }
+
+  private async getGitIdentity(userId: number): Promise<{ name: string; email: string }> {
+    try {
+      const config = await this.userConfigManager.getConfig(userId);
+      const name = config.git?.userName || 'tg-claude';
+      const email = config.git?.userEmail || 'noreply@github.com';
+      return { name, email };
+    } catch {
+      return { name: 'tg-claude', email: 'noreply@github.com' };
+    }
   }
 
   private async isGitRepo(cwd: string): Promise<boolean> {
