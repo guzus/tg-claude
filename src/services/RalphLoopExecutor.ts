@@ -8,7 +8,7 @@ import { RepositoryManager } from './RepositoryManager';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
-import { UIHelpers } from '../utils/UIHelpers';
+import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
 
 // Ralph Loop status enum

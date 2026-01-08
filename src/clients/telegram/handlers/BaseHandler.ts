@@ -1,13 +1,13 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
-import { ClaudeExecutor } from '../services/ClaudeExecutor';
-import { RateLimiter } from '../services/RateLimiter';
-import { AuditLogger } from '../services/AuditLogger';
-import { RepositoryManager } from '../services/RepositoryManager';
-import { ConversationManager } from '../services/ConversationManager';
-import { UserConfigManager } from '../services/UserConfigManager';
-import { stateManager } from '../services/StateManager';
+import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { ConversationManager } from '../../../services/ConversationManager';
+import { UserConfigManager } from '../../../services/UserConfigManager';
+import { stateManager } from '../../../services/StateManager';
 import { isAuthorized } from '../middleware/security';
-import { logger } from '../utils/logger';
+import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 
 export abstract class BaseHandler {

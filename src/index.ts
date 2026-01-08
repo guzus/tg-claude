@@ -14,8 +14,7 @@ import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
 import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
-import { BotHandlers } from './handlers/BotHandlers';
-import { ChamberHandlers } from './handlers/ChamberHandlers';
+import { BotHandlers, ChamberHandlers } from './clients/telegram';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);

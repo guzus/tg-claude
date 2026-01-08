@@ -1,9 +1,9 @@
 import { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { RepositoryType, Repository } from '../types';
-import { logger } from '../utils/logger';
+import { RepositoryType, Repository } from '../../../types';
+import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { stateManager } from '../services/StateManager';
+import { stateManager } from '../../../services/StateManager';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 

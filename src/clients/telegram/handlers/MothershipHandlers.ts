@@ -1,9 +1,9 @@
 import TelegramBot, { Message, CallbackQuery, InlineKeyboardButton } from 'node-telegram-bot-api';
-import { MothershipService, BotDeploymentConfig } from '../services/MothershipService';
-import { RateLimiter } from '../services/RateLimiter';
-import { AuditLogger } from '../services/AuditLogger';
-import { config } from '../config';
-import { logger } from '../utils/logger';
+import { MothershipService, BotDeploymentConfig } from '../../../services/MothershipService';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { config } from '../../../config';
+import { logger } from '../../../utils/logger';
 
 /**
  * Handlers for mothership bot deployment commands

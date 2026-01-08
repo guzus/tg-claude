@@ -1,17 +1,17 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { ClaudeExecutor } from '../services/ClaudeExecutor';
-import { RateLimiter } from '../services/RateLimiter';
-import { AuditLogger } from '../services/AuditLogger';
-import { UserConfigManager } from '../services/UserConfigManager';
-import { RepositoryManager } from '../services/RepositoryManager';
-import { ConversationManager } from '../services/ConversationManager';
-import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../types';
-import { logger } from '../utils/logger';
+import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { UserConfigManager } from '../../../services/UserConfigManager';
+import { RepositoryManager } from '../../../services/RepositoryManager';
+import { ConversationManager } from '../../../services/ConversationManager';
+import { McpConfig, McpServer, UserConfig, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS } from '../../../types';
+import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { stateManager } from '../services/StateManager';
-import { MCP_PRESETS, PLUGIN_PRESETS } from '../presets';
-import { ensureDefaultPluginMarketplaces } from '../services/ClaudePluginMarketplace';
+import { stateManager } from '../../../services/StateManager';
+import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
+import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;

@@ -1,4 +1,4 @@
-import { config } from '../config';
+import { config } from '../../../config';
 
 /**
  * Check if user is authorized to use the bot

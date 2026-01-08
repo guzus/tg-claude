@@ -4,7 +4,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
-import { config } from '../config';
+import { config } from '../../../config';
 
 /**
  * Handlers for utility and diagnostic commands
