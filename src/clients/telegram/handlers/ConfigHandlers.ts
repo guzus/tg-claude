@@ -13,6 +13,7 @@ import { stateManager } from '../../../services/StateManager';
 import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
 import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
 import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -48,9 +49,9 @@ export class ConfigHandlers extends BaseHandler {
     const provider = config.aiProvider?.provider || 'anthropic';
 
     const providerLabels: Record<AIProvider, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
+      anthropic: getProviderLabel('anthropic'),
+      glm: getProviderLabel('glm'),
+      openrouter: getProviderLabel('openrouter')
     };
 
     const models = this.getProviderModelMap(provider, config);
@@ -158,7 +159,7 @@ export class ConfigHandlers extends BaseHandler {
     }
 
     const masked = this.maskSecret(key);
-    const providerLabel = pending.provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const providerLabel = getProviderLabel(pending.provider);
     const switchCb = pending.provider === 'glm' ? 'ai_switch_glm' : 'ai_switch_openrouter';
 
     await this.bot.editMessageText(
@@ -336,12 +337,6 @@ export class ConfigHandlers extends BaseHandler {
     const config = await this.userConfigManager.getConfig(userId);
     const provider: AIProvider = config.aiProvider?.provider || 'anthropic';
 
-    const providerLabels: Record<string, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
-    };
-
     const models = this.getProviderModelMap(provider, config);
 
     const glmKeyMasked = config.aiProvider?.glmApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.glmApiKey))}\`)` : '–';
@@ -366,7 +361,7 @@ export class ConfigHandlers extends BaseHandler {
 
     // AI
     lines.push('🤖 *AI*');
-    lines.push(`Provider: *${providerLabels[provider]}*`);
+    lines.push(`Provider: *${getProviderLabel(provider)}*`);
     lines.push(`GLM key: ${glmKeyMasked}`);
     lines.push(`OpenRouter key: ${openRouterKeyMasked}`);
     lines.push(`Models (effective): H \`${UIHelpers.escapeMarkdown(models.haiku)}\`  S \`${UIHelpers.escapeMarkdown(models.sonnet)}\`  O \`${UIHelpers.escapeMarkdown(models.opus)}\``);

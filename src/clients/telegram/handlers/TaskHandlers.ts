@@ -1,6 +1,6 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, ClaudeTaskWithStreaming, AIProvider } from '../../../types';
+import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../../../utils/PromptBuilder';
@@ -11,6 +11,7 @@ import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
 import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
 
 /**
  * Handlers for task execution commands
@@ -89,7 +90,7 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
-          const providerLabel = this.getProviderLabel(aiProvider?.provider);
+          const providerLabel = getProviderLabel(aiProvider?.provider);
 
           // Build status message using streaming events
           const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
@@ -191,7 +192,7 @@ export class TaskHandlers extends BaseHandler {
 
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          const providerName = this.getProviderLabel(aiProvider?.provider);
+          const providerName = getProviderLabel(aiProvider?.provider);
           let statsLine = UIHelpers.formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
@@ -389,16 +390,6 @@ Always commit and push your changes after completing the task unless explicitly 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
 
-  private getProviderLabel(provider?: AIProvider): string {
-    switch (provider) {
-      case 'glm':
-        return 'GLM';
-      case 'openrouter':
-        return 'OpenRouter';
-      default:
-        return 'Claude';
-    }
-  }
 
   /**
    * Handle plain text messages

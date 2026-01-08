@@ -10,6 +10,7 @@ import { promisify } from 'util';
 import { exec } from 'child_process';
 import path from 'path';
 import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
 
 const execAsync = promisify(exec);
 
@@ -94,7 +95,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
     stateManager.setPendingApiKeyEntry(userId, { userId, chatId, messageId, provider });
 
-    const providerLabel = provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const providerLabel = getProviderLabel(provider);
     const field = provider === 'glm' ? '`aiProvider.glmApiKey`' : '`aiProvider.openrouterApiKey`';
 
     await this.editMessage(
@@ -599,16 +600,10 @@ export class CallbackQueryHandler extends BaseHandler {
     const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
     const updatedConfig = await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
 
-    const providerLabels: Record<string, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
-    };
-
     // Build buttons for other providers
     const buttons = (['anthropic', 'glm', 'openrouter'] as const)
       .filter(p => p !== newProvider)
-      .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
+      .map(p => ({ text: getProviderLabel(p), callback_data: `ai_switch_${p}` }));
 
     const models = this.getProviderModelMap(newProvider, updatedConfig);
     const modelLines = [
@@ -620,7 +615,7 @@ export class CallbackQueryHandler extends BaseHandler {
     await this.editMessage(
       chatId,
       messageId,
-      `*${providerLabels[newProvider]}*\n\n${modelLines}`,
+      `*${getProviderLabel(newProvider)}*\n\n${modelLines}`,
       { inline_keyboard: [buttons] }
     );
   }
