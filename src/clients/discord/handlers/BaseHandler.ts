@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, Message, ButtonInteraction } from 'discord.js';
+import { ChatInputCommandInteraction, Message, ButtonInteraction, MessageFlags } from 'discord.js';
 import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
@@ -38,7 +38,7 @@ export abstract class BaseHandler {
       if (interaction instanceof Message) {
         await interaction.reply(message);
       } else {
-        await interaction.reply({ content: message, ephemeral: true });
+        await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
       }
       logger.warn('Discord unauthorized access attempt', { userId });
       return false;
@@ -52,7 +52,7 @@ export abstract class BaseHandler {
       if (interaction instanceof Message) {
         await interaction.reply(message);
       } else {
-        await interaction.reply({ content: message, ephemeral: true });
+        await interaction.reply({ content: message, flags: MessageFlags.Ephemeral });
       }
       return false;
     }

@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import { ChatInputCommandInteraction, ButtonInteraction, MessageFlags } from 'discord.js';
 import { BaseHandler } from './BaseHandler';
 import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
@@ -45,7 +45,7 @@ export class UtilityHandlers extends BaseHandler {
     const channelTasks = activeTasks.filter(task => task.chatId === safeChannelId);
 
     if (channelTasks.length === 0) {
-      await interaction.reply({ content: 'No active tasks in this channel.', ephemeral: true });
+      await interaction.reply({ content: 'No active tasks in this channel.', flags: MessageFlags.Ephemeral });
       return;
     }
 
@@ -57,7 +57,7 @@ export class UtilityHandlers extends BaseHandler {
 
     await interaction.reply({
       content: `**Active Tasks (${channelTasks.length})**\n${taskList}`,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 
@@ -71,14 +71,14 @@ export class UtilityHandlers extends BaseHandler {
     const task = this.executor.getTask(taskId);
 
     if (!task) {
-      await interaction.reply({ content: `Task \`${taskId}\` not found.`, ephemeral: true });
+      await interaction.reply({ content: `Task \`${taskId}\` not found.`, flags: MessageFlags.Ephemeral });
       return;
     }
 
     if (task.status !== TaskStatus.RUNNING) {
       await interaction.reply({
         content: `Task \`${taskId}\` is not running (status: ${task.status}).`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -94,7 +94,7 @@ export class UtilityHandlers extends BaseHandler {
         success: true
       });
     } else {
-      await interaction.reply({ content: `Failed to cancel task \`${taskId}\`.`, ephemeral: true });
+      await interaction.reply({ content: `Failed to cancel task \`${taskId}\`.`, flags: MessageFlags.Ephemeral });
     }
   }
 
@@ -105,7 +105,7 @@ export class UtilityHandlers extends BaseHandler {
     const shortHash = getVersionHash().substring(0, 8);
     await interaction.reply({
       content: `**Claude Code Bot**\nCommit: \`${shortHash}\``,
-      ephemeral: true
+      flags: MessageFlags.Ephemeral
     });
   }
 
@@ -122,7 +122,7 @@ export class UtilityHandlers extends BaseHandler {
         if (cancelled) {
           await interaction.reply({ content: `Task \`${taskId}\` cancelled.` });
         } else {
-          await interaction.reply({ content: `Failed to cancel task.`, ephemeral: true });
+          await interaction.reply({ content: `Failed to cancel task.`, flags: MessageFlags.Ephemeral });
         }
         break;
       }
@@ -136,15 +136,15 @@ export class UtilityHandlers extends BaseHandler {
             : output;
           await interaction.reply({
             content: `\`\`\`\n${truncated}\n\`\`\``,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
         } else {
-          await interaction.reply({ content: 'No output available.', ephemeral: true });
+          await interaction.reply({ content: 'No output available.', flags: MessageFlags.Ephemeral });
         }
         break;
       }
       default:
-        await interaction.reply({ content: 'Unknown action.', ephemeral: true });
+        await interaction.reply({ content: 'Unknown action.', flags: MessageFlags.Ephemeral });
     }
   }
 }

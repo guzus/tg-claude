@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, ButtonInteraction, Message } from 'discord.js';
+import { ChatInputCommandInteraction, ButtonInteraction, Message, MessageFlags } from 'discord.js';
 import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
@@ -55,7 +55,7 @@ export class CommandDispatcher {
         default:
           await interaction.reply({
             content: `Unknown command: ${commandName}`,
-            ephemeral: true
+            flags: MessageFlags.Ephemeral
           });
       }
     } catch (error) {
@@ -67,7 +67,7 @@ export class CommandDispatcher {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'An error occurred while processing your command.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     }
@@ -93,7 +93,7 @@ export class CommandDispatcher {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
           content: 'An error occurred.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
       }
     }
