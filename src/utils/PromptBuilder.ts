@@ -92,7 +92,7 @@ Execute the task described above. Focus on:
 2. Making necessary changes efficiently
 3. Following best practices for the language/framework
 4. Ensuring changes are tested (if applicable)
-5. Providing clear output about what was done
+5. Committing and pushing your changes
 
 If you need to:
 - Read files, use appropriate commands
@@ -100,7 +100,20 @@ If you need to:
 - Run tests/builds, execute the relevant commands
 - Search for code, use grep/search tools
 
-Be thorough but concise in your approach.`;
+## Git Workflow (IMPORTANT)
+
+After completing your coding changes, you MUST:
+
+1. Stage all changes: \`git add .\`
+2. Commit with a descriptive message following conventional commits:
+   \`git commit -m "<type>(<scope>): <description>"\`
+   Types: feat, fix, docs, style, refactor, test, chore
+3. Push to the remote: \`git push\`
+
+If push fails due to no upstream, use: \`git push -u origin <branch>\`
+If there's no remote configured, skip the push step.
+
+Always commit your changes before finishing the task.`;
   }
 
   /**

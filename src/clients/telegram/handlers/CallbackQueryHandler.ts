@@ -687,75 +687,119 @@ export class CallbackQueryHandler extends BaseHandler {
       rawLog = (task.output || '') + (task.errorOutput ? `\n\n[STDERR]\n${task.errorOutput}` : '') || 'No output.';
     }
 
-    // Parse the log to extract meaningful content
-    const parsedLog = this.parseLogContent(rawLog);
+    // Parse the log to extract full content as markdown
+    const markdownLog = this.parseLogToMarkdown(rawLog, actualTaskId);
 
-    // Telegram message limit is 4096 chars, reserve some for formatting
-    const MAX_LENGTH = 3800;
-    const shortId = actualTaskId.substring(0, 8);
+    // Telegram message limit is 4096 chars
+    const MAX_LENGTH = 4000;
 
-    if (parsedLog.length <= MAX_LENGTH) {
-      await this.bot.sendMessage(chatId, `📋 *Log* \`${shortId}\`\n\n${parsedLog}`, {
-        parse_mode: 'Markdown'
+    if (markdownLog.length <= MAX_LENGTH) {
+      // Send as message with markdown
+      await this.bot.sendMessage(chatId, markdownLog, {
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
       });
     } else {
-      const truncated = parsedLog.substring(parsedLog.length - MAX_LENGTH);
-      await this.bot.sendMessage(
+      // Too long - send as markdown file
+      const filename = `task-${actualTaskId.substring(0, 8)}.md`;
+      await this.bot.sendDocument(
         chatId,
-        `📋 *Log* \`${shortId}\` (last ${MAX_LENGTH} chars)\n\n${truncated}`,
-        {
-          parse_mode: 'Markdown',
-          reply_markup: {
-            inline_keyboard: [[{ text: '📥 Download Full Log', callback_data: `view_download:${actualTaskId}` }]]
-          }
-        }
+        Buffer.from(markdownLog),
+        { caption: `📋 Full log for task \`${actualTaskId.substring(0, 8)}\``, parse_mode: 'Markdown' },
+        { filename, contentType: 'text/markdown' }
       );
     }
   }
 
-  private parseLogContent(rawLog: string): string {
-    const lines: string[] = [];
+  private parseLogToMarkdown(rawLog: string, taskId: string): string {
+    const sections: string[] = [];
+    const shortId = taskId.substring(0, 8);
+
+    sections.push(`# Task Log \`${shortId}\`\n`);
+
     const jsonLines = rawLog.split('\n');
+    let currentSection: string[] = [];
+    let toolCount = 0;
+    let costUsd: number | undefined;
+    let result: string | undefined;
 
     for (const line of jsonLines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
 
-      // Try to parse as JSON (Claude Code stream format)
       try {
         const event = JSON.parse(trimmed);
 
         if (event.type === 'assistant' && event.message?.content) {
           for (const block of event.message.content) {
             if (block.type === 'text' && block.text) {
-              lines.push(block.text);
+              // Add Claude's text response
+              currentSection.push(block.text);
             } else if (block.type === 'tool_use') {
+              toolCount++;
               const toolName = block.name || 'tool';
-              lines.push(`🔧 ${toolName}`);
+              const toolInput = block.input;
+
+              // Format tool use
+              currentSection.push(`\n### Tool: ${toolName}\n`);
+              if (toolInput) {
+                if (toolName === 'Bash' && toolInput.command) {
+                  currentSection.push('```bash');
+                  currentSection.push(toolInput.command);
+                  currentSection.push('```');
+                } else if (toolName === 'Read' && toolInput.file_path) {
+                  currentSection.push(`Reading: \`${toolInput.file_path}\``);
+                } else if (toolName === 'Edit' && toolInput.file_path) {
+                  currentSection.push(`Editing: \`${toolInput.file_path}\``);
+                } else if (toolName === 'Write' && toolInput.file_path) {
+                  currentSection.push(`Writing: \`${toolInput.file_path}\``);
+                } else if (toolName === 'Grep' && toolInput.pattern) {
+                  currentSection.push(`Pattern: \`${toolInput.pattern}\``);
+                } else if (toolName === 'Glob' && toolInput.pattern) {
+                  currentSection.push(`Pattern: \`${toolInput.pattern}\``);
+                } else {
+                  // Generic tool input display
+                  const inputStr = JSON.stringify(toolInput, null, 2);
+                  if (inputStr.length < 500) {
+                    currentSection.push('```json');
+                    currentSection.push(inputStr);
+                    currentSection.push('```');
+                  }
+                }
+              }
             }
           }
         } else if (event.type === 'result') {
           if (event.result) {
-            lines.push(`\n✅ Result: ${event.result.substring(0, 500)}${event.result.length > 500 ? '...' : ''}`);
+            result = event.result;
           }
           if (event.total_cost_usd) {
-            lines.push(`💰 Cost: $${event.total_cost_usd.toFixed(4)}`);
+            costUsd = event.total_cost_usd;
           }
         }
       } catch {
-        // Not JSON - check if it's meaningful text (not file content dump)
-        // Skip lines that look like file content with line numbers (e.g., "   123→")
-        if (!/^\s*\d+→/.test(trimmed) && !trimmed.startsWith('<') && trimmed.length < 200) {
-          // Skip common noise patterns
-          if (!trimmed.includes('system-reminder') && !trimmed.includes('tool_use_result')) {
-            lines.push(trimmed);
-          }
-        }
+        // Not JSON - skip noise
       }
     }
 
-    const content = lines.join('\n') || 'No parsed content available.';
-    return UIHelpers.escapeMarkdown(content);
+    // Add main content
+    if (currentSection.length > 0) {
+      sections.push('## Claude Response\n');
+      sections.push(currentSection.join('\n'));
+    }
+
+    // Add summary section
+    sections.push('\n---\n');
+    sections.push('## Summary\n');
+    sections.push(`- Tools used: ${toolCount}`);
+    if (costUsd) {
+      sections.push(`- Cost: $${costUsd.toFixed(4)}`);
+    }
+    if (result) {
+      sections.push(`\n### Final Result\n${result}`);
+    }
+
+    return sections.join('\n');
   }
 
   private async handleDownloadLog(chatId: number, userId: number, taskId: string): Promise<void> {
