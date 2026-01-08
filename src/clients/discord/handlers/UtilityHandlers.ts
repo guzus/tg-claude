@@ -8,6 +8,7 @@ import { DiscordUIHelpers } from '../utils/UIHelpers';
 import { TaskStatus } from '../../../types';
 import * as fs from 'fs';
 import * as path from 'path';
+import { toSafeDiscordId } from '../utils/ids';
 
 /**
  * Handlers for utility commands: /help, /status, /cancel, /version
@@ -37,10 +38,11 @@ export class UtilityHandlers extends BaseHandler {
     if (!(await this.checkAccess(interaction))) return;
 
     const channelId = interaction.channelId;
+    const safeChannelId = toSafeDiscordId(channelId);
     const activeTasks = this.executor.getActiveTasks();
 
     // Filter tasks for this channel
-    const channelTasks = activeTasks.filter(task => task.chatId.toString() === channelId);
+    const channelTasks = activeTasks.filter(task => task.chatId === safeChannelId);
 
     if (channelTasks.length === 0) {
       await interaction.reply({ content: 'No active tasks in this channel.', ephemeral: true });
@@ -85,7 +87,7 @@ export class UtilityHandlers extends BaseHandler {
     if (cancelled) {
       await interaction.reply({ content: `Task \`${taskId}\` cancelled.` });
       this.auditLogger.logCommand({
-        userId: parseInt(interaction.user.id) || 0,
+        userId: toSafeDiscordId(interaction.user.id),
         username: interaction.user.username,
         command: `/cancel ${taskId}`,
         taskId,

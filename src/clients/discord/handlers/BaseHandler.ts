@@ -9,6 +9,7 @@ import { WORKSPACE_PATH } from '../../../config';
 import * as fs from 'fs';
 import * as path from 'path';
 import { DiscordUIHelpers } from '../utils/UIHelpers';
+import { toSafeDiscordId } from '../utils/ids';
 
 /**
  * Base handler for Discord commands.
@@ -45,7 +46,7 @@ export abstract class BaseHandler {
 
     // Use channel ID for rate limiting (mono-repo per channel)
     const channelId = interaction.channelId;
-    const rateLimitResult = this.rateLimiter.checkRateLimit(parseInt(channelId) || 0);
+    const rateLimitResult = this.rateLimiter.checkRateLimit(toSafeDiscordId(channelId));
     if (!rateLimitResult.allowed) {
       const message = `Rate limit: ${rateLimitResult.reason}`;
       if (interaction instanceof Message) {

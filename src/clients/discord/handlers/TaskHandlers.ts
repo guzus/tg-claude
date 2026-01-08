@@ -7,6 +7,7 @@ import { ConversationManager } from '../../../services/ConversationManager';
 import { DiscordUIHelpers } from '../utils/UIHelpers';
 import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
+import { toSafeDiscordId } from '../utils/ids';
 
 /**
  * Handlers for task execution in Discord.
@@ -40,13 +41,15 @@ export class TaskHandlers extends BaseHandler {
     const channelName = channel.name || 'unknown';
     const prompt = msg.content;
     const startTime = Date.now();
+    const safeUserId = toSafeDiscordId(userId);
+    const safeChannelId = toSafeDiscordId(channelId);
 
     // Get channel workspace (mono-repo per channel)
     const workingDir = this.getChannelWorkspace(channelId, channelName);
 
     try {
       // Add to conversation context
-      this.conversationManager?.addUserMessage(parseInt(channelId) || 0, prompt);
+      this.conversationManager?.addUserMessage(safeChannelId, prompt);
 
       // Send initial status message
       const statusMsg = await msg.reply({
@@ -59,8 +62,8 @@ export class TaskHandlers extends BaseHandler {
 
       // Execute task
       const task = await this.executor.executeTask(
-        parseInt(userId) || 0,
-        parseInt(channelId) || 0,
+        safeUserId,
+        safeChannelId,
         prompt,
         { workingDir }
       );
@@ -120,7 +123,7 @@ export class TaskHandlers extends BaseHandler {
 
           // Log audit entry
           this.auditLogger.logCommand({
-            userId: parseInt(userId) || 0,
+            userId: safeUserId,
             username: msg.author.username,
             command: prompt.substring(0, 100),
             taskId: task.id,
@@ -144,7 +147,7 @@ export class TaskHandlers extends BaseHandler {
       });
 
       this.auditLogger.logCommand({
-        userId: parseInt(userId) || 0,
+        userId: safeUserId,
         username: msg.author.username,
         command: prompt.substring(0, 100),
         success: false,
