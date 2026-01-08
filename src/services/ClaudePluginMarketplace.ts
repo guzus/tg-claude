@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 
 /**
  * Claude Code plugin marketplace helpers.
@@ -39,7 +40,7 @@ export function ensurePluginMarketplace(source: string, cwd?: string): void {
     // If list fails (older CLI?), we'll just try to add.
     logger.debug('Could not list plugin marketplaces', {
       cwd,
-      error: error instanceof Error ? error.message : String(error)
+      error: getErrorMessage(error)
     });
   }
 
@@ -51,9 +52,8 @@ export function ensurePluginMarketplace(source: string, cwd?: string): void {
     logger.warn('Failed to add Claude plugin marketplace', {
       source,
       cwd,
-      error: error instanceof Error ? error.message : String(error)
+      error: getErrorMessage(error)
     });
   }
 }
-
 

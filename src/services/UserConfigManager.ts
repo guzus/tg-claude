@@ -3,6 +3,7 @@ import path from 'path';
 import { UserConfig } from '../types';
 import { logger } from '../utils/logger';
 import { CONFIG_PATH } from '../config';
+import { getErrorMessage } from '../utils/errors';
 
 const DEFAULT_CLAUDE_MD = `# Guidelines for Claude
 
@@ -45,7 +46,7 @@ export class UserConfigManager {
       });
     } catch (error) {
       logger.error('Failed to initialize UserConfigManager', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -68,7 +69,7 @@ export class UserConfigManager {
     } catch (error) {
       // Directory might not exist yet
       logger.debug('No existing configs found', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -92,7 +93,7 @@ export class UserConfigManager {
     } catch (error) {
       logger.debug('Failed to load user config', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -195,7 +196,7 @@ export class UserConfigManager {
     } catch (error) {
       logger.error('Failed to save user config', {
         userId: config.userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
@@ -215,7 +216,7 @@ export class UserConfigManager {
     } catch (error) {
       logger.error('Failed to delete user config', {
         userId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }

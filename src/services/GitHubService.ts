@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -56,7 +57,7 @@ export class GitHubService {
       return true;
     } catch (error) {
       logger.error('GitHub authentication failed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       this.isAuthenticated = false;
       return false;
@@ -98,7 +99,7 @@ export class GitHubService {
     } catch (error) {
       logger.error('GitHub CLI command failed', {
         command,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
@@ -114,10 +115,9 @@ export class GitHubService {
       logger.info('Logged out from GitHub CLI');
     } catch (error) {
       logger.error('GitHub logout failed', {
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
   }
 }
-

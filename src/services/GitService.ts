@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -239,7 +240,7 @@ const userEmail = email || 'claude-code@remote.machine';
       logger.info('Committed changes', { workingDir, hash, message });
       return { success: true, hash, message };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
       logger.error('Failed to commit', { workingDir, error: errMsg });
       return { success: false, hash: null, message: errMsg };
     }
@@ -277,7 +278,7 @@ const userEmail = email || 'claude-code@remote.machine';
       logger.info('Pushed changes', { workingDir, branch });
       return { status: 'success' };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
 
       if (errMsg.includes('Everything up-to-date')) {
         return { status: 'no_changes' };

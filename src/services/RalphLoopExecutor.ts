@@ -10,6 +10,7 @@ import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithSt
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
+import { getErrorMessage } from '../utils/errors';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -108,7 +109,7 @@ export class RalphLoopExecutor {
       return { ok: true };
     } catch (error) {
       // Log warning but don't fail - plugin might already be installed
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
       logger.warn('Plugin install returned non-zero', {
         workingDir,
         error: errMsg
@@ -127,7 +128,7 @@ export class RalphLoopExecutor {
           logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
           return { ok: true };
         } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          const retryMsg = getErrorMessage(retryError);
           return { ok: false, error: retryMsg, pluginSpec };
         }
       }
@@ -191,7 +192,7 @@ export class RalphLoopExecutor {
     this.runRalphLoop(state).catch(error => {
       logger.error('Ralph loop failed', {
         sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       this.cleanupSession(state);
     });
@@ -561,7 +562,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     } catch (error) {
       logger.error('Failed to send Ralph status message', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       return undefined;
     }
@@ -699,7 +700,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     } catch (error) {
       logger.error('Failed to send Ralph final report', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -779,7 +780,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     } catch (error) {
       logger.error('Failed to commit/push Ralph changes', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }

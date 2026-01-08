@@ -2,6 +2,7 @@ import { spawn, ChildProcess } from 'child_process';
 import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
 import { config, WORKSPACE_PATH } from '../config';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
 import { v4 as uuidv4 } from 'uuid';
@@ -266,7 +267,7 @@ export class ClaudeExecutor extends EventEmitter {
       return task;
     } catch (error) {
       task.status = TaskStatus.FAILED;
-      task.errorOutput = error instanceof Error ? error.message : String(error);
+      task.errorOutput = getErrorMessage(error);
       task.endTime = new Date();
       throw error;
     }
@@ -385,7 +386,7 @@ export class ClaudeExecutor extends EventEmitter {
     } catch (error) {
       logger.error('Auto-commit error', {
         workingDir,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       return null;
     }
@@ -541,7 +542,7 @@ Reply with ONLY the commit message, nothing else.`;
       logger.debug('Generated commit message', { message });
       return message;
     } catch (error) {
-      logger.debug('Commit message generation failed', { error: error instanceof Error ? error.message : String(error) });
+      logger.debug('Commit message generation failed', { error: getErrorMessage(error) });
       // Fallback with file context
       try {
         const { stdout: status } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
@@ -577,7 +578,7 @@ Reply with ONLY the commit message, nothing else.`;
       logger.info('Created GitHub repository', { repoName, visibility });
       return 'success';
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
       if (errMsg.includes('Name already exists')) return 'already_exists';
       logger.error('Failed to create GitHub repository', { error: errMsg });
       return 'error';

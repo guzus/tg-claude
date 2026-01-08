@@ -1,4 +1,5 @@
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 import { runClaudeWithTools, delay, ToolCall } from '../utils/ClaudeRunner';
 import { gitService } from './GitService';
 import { AIProviderConfig } from '../types';
@@ -114,8 +115,8 @@ ${content}
         logger.warn('Push failed or no remote', { status: pushResult.status });
       }
     } catch (error) {
-      logger.error('Commit/push failed', { 
-        error: error instanceof Error ? error.message : String(error) 
+      logger.error('Commit/push failed', {
+        error: getErrorMessage(error)
       });
     }
   }
@@ -180,8 +181,8 @@ ${content}
             disable_web_page_preview: true 
           });
         } catch (error) {
-          logger.error('Failed to broadcast to Telegram', { 
-            error: error instanceof Error ? error.message : String(error) 
+          logger.error('Failed to broadcast to Telegram', {
+            error: getErrorMessage(error)
           });
         }
       }
@@ -292,14 +293,14 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
         await delay(this.delayBetweenMessages);
 
       } catch (error) {
-        logger.error('Error in conversation turn', { 
-          role: currentRole, 
-          error: error instanceof Error ? error.message : String(error) 
+        logger.error('Error in conversation turn', {
+          role: currentRole,
+          error: getErrorMessage(error)
         });
         
         await this.bot.sendMessage(
           BROADCAST_CHAT_ID,
-          `⚠️ *Error in ${currentRole} response*\n\n\`${error instanceof Error ? error.message : String(error)}\`\n\nRetrying in 10 seconds...`,
+          `⚠️ *Error in ${currentRole} response*\n\n\`${getErrorMessage(error)}\`\n\nRetrying in 10 seconds...`,
           { parse_mode: 'Markdown' }
         );
         
@@ -448,14 +449,14 @@ IMPORTANT: Output ONLY your conversational response. Do not include meta-comment
         await delay(this.delayBetweenMessages);
 
       } catch (error) {
-        logger.error('Error in conversation turn', { 
-          role: currentRole, 
-          error: error instanceof Error ? error.message : String(error) 
+        logger.error('Error in conversation turn', {
+          role: currentRole,
+          error: getErrorMessage(error)
         });
         
         await this.bot.sendMessage(
           BROADCAST_CHAT_ID,
-          `⚠️ *Error in ${currentRole} response*\n\n\`${error instanceof Error ? error.message : String(error)}\`\n\nRetrying in 10 seconds...`,
+          `⚠️ *Error in ${currentRole} response*\n\n\`${getErrorMessage(error)}\`\n\nRetrying in 10 seconds...`,
           { parse_mode: 'Markdown' }
         );
         
