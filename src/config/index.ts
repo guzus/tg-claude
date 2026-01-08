@@ -20,7 +20,14 @@ export const config: BotConfig = {
   logLevel: 'info',
   logFile: `${LOGS_PATH}/bot.log`,
   maxRequestsPerUserPerHour: 100,
-  maxRequestsPerUserPerDay: 500
+  maxRequestsPerUserPerDay: 500,
+  // Discord configuration
+  discordToken: process.env.DISCORD_BOT_TOKEN || '',
+  discordClientId: process.env.DISCORD_CLIENT_ID || '',
+  discordGuildId: process.env.DISCORD_GUILD_ID || '',
+  discordAllowedUserIds: process.env.DISCORD_ALLOWED_USER_IDS
+    ? process.env.DISCORD_ALLOWED_USER_IDS.split(',').map(id => id.trim())
+    : []
 };
 
 export function validateConfig(): void {

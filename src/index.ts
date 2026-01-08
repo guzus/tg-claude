@@ -15,6 +15,7 @@ import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
 import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
 import { BotHandlers, ChamberHandlers } from './clients/telegram';
+import { DiscordClient } from './clients/discord';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -78,6 +79,26 @@ const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, reposi
 
 // Initialize Chamber handlers
 const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigManager);
+
+// Initialize Discord client (if configured)
+let discordClient: DiscordClient | null = null;
+if (config.discordToken) {
+  discordClient = new DiscordClient(
+    executor,
+    rateLimiter,
+    auditLogger,
+    conversationManager
+  );
+
+  // Start Discord client
+  discordClient.start().then(() => {
+    logger.info('Discord client started');
+  }).catch((error) => {
+    logger.error('Failed to start Discord client', {
+      error: error instanceof Error ? error.message : String(error)
+    });
+  });
+}
 
 // Initialize current repositories from pinned messages for all allowed users
 (async () => {
@@ -269,23 +290,33 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully');
   bot.stopPolling();
+  if (discordClient) {
+    await discordClient.stop();
+  }
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully');
   bot.stopPolling();
+  if (discordClient) {
+    await discordClient.stop();
+  }
   process.exit(0);
 });
 
-logger.info('🤖 Claude Code Telegram Bot started successfully', {
-  allowedUsers: config.allowedUserIds.length,
+logger.info('🤖 Claude Code Bot started successfully', {
+  telegramUsers: config.allowedUserIds.length,
+  discordUsers: config.discordAllowedUserIds?.length || 0,
+  discordEnabled: !!config.discordToken,
   maxConcurrentTasks: config.maxConcurrentTasks
 });
 
 console.log('🤖 Bot is running...');
+console.log(`📱 Telegram: ${config.telegramToken ? 'enabled' : 'disabled'}`);
+console.log(`💬 Discord: ${config.discordToken ? 'enabled' : 'disabled'}`);
 console.log(`📊 Health check: http://localhost:${healthPort}/health`);
 console.log(`📈 Metrics: http://localhost:${healthPort}/metrics`);

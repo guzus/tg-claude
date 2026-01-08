@@ -9,6 +9,11 @@ export interface BotConfig {
   logFile: string;
   maxRequestsPerUserPerHour: number;
   maxRequestsPerUserPerDay: number;
+  // Discord configuration
+  discordToken?: string;
+  discordClientId?: string;
+  discordGuildId?: string;
+  discordAllowedUserIds?: string[];
 }
 
 export interface ClaudeTask {
