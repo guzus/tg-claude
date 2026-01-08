@@ -208,21 +208,7 @@ export class UtilityHandlers extends BaseHandler {
 
       const currentRepo = this.repositoryManager.getCurrentRepository(userId);
 
-      // Check auth via environment variables
-      const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
-      const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
-      const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
-      const aiProvider = process.env.AI_PROVIDER || 'anthropic';
-
-      let authStatus: string;
-      if (hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
-        const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
-          aiProvider === 'glm' ? 'GLM' :
-            hasOAuthToken ? 'OAuth' : 'Anthropic';
-        authStatus = `✅ Configured (${provider})`;
-      } else {
-        authStatus = '❌ No API key configured\nSet OPENROUTER_API_KEY or CLAUDE_CODE_OAUTH_TOKEN';
-      }
+      const authStatus = this.getAuthStatus();
 
       await this.bot.sendMessage(
         chatId,
@@ -240,6 +226,22 @@ export class UtilityHandlers extends BaseHandler {
         `❌ Error checking setup: ${getErrorMessage(error)}`
       );
     }
+  }
+
+  private getAuthStatus(): string {
+    const hasOpenRouterKey = !!process.env.OPENROUTER_API_KEY;
+    const hasAuthToken = !!process.env.ANTHROPIC_AUTH_TOKEN;
+    const hasOAuthToken = !!process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    const aiProvider = process.env.AI_PROVIDER || 'anthropic';
+
+    if (hasOpenRouterKey || hasAuthToken || hasOAuthToken) {
+      const provider = aiProvider === 'openrouter' ? 'OpenRouter' :
+        aiProvider === 'glm' ? 'GLM' :
+          hasOAuthToken ? 'OAuth' : 'Anthropic';
+      return `✅ Configured (${provider})`;
+    }
+
+    return '❌ No API key configured\nSet OPENROUTER_API_KEY or CLAUDE_CODE_OAUTH_TOKEN';
   }
 
 }
