@@ -13,7 +13,6 @@ The Discord client uses a **channel-based mono-repo model**:
 
 - A Discord account
 - A Discord server where you have admin permissions
-- Your Discord user ID
 
 ## Step 1: Create a Discord Application
 
@@ -38,14 +37,7 @@ The Discord client uses a **channel-based mono-repo model**:
 1. Go to **OAuth2** → **General**
 2. Copy the **Client ID** - you'll need it for `DISCORD_CLIENT_ID`
 
-## Step 4: Get Your User ID
-
-1. In Discord, go to **Settings** → **Advanced**
-2. Enable **Developer Mode**
-3. Right-click your username and select **Copy User ID**
-4. This is your `DISCORD_ALLOWED_USER_IDS`
-
-## Step 5: Invite the Bot to Your Server
+## Step 4: Invite the Bot to Your Server
 
 1. Go to **OAuth2** → **URL Generator**
 2. Select scopes:
@@ -59,19 +51,20 @@ The Discord client uses a **channel-based mono-repo model**:
 4. Copy the generated URL and open it in your browser
 5. Select your server and authorize
 
-## Step 6: Configure Environment Variables
+## Step 5: Configure Environment Variables
 
 Add these to your `.env` file:
 
 ```bash
-# Discord Configuration
+# Discord Configuration (required)
 DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_CLIENT_ID=your_client_id_here
-DISCORD_ALLOWED_USER_IDS=your_user_id_here
 
 # Optional: For faster command registration during development
-# Set to your server ID to register commands instantly (instead of waiting ~1 hour)
-DISCORD_GUILD_ID=your_server_id_here
+# DISCORD_GUILD_ID=your_server_id_here
+
+# Optional: Restrict to specific users (if not set, all users allowed)
+# DISCORD_ALLOWED_USER_IDS=123456789012345678,987654321098765432
 ```
 
 ### Getting Your Server ID (Optional)
@@ -80,7 +73,7 @@ DISCORD_GUILD_ID=your_server_id_here
 2. Select **Copy Server ID**
 3. Use this for `DISCORD_GUILD_ID`
 
-## Step 7: Start the Bot
+## Step 6: Start the Bot
 
 ```bash
 bun run start
@@ -124,20 +117,24 @@ For example, a channel named `#my-project` might have workspace:
 /workspace/discord_my_project_abc123/
 ```
 
-## Multiple Users
+## Restricting Access (Optional)
 
-To allow multiple Discord users, add their IDs comma-separated:
+By default, all users in channels where the bot is present can use it. To restrict to specific users:
 
 ```bash
-DISCORD_ALLOWED_USER_IDS=123456789,987654321,555555555
+DISCORD_ALLOWED_USER_IDS=123456789012345678,987654321098765432
 ```
+
+To get a Discord user ID:
+1. Enable Developer Mode in Discord settings (**Settings** → **Advanced**)
+2. Right-click the username → **Copy User ID**
 
 ## Troubleshooting
 
 ### Bot doesn't respond to messages
 
 1. Check that **Message Content Intent** is enabled in the Developer Portal
-2. Verify the user ID is in `DISCORD_ALLOWED_USER_IDS`
+2. If using `DISCORD_ALLOWED_USER_IDS`, verify the user ID is in the list
 3. Check the bot has permissions to read/send messages in the channel
 
 ### Slash commands not appearing
@@ -152,6 +149,6 @@ The bot may be taking too long to respond. Discord requires responses within 3 s
 
 ## Security Notes
 
-- Only users in `DISCORD_ALLOWED_USER_IDS` can execute commands
+- By default all users can execute commands (set `DISCORD_ALLOWED_USER_IDS` to restrict)
 - Each channel is rate-limited independently
-- The bot uses `--dangerously-skip-permissions` - only allow trusted users
+- The bot uses `--dangerously-skip-permissions` - be careful who has access
