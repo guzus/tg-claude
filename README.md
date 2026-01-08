@@ -70,6 +70,18 @@ flowchart TB
     Bot -->|Settings| Config
     Bot -->|Response| TG
     Bot -->|Response| DC
+
+    classDef user fill:#E8F3FF,stroke:#1E78D6,stroke-width:1px,color:#0B2D52;
+    classDef bot fill:#FFF3E0,stroke:#FB8C00,stroke-width:1px,color:#5A2D00;
+    classDef services fill:#E8F5E9,stroke:#2E7D32,stroke-width:1px,color:#0F3B17;
+    classDef storage fill:#F3E5F5,stroke:#7B1FA2,stroke-width:1px,color:#3B0C4A;
+    classDef external fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238;
+
+    class TG,DC user;
+    class Bot,Claude bot;
+    class Executor,Ralph,Git,Repo services;
+    class Workspace,Data,Config storage;
+    class GitHub,ClaudeAPI,ZaiAPI,OpenRouter external;
 ```
 
 ## Quick Start
