@@ -16,6 +16,7 @@ import { MothershipService } from './services/MothershipService';
 import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
 import { BotHandlers, ChamberHandlers } from './clients/telegram';
 import { DiscordClient } from './clients/discord';
+import { getVersionHash } from './utils/version';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -153,22 +154,7 @@ if (config.discordToken) {
 
   logger.info('Completed pinned message initialization');
 
-  const { readFileSync, existsSync } = await import('fs');
-  const { join } = await import('path');
-  const { execSync } = await import('child_process');
-
-  let commitHash = 'unknown';
-  try {
-    const versionPaths = ['/app/dist/VERSION', join(__dirname, 'VERSION')];
-    const versionFile = versionPaths.find(p => existsSync(p));
-    if (versionFile) {
-      commitHash = readFileSync(versionFile, 'utf-8').trim();
-    } else {
-      commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
-    }
-  } catch { }
-
-  const shortHash = commitHash.substring(0, 8);
+  const shortHash = getVersionHash().substring(0, 8);
   for (const userId of config.allowedUserIds) {
     try {
       await bot.sendMessage(userId, `🚀 *tg-claude deployed*\n\nCommit: \`${shortHash}\``, { parse_mode: 'Markdown' });
@@ -290,22 +276,21 @@ setInterval(() => {
 }, 60 * 60 * 1000);
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully');
+const shutdown = async (signal: string): Promise<void> => {
+  logger.info(`${signal} received, shutting down gracefully`);
   bot.stopPolling();
   if (discordClient) {
     await discordClient.stop();
   }
   process.exit(0);
+};
+
+process.on('SIGTERM', () => {
+  void shutdown('SIGTERM');
 });
 
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  bot.stopPolling();
-  if (discordClient) {
-    await discordClient.stop();
-  }
-  process.exit(0);
+process.on('SIGINT', () => {
+  void shutdown('SIGINT');
 });
 
 logger.info('🤖 Claude Code Bot started successfully', {

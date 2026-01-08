@@ -6,9 +6,8 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { DiscordUIHelpers } from '../utils/UIHelpers';
 import { TaskStatus } from '../../../types';
-import * as fs from 'fs';
-import * as path from 'path';
 import { toSafeDiscordId } from '../utils/ids';
+import { getVersionHash } from '../../../utils/version';
 
 /**
  * Handlers for utility commands: /help, /status, /cancel, /version
@@ -102,22 +101,7 @@ export class UtilityHandlers extends BaseHandler {
    * Handle /version command
    */
   async handleVersion(interaction: ChatInputCommandInteraction): Promise<void> {
-    let commitHash = 'unknown';
-
-    try {
-      const versionPaths = ['/app/dist/VERSION', path.join(__dirname, '../../../../VERSION')];
-      const versionFile = versionPaths.find(p => fs.existsSync(p));
-      if (versionFile) {
-        commitHash = fs.readFileSync(versionFile, 'utf-8').trim();
-      } else {
-        const { execSync } = await import('child_process');
-        commitHash = execSync('git rev-parse HEAD', { encoding: 'utf-8' }).trim();
-      }
-    } catch {
-      // Ignore errors
-    }
-
-    const shortHash = commitHash.substring(0, 8);
+    const shortHash = getVersionHash().substring(0, 8);
     await interaction.reply({
       content: `**Claude Code Bot**\nCommit: \`${shortHash}\``,
       ephemeral: true
