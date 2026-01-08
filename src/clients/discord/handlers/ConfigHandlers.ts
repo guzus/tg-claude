@@ -86,10 +86,16 @@ export class ConfigHandlers extends BaseHandler {
     const context = this.getChannelContext(interaction);
 
     try {
+      const gitIdentity = await this.getGitIdentity(context.channelKey);
       const isRepo = await this.isGitRepo(context.workingDir);
       if (!isRepo) {
-        const gitIdentity = await this.getGitIdentity(context.channelKey);
         await this.execGit(['init'], context.workingDir);
+        await this.execGit(['config', 'user.name', gitIdentity.name], context.workingDir);
+        await this.execGit(['config', 'user.email', gitIdentity.email], context.workingDir);
+      }
+
+      const hasCommits = await this.hasCommits(context.workingDir);
+      if (!hasCommits) {
         await this.execGit(['config', 'user.name', gitIdentity.name], context.workingDir);
         await this.execGit(['config', 'user.email', gitIdentity.email], context.workingDir);
         await this.execGit(['add', '.'], context.workingDir);
@@ -475,6 +481,15 @@ export class ConfigHandlers extends BaseHandler {
     try {
       const output = await this.execGit(['rev-parse', '--is-inside-work-tree'], cwd);
       return output.trim() === 'true';
+    } catch {
+      return false;
+    }
+  }
+
+  private async hasCommits(cwd: string): Promise<boolean> {
+    try {
+      await this.execGit(['rev-parse', '--verify', 'HEAD'], cwd);
+      return true;
     } catch {
       return false;
     }
