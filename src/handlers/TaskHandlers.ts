@@ -1,10 +1,9 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { TaskStatus, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { PromptBuilder } from '../utils/PromptBuilder';
-import { BeastModeExecutor } from '../services/BeastModeExecutor';
 import { ClaudeExecutor } from '../services/ClaudeExecutor';
 import { RateLimiter } from '../services/RateLimiter';
 import { AuditLogger } from '../services/AuditLogger';
@@ -16,8 +15,6 @@ import { UserConfigManager } from '../services/UserConfigManager';
  * Handlers for task execution commands
  */
 export class TaskHandlers extends BaseHandler {
-  private beastModeExecutor: BeastModeExecutor;
-
   constructor(
     bot: TelegramBot,
     executor: ClaudeExecutor,
@@ -28,14 +25,6 @@ export class TaskHandlers extends BaseHandler {
     userConfigManager?: UserConfigManager
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
-    this.beastModeExecutor = new BeastModeExecutor(bot, executor, repositoryManager);
-  }
-
-  /**
-   * Get the beast mode executor (for callback handlers)
-   */
-  getBeastModeExecutor(): BeastModeExecutor {
-    return this.beastModeExecutor;
   }
 
   /**
@@ -444,8 +433,7 @@ Always commit and push your changes after completing the task unless explicitly 
     const enhancedPrompt = PromptBuilder.buildEnhancedPrompt(
       userMessage,
       currentRepo,
-      context,
-      false // Not beast mode for plain messages
+      context
     );
 
     // Execute with enhanced prompt, passing original user message for commit messages
@@ -453,158 +441,10 @@ Always commit and push your changes after completing the task unless explicitly 
   }
 
   /**
-   * Execute task in beast mode (autonomous execution loop)
-   */
-  async executeBeastMode(msg: Message, userRequest: string): Promise<void> {
-    if (!(await this.checkAccess(msg))) return;
-
-    const userId = msg.from!.id;
-    const chatId = msg.chat.id;
-    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-
-    if (!currentRepo) {
-      await this.bot.sendMessage(
-        chatId,
-        '❌ Beast mode requires an active repository.\n\n' +
-        'Set up a repository first with:\n' +
-        '• `/repo clone <url>` - Clone a repository\n' +
-        '• `/repo new <name>` - Create a new repository',
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
-    if (!userRequest.trim()) {
-      await this.bot.sendMessage(
-        chatId,
-        '❌ Usage: `/beast <task description>`\n\n' +
-        'Example: `/beast implement user authentication with JWT`',
-        { parse_mode: 'Markdown' }
-      );
-      return;
-    }
-
-    // Add to conversation
-    this.conversationManager?.addUserMessage(userId, `[BEAST MODE] ${userRequest}`, currentRepo.id);
-
-    try {
-      // Start beast mode session
-      await this.bot.sendMessage(
-        chatId,
-        '🔥 **Starting Beast Mode**\n\n' +
-        `Task: ${userRequest.substring(0, 200)}${userRequest.length > 200 ? '...' : ''}\n\n` +
-        'Beast mode will autonomously:\n' +
-        '• Execute the task\n' +
-        '• Fix any errors or test failures\n' +
-        '• Iterate until complete\n\n' +
-        '_Starting autonomous execution..._',
-        { parse_mode: 'Markdown' }
-      );
-
-      // Get user's AI provider configuration
-      const userConfig = await this.userConfigManager?.getConfig(userId);
-      const aiProvider = userConfig?.aiProvider;
-
-      await this.beastModeExecutor.startSession(
-        userId,
-        chatId,
-        userRequest,
-        currentRepo.path,
-        {},
-        aiProvider
-      );
-
-      logger.info('Beast mode session started', {
-        userId,
-        request: userRequest.substring(0, 100),
-        repository: currentRepo.name
-      });
-
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-
-      await this.bot.sendMessage(
-        chatId,
-        `❌ Failed to start beast mode: ${errorMessage}`
-      );
-
-      logger.error('Failed to start beast mode', {
-        userId,
-        error: errorMessage
-      });
-    }
-  }
-
-  /**
-   * Stop beast mode for a user
-   */
-  async stopBeastMode(userId: number, chatId: number): Promise<boolean> {
-    const stopped = this.beastModeExecutor.stopSessionByUser(userId);
-
-    if (stopped) {
-      await this.bot.sendMessage(
-        chatId,
-        '🛑 Beast mode stopped.',
-        { parse_mode: 'Markdown' }
-      );
-    }
-
-    return stopped;
-  }
-
-  /**
-   * Build a status message from streaming events
+   * Build a status message from streaming events (delegates to UIHelpers)
    */
   private buildStreamingStatusMessage(task: ClaudeTaskWithStreaming, elapsed: number, provider: string = 'Claude'): string {
-    const lines: string[] = [];
-
-    // Clean header with time and provider
-    lines.push(`⏳ *${UIHelpers.formatDuration(elapsed)}* · ${provider}`);
-
-    // Recent completed actions (last 3, more compact)
-    const recentEvents = task.events
-      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'completed'; ok?: boolean; message?: string } =>
-        e.type === 'action' && e.phase === 'completed'
-      )
-      .slice(-3);
-
-    if (recentEvents.length > 0 || task.currentAction) {
-      lines.push('');
-
-      // Show recent actions
-      for (const event of recentEvents) {
-        const icon = event.ok === false ? '✗' : '›';
-        const actionTitle = this.formatAction(event.action);
-        lines.push(`${icon} ${actionTitle}`);
-      }
-
-      // Current action (if any)
-      if (task.currentAction) {
-        lines.push(`› ${this.formatAction(task.currentAction)}...`);
-      }
-    } else {
-      lines.push('');
-      lines.push('_Starting..._');
-    }
-
-    return lines.join('\n');
-  }
-
-  /**
-   * Format an action for display
-   */
-  private formatAction(action: StreamAction): string {
-    let title = action.title;
-
-    // Truncate long titles
-    if (title.length > 60) {
-      title = title.substring(0, 57) + '...';
-    }
-
-    // Escape markdown special characters
-    title = title.replace(/[_*`[\]]/g, '\\$&');
-
-    return title;
+    return UIHelpers.buildStreamingStatusMessage(task, elapsed, provider);
   }
 
   /**

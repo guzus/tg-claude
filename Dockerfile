@@ -16,17 +16,26 @@ FROM oven/bun:1-alpine
 
 WORKDIR /app
 
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/package.json ./
-RUN bun install --production --ignore-scripts --no-save
-
 RUN apk add --no-cache git openssh-client curl bash github-cli su-exec \
-    # Chromium for Puppeteer MCP support
+    # Node/npm for MCP servers that are typically launched via `npx`
+    nodejs npm \
+    # Chromium for Playwright MCP support
     chromium nss freetype harfbuzz ca-certificates ttf-freefont
 
-# Puppeteer configuration
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Playwright configuration (use system Chromium; avoid downloading browsers at build/runtime)
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+
+# Pre-install Playwright MCP so `/mcp preset playwright` doesn't need a first-run download
+RUN npm install -g --no-fund --no-audit @playwright/mcp@latest
+
+# Install runtime JS dependencies (keep this layer cacheable across code changes)
+# Only copy package.json (not lockfile) - bun versions may differ between local and Docker
+COPY package.json ./
+RUN bun install --production --ignore-scripts --no-save
+
+# Copy built app after deps so rebuilds don't invalidate `bun install` cache
+COPY --from=builder /app/dist ./dist
 
 # Create non-root user for security (required for --dangerously-skip-permissions)
 RUN addgroup -g 10001 appgroup && adduser -u 10001 -G appgroup -s /bin/sh -D appuser

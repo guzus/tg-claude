@@ -14,6 +14,7 @@ import { UtilityHandlers } from './UtilityHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
 import { CallbackQueryHandler } from './CallbackQueryHandler';
 import { MothershipHandlers } from './MothershipHandlers';
+import { RalphWiggumHandler } from './RalphWiggumHandler';
 
 /**
  * Main bot handlers class that delegates to specialized handler modules
@@ -26,6 +27,7 @@ export class BotHandlers {
   private configHandlers: ConfigHandlers;
   private callbackQueryHandler: CallbackQueryHandler;
   private mothershipHandlers: MothershipHandlers;
+  private ralphHandler: RalphWiggumHandler;
 
   constructor(
     bot: TelegramBot,
@@ -45,9 +47,10 @@ export class BotHandlers {
     this.configHandlers = new ConfigHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager, conversationManager);
     this.callbackQueryHandler = new CallbackQueryHandler(bot, executor, rateLimiter, auditLogger, repositoryManager, undefined, userConfigManager);
     this.mothershipHandlers = new MothershipHandlers(bot, mothershipService, rateLimiter, auditLogger);
+    this.ralphHandler = new RalphWiggumHandler(bot, executor, rateLimiter, auditLogger, repositoryManager, userConfigManager);
 
-    // Connect beast mode executor to callback handler for stop functionality
-    this.callbackQueryHandler.setBeastModeExecutor(this.taskHandlers.getBeastModeExecutor());
+    // Connect ralph executor to callback handler
+    this.callbackQueryHandler.setRalphExecutor(this.ralphHandler.getRalphExecutor());
   }
 
   // ==================== Utility Commands ====================
@@ -80,11 +83,6 @@ export class BotHandlers {
 
   async handleTask(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.taskHandlers.handleTask(msg, match);
-  }
-
-  async handleBeast(msg: Message, match: RegExpExecArray | null): Promise<void> {
-    const prompt = match?.[1] || '';
-    return this.taskHandlers.executeBeastMode(msg, prompt);
   }
 
   // ==================== Repository Commands ====================
@@ -121,6 +119,16 @@ export class BotHandlers {
 
   async handleMcp(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleMcp(msg, match);
+  }
+
+  async handlePlugin(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.configHandlers.handlePlugin(msg, match);
+  }
+
+  // ==================== Ralph Wiggum Plugin ====================
+
+  async handleRalph(msg: Message, match: RegExpExecArray | null): Promise<void> {
+    return this.ralphHandler.handleRalph(msg, match);
   }
 
   // ==================== Mothership Bot Commands ====================
