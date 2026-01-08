@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white" alt="Telegram" height="24">
-  <img src="https://img.shields.io/badge/Discord-5865F2?logo=discord&logoColor=white" alt="Discord" height="24">
+  <img src="./assets/telegram.webp" alt="Telegram" height="24">
+  <img src="./assets/discord.svg" alt="Discord" height="24">
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" height="24">
   <img src="https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white" alt="Bun" height="24">
   <img src="https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white" alt="GitHub" height="24">
