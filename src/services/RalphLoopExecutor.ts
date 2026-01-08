@@ -270,11 +270,11 @@ export class RalphLoopExecutor {
         // Let the user know the loop may not be enforced if the plugin isn't available
         try {
           const msg =
-            `⚠️ Could not install the \`ralph-wiggum\` plugin.\n\n` +
+            `⚠️ Could not install the \`ralph-loop\` plugin.\n\n` +
             `Install error:\n` +
             `\`${UIHelpers.escapeMarkdown(pluginResult.error.substring(0, 500))}\`\n\n` +
             `Try:\n` +
-            `- \`/plugin preset ralph-wiggum\`\n` +
+            `- \`/plugin preset ralph-loop\`\n` +
             `- \`/plugin install ${UIHelpers.escapeMarkdown(pluginResult.pluginSpec)}\`\n` +
             `- Or update Claude Code CLI if the marketplace has changed.\n\n` +
             `Continuing anyway…`;
