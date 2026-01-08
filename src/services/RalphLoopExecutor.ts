@@ -61,7 +61,7 @@ const TASK_POLL_INTERVAL_MS = 5000;
 
 /**
  * Ralph Loop Executor - Implements the Ralph Wiggum autonomous loop pattern
- * Uses native Claude plugin: claude plugin install ralph-wiggum@claude-plugins-official
+ * Uses native Claude plugin: claude plugin install ralph-loop@claude-plugins-official
  */
 export class RalphLoopExecutor {
   private bot: TelegramBot;
@@ -81,12 +81,12 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Ensure ralph-wiggum plugin is installed
+   * Ensure ralph-loop plugin is installed
    */
   private async ensureRalphPluginInstalled(
     workingDir: string
   ): Promise<{ ok: true } | { ok: false; error: string; pluginSpec: string }> {
-    const preset = PLUGIN_PRESETS['ralph-wiggum'];
+    const preset = PLUGIN_PRESETS['ralph-loop'];
     if (!preset) {
       throw new Error('Ralph Wiggum plugin preset not found');
     }
@@ -264,7 +264,7 @@ export class RalphLoopExecutor {
    */
   private async runRalphLoop(state: RalphLoopState): Promise<void> {
     try {
-      // Ensure ralph-wiggum plugin is installed
+      // Ensure ralph-loop plugin is installed
       const pluginResult = await this.ensureRalphPluginInstalled(state.workingDir);
       if (!pluginResult.ok) {
         // Let the user know the loop may not be enforced if the plugin isn't available
@@ -346,7 +346,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
     // Use the plugin's /ralph-loop command format
-    return `/ralph-wiggum:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
+    return `/ralph-loop:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
   }
 
   /**

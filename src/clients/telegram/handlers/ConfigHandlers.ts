@@ -1009,7 +1009,7 @@ export class ConfigHandlers extends BaseHandler {
       `*Available presets:* ${presetNames}\n` +
       `*Auto-installed:* ${defaultPlugins || 'none'}\n\n` +
       `*Examples:*\n` +
-      `\`/plugin preset ralph-wiggum\`\n` +
+      `\`/plugin preset ralph-loop\`\n` +
       `\`/plugin install my-plugin@my-registry\``;
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
@@ -1027,7 +1027,7 @@ export class ConfigHandlers extends BaseHandler {
       `🎯 *Available Plugin Presets*\n\n` +
       presetLines.join('\n') +
       `\n\n*Usage:* \`/plugin preset <name>\`\n` +
-      `Example: \`/plugin preset ralph-wiggum\``;
+      `Example: \`/plugin preset ralph-loop\``;
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
   }
@@ -1039,7 +1039,7 @@ export class ConfigHandlers extends BaseHandler {
     if (args.length < 1) {
       await this.bot.sendMessage(chatId,
         `❌ Usage: /plugin install <name>@<registry>\n\n` +
-        `Example: \`/plugin install ralph-wiggum@claude-plugins-official\``,
+        `Example: \`/plugin install ralph-loop@claude-plugins-official\``,
         { parse_mode: 'Markdown' }
       );
       return;
@@ -1049,7 +1049,7 @@ export class ConfigHandlers extends BaseHandler {
     if (!pluginSpec.includes('@')) {
       await this.bot.sendMessage(chatId,
         `❌ Invalid format. Use: \`name@registry\`\n\n` +
-        `Example: \`/plugin install ralph-wiggum@claude-plugins-official\``,
+        `Example: \`/plugin install ralph-loop@claude-plugins-official\``,
         { parse_mode: 'Markdown' }
       );
       return;
@@ -1126,7 +1126,7 @@ export class ConfigHandlers extends BaseHandler {
       const output = await this.executePluginCommand('list', '', repoPath);
 
       if (!output || output.trim() === '' || output.includes('No plugins installed')) {
-        await this.bot.sendMessage(chatId, '📭 No plugins installed.\n\nUse `/plugin preset ralph-wiggum` to install the Ralph Wiggum loop.', { parse_mode: 'Markdown' });
+        await this.bot.sendMessage(chatId, '📭 No plugins installed.\n\nUse `/plugin preset ralph-loop` to install the Ralph Wiggum loop.', { parse_mode: 'Markdown' });
         return;
       }
 

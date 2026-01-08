@@ -176,8 +176,8 @@ To manually redeploy:
 
 - Configure your preferences with `/config`
 - Set up repositories with `/repo clone <url>`
-- Try autonomous mode with `/ralph <task>` (installs/uses the `ralph-wiggum` plugin)
-- Manage plugins with `/plugin` (e.g. `/plugin preset ralph-wiggum`)
+- Try autonomous mode with `/ralph <task>` (installs/uses the `ralph-loop` plugin)
+- Manage plugins with `/plugin` (e.g. `/plugin preset ralph-loop`)
 - See [TELEGRAM_COMMANDS.md](./TELEGRAM_COMMANDS.md) for all commands
 
 ## Using GLM Instead of Claude (Optional)
