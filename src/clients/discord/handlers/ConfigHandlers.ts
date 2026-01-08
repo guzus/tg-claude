@@ -62,9 +62,24 @@ export class ConfigHandlers extends BaseHandler {
         }
         case 'status':
         default: {
-          const output = await this.execGit(['status', '-sb'], context.workingDir);
+          const statusOutput = await this.execGit(['status', '-sb'], context.workingDir);
+          let remoteOutput = '';
+          try {
+            remoteOutput = await this.execGit(['remote', '-v'], context.workingDir);
+          } catch {
+            remoteOutput = '';
+          }
+
+          const parts: string[] = [];
+          if (statusOutput.trim()) {
+            parts.push(`**Status**\n\`\`\`\n${statusOutput.trim()}\n\`\`\``);
+          }
+          if (remoteOutput.trim()) {
+            parts.push(`**Remotes**\n\`\`\`\n${remoteOutput.trim()}\n\`\`\``);
+          }
+
           await interaction.reply({
-            content: output.trim() ? `\`\`\`\n${output.trim()}\n\`\`\`` : 'No git status available.',
+            content: parts.length > 0 ? parts.join('\n\n') : 'No git status available.',
             flags: this.ephemeralFlags()
           });
         }
