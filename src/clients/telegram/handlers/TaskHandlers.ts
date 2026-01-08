@@ -89,7 +89,7 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
-          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
+          const providerLabel = this.getProviderLabel(aiProvider?.provider);
 
           // Build status message using streaming events
           const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
@@ -191,7 +191,7 @@ export class TaskHandlers extends BaseHandler {
 
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
+          const providerName = this.getProviderLabel(aiProvider?.provider);
           let statsLine = UIHelpers.formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
@@ -387,6 +387,17 @@ IMPORTANT: After completing the coding task:
 Always commit and push your changes after completing the task unless explicitly told not to.`;
 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
+  }
+
+  private getProviderLabel(provider?: string): string {
+    switch (provider) {
+      case 'glm':
+        return 'GLM';
+      case 'openrouter':
+        return 'OpenRouter';
+      default:
+        return 'Claude';
+    }
   }
 
   /**
