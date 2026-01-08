@@ -86,6 +86,13 @@ export class ConfigHandlers extends BaseHandler {
     const context = this.getChannelContext(interaction);
 
     try {
+      const isRepo = await this.isGitRepo(context.workingDir);
+      if (!isRepo) {
+        await this.execGit(['init'], context.workingDir);
+        await this.execGit(['add', '.'], context.workingDir);
+        await this.execGit(['commit', '-m', 'Initial commit', '--allow-empty'], context.workingDir);
+      }
+
       const result = await this.executor.createGitHubRepository(
         context.workingDir,
         isPrivate,
@@ -448,6 +455,15 @@ export class ConfigHandlers extends BaseHandler {
   private async execGit(args: string[], cwd: string): Promise<string> {
     const result = await execFileAsync('git', args, { cwd });
     return result.stdout?.toString() || '';
+  }
+
+  private async isGitRepo(cwd: string): Promise<boolean> {
+    try {
+      const output = await this.execGit(['rev-parse', '--is-inside-work-tree'], cwd);
+      return output.trim() === 'true';
+    } catch {
+      return false;
+    }
   }
 
   private async execClaudePlugin(args: string[], cwd: string): Promise<string> {
