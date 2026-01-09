@@ -34,7 +34,6 @@ flowchart TB
 
         subgraph Executors
             SDK[Anthropic SDK Executor]
-            CLI[Claude Code CLI]
         end
 
         subgraph Services
@@ -62,15 +61,11 @@ flowchart TB
     DC -->|Slash Commands| Bot
     Bot -->|Parse & Route| Factory
     Factory -->|EXECUTOR_TYPE=sdk| SDK
-    Factory -->|EXECUTOR_TYPE=cli| CLI
     Bot -->|Autonomous Tasks| Ralph
     SDK -->|API Key| ClaudeAPI
     SDK -->|API Key| ZaiAPI
     SDK -->|API Key| OpenRouter
-    CLI -->|OAuth| ClaudeAPI
-    Ralph -->|Autonomous loop via ralph-loop plugin| CLI
     SDK -->|Read/Write| Workspace
-    CLI -->|Read/Write| Workspace
     Git -->|Clone/Push| GitHub
     Repo -->|Manage| Workspace
     Bot -->|State| Data
@@ -87,7 +82,7 @@ flowchart TB
 
     class TG,DC user;
     class Bot bot;
-    class SDK,CLI executor;
+    class SDK executor;
     class Factory,Ralph,Git,Repo services;
     class Workspace,Data,Config storage;
     class GitHub,ClaudeAPI,ZaiAPI,OpenRouter external;
