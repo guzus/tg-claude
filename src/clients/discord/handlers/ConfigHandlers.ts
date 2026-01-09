@@ -63,6 +63,15 @@ export class ConfigHandlers extends BaseHandler {
         }
         case 'status':
         default: {
+          const isRepo = await this.isGitRepo(context.workingDir);
+          if (!isRepo) {
+            await interaction.reply({
+              content: `No git repository found in \`${context.workingDir}\`.\n\n` +
+                `Create one with \`/repo_new <name>\` or clone a repository into this workspace first.`,
+              flags: this.ephemeralFlags()
+            });
+            return;
+          }
           const statusOutput = await this.execGit(['status', '-sb'], context.workingDir);
           const remoteOutput = await this.safeGitRemoteOutput(context.workingDir);
           const remoteLinks = this.extractRemoteLinks(remoteOutput);
@@ -85,8 +94,17 @@ export class ConfigHandlers extends BaseHandler {
         }
       }
     } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      if (errorMessage.includes('not a git repository')) {
+        await interaction.reply({
+          content: `No git repository found in \`${context.workingDir}\`.\n\n` +
+            `Create one with \`/repo_new <name>\` or clone a repository into this workspace first.`,
+          flags: this.ephemeralFlags()
+        });
+        return;
+      }
       await interaction.reply({
-        content: `Failed to read repo info: ${getErrorMessage(error)}`,
+        content: `Failed to read repo info: ${errorMessage}`,
         flags: this.ephemeralFlags()
       });
     }
