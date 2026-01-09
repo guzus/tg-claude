@@ -244,11 +244,13 @@ export class AnthropicSdkExecutor extends EventEmitter {
       // Emit started event
       const sessionId = task.id;
       task.sessionId = sessionId;
-      this.emit('streamEvent', task.id, {
+      const startedEvent: StreamEvent = {
         type: 'started',
         sessionId,
         title: 'Task started',
-      } as StreamEvent);
+      };
+      task.events.push(startedEvent);
+      this.emit('streamEvent', task.id, startedEvent);
 
       let finalAnswer = '';
       let totalCost = 0;
@@ -360,24 +362,28 @@ ${prompt}`;
                 // Emit note action for text
                 const noteAction = this.createAction('note', { text: block.text });
                 task.actions.push(noteAction);
-                this.emit('streamEvent', task.id, {
+                const noteEvent: StreamEvent = {
                   type: 'action',
                   action: noteAction,
                   phase: 'completed',
                   ok: true,
                   message: block.text.substring(0, 200),
-                } as StreamEvent);
+                };
+                task.events.push(noteEvent);
+                this.emit('streamEvent', task.id, noteEvent);
               } else if (block.type === 'tool_use' && block.name) {
                 // Emit action for tool use
                 const toolAction = this.createAction(block.name, (block.input as Record<string, unknown>) || {});
                 task.actions.push(toolAction);
                 task.currentAction = toolAction;
 
-                this.emit('streamEvent', task.id, {
+                const toolEvent: StreamEvent = {
                   type: 'action',
                   action: toolAction,
                   phase: 'started',
-                } as StreamEvent);
+                };
+                task.events.push(toolEvent);
+                this.emit('streamEvent', task.id, toolEvent);
               }
             }
           } else if (isResultMessage(msg)) {
@@ -416,14 +422,16 @@ ${prompt}`;
       }
 
       // Emit completion event
-      this.emit('streamEvent', task.id, {
+      const completedEvent: StreamEvent = {
         type: 'completed',
         ok: task.status === TaskStatus.COMPLETED,
         answer: finalAnswer,
         sessionId: task.sessionId,
         costUsd: totalCost,
         durationMs: Date.now() - startTime,
-      } as StreamEvent);
+      };
+      task.events.push(completedEvent);
+      this.emit('streamEvent', task.id, completedEvent);
 
       logStream.write(`\n=== Completed: ${task.status} | Cost: $${totalCost.toFixed(4)} ===\n`);
       logStream.end();
