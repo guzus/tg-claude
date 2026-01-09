@@ -1,4 +1,4 @@
-import { unstable_v2_createSession, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
@@ -62,17 +62,40 @@ function isSystemMessage(msg: SDKMessage): msg is SDKSystemMessage {
   return msg.type === 'system';
 }
 
+// Detect Claude Code CLI path for Docker environment
+function getClaudeCodePath(): string | undefined {
+  // Check common installation paths
+  const paths = [
+    '/opt/bun/bin/claude',           // Docker: bun global install
+    '/usr/local/bin/claude',         // System install
+    process.env.HOME ? `${process.env.HOME}/.bun/bin/claude` : null, // User bun install
+  ].filter(Boolean) as string[];
+
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      return p;
+    }
+  }
+  return undefined;
+}
+
 export class AnthropicSdkExecutor extends EventEmitter {
   private activeTasks: Map<string, AbortController> = new Map();
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
   private taskInitialHeads: Map<string, string> = new Map();
   private actionCounter = 0;
+  private claudeCodePath: string | undefined;
 
   constructor(_apiKey?: string) {
     super();
     // The Claude Agent SDK uses Claude Code CLI authentication automatically
     // or ANTHROPIC_API_KEY environment variable
+    this.claudeCodePath = getClaudeCodePath();
+    if (this.claudeCodePath) {
+      logger.info('Claude Code CLI found', { path: this.claudeCodePath });
+    }
+
     if (!fs.existsSync(TASK_LOGS_DIR)) {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
@@ -219,13 +242,6 @@ export class AnthropicSdkExecutor extends EventEmitter {
         title: 'Task started',
       } as StreamEvent);
 
-      // Create session with Claude Agent SDK v2
-      const session = unstable_v2_createSession({
-        model,
-        cwd: workingDir,
-        permissionMode: 'bypassPermissions',
-      });
-
       let finalAnswer = '';
       let totalCost = 0;
       const startTime = Date.now();
@@ -236,11 +252,22 @@ export class AnthropicSdkExecutor extends EventEmitter {
       }, timeout);
 
       try {
-        // Send the prompt
-        await session.send(prompt);
+        // Use the v1 query API which supports cwd and bypassPermissions
+        const q = query({
+          prompt,
+          options: {
+            model,
+            cwd: workingDir,
+            permissionMode: 'bypassPermissions',
+            abortController,
+            pathToClaudeCodeExecutable: this.claudeCodePath,
+            // Use bun as the runtime since we're in a bun environment
+            executable: 'bun',
+          },
+        });
 
-        // Process messages from the session
-        for await (const msg of session.receive()) {
+        // Process messages from the query
+        for await (const msg of q) {
           // Check if cancelled
           if (abortController.signal.aborted) {
             task.status = TaskStatus.CANCELLED;
@@ -312,8 +339,6 @@ export class AnthropicSdkExecutor extends EventEmitter {
         }
       } finally {
         clearTimeout(timeoutId);
-        // Close session
-        session.close();
       }
 
       // Finalize task
