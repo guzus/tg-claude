@@ -24,10 +24,45 @@ export interface ClaudeStreamResult {
 }
 
 /**
+ * Configure git for non-interactive use via GIT_CONFIG_* environment variables.
+ * Sets up: credentials (token auth), identity (user.name/email), and URL rewriting.
+ */
+function configureGitEnv(env: NodeJS.ProcessEnv): void {
+  let configIndex = parseInt(env.GIT_CONFIG_COUNT || '0', 10);
+
+  // Helper to add a git config entry
+  const addConfig = (key: string, value: string) => {
+    env[`GIT_CONFIG_KEY_${configIndex}`] = key;
+    env[`GIT_CONFIG_VALUE_${configIndex}`] = value;
+    configIndex++;
+  };
+
+  // Configure git identity for commits (fallback if not already configured)
+  const gitAuthorName = process.env.GIT_AUTHOR_NAME || 'tg-claude';
+  const gitAuthorEmail = process.env.GIT_AUTHOR_EMAIL || 'tg-claude@remote';
+  addConfig('user.name', gitAuthorName);
+  addConfig('user.email', gitAuthorEmail);
+
+  // Configure GitHub token auth if available
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (githubToken) {
+    // Rewrite HTTPS URLs to include token
+    addConfig('url.https://x-access-token:' + githubToken + '@github.com/.insteadOf', 'https://github.com/');
+    // Rewrite SSH URLs to HTTPS with token
+    addConfig('url.https://x-access-token:' + githubToken + '@github.com/.insteadOf', 'git@github.com:');
+  }
+
+  env.GIT_CONFIG_COUNT = String(configIndex);
+}
+
+/**
  * Configure environment variables for the specified AI provider
  */
 export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProviderConfig?: AIProviderConfig): NodeJS.ProcessEnv {
   const env = { ...process.env };
+
+  // Configure git for non-interactive use (identity + credentials)
+  configureGitEnv(env);
 
   if (provider === 'glm') {
     // GLM (Z.ai) must use an explicit Z.ai API key. Do NOT fall back to ANTHROPIC_AUTH_TOKEN:

@@ -1,7 +1,10 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { createHash } from 'crypto';
+
+const execAsync = promisify(exec);
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
 import { WORKSPACE_PATH } from '../config';
@@ -35,6 +38,9 @@ export class RepositoryManager {
         await this.restoreCurrentRepositories();
       }
 
+      // Install default plugins for all discovered repositories
+      await this.installDefaultPluginsForAllRepos();
+
       logger.info('RepositoryManager initialized', {
         totalUsers: this.userSessions.size,
         totalRepos: this.getTotalRepositoryCount()
@@ -43,6 +49,34 @@ export class RepositoryManager {
       logger.error('Failed to initialize RepositoryManager', {
         error: getErrorMessage(error)
       });
+    }
+  }
+
+  /**
+   * Install default plugins for all existing repositories at startup
+   */
+  private async installDefaultPluginsForAllRepos(): Promise<void> {
+    const allRepoPaths = new Set<string>();
+
+    for (const session of this.userSessions.values()) {
+      for (const repo of session.repositories.values()) {
+        allRepoPaths.add(repo.path);
+      }
+    }
+
+    if (allRepoPaths.size === 0) return;
+
+    logger.info('Installing default plugins for repositories', { count: allRepoPaths.size });
+
+    for (const repoPath of allRepoPaths) {
+      try {
+        await this.installDefaultPlugins(repoPath);
+      } catch (error) {
+        logger.warn('Failed to install default plugins for repository', {
+          repoPath,
+          error: getErrorMessage(error)
+        });
+      }
     }
   }
 
@@ -557,13 +591,12 @@ export class RepositoryManager {
       .filter(([, preset]) => preset.isDefault)
       .map(([, preset]) => `${preset.name}@${preset.registry}`);
 
-    for (const pluginSpec of defaultPlugins) {
+    // Install plugins in parallel for faster setup
+    await Promise.all(defaultPlugins.map(async (pluginSpec) => {
       try {
-        execSync(`claude plugin install ${pluginSpec}`, {
+        await execAsync(`claude plugin install ${pluginSpec}`, {
           cwd: repoPath,
-          encoding: 'utf-8',
           timeout: 60000,
-          stdio: ['pipe', 'pipe', 'pipe']
         });
         logger.info('Default plugin installed', { pluginSpec, repoPath });
       } catch (error) {
@@ -574,6 +607,6 @@ export class RepositoryManager {
           error: getErrorMessage(error)
         });
       }
-    }
+    }));
   }
 }

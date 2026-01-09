@@ -129,46 +129,8 @@ export class TaskHandlers extends BaseHandler {
             : Math.round((Date.now() - startTime) / 1000);
 
           const success = currentTask.status === TaskStatus.COMPLETED;
-          let gitSummary: string | undefined;
-          if (success) {
-            try {
-              const summaryParts: string[] = [];
-              const commitHash = await gitService.autoCommit(workingDir);
-              let shouldPush = false;
-
-              if (commitHash) {
-                summaryParts.push(`Committed \`${commitHash.substring(0, 7)}\``);
-                shouldPush = true;
-              } else {
-                const hasUnpushedCommits = await gitService.hasUnpushedCommits(workingDir);
-                if (hasUnpushedCommits) {
-                  shouldPush = true;
-                }
-              }
-
-              if (shouldPush) {
-                const pushResult = (await gitService.push(workingDir)).status;
-                if (pushResult === 'success') {
-                  summaryParts.push('Pushed ✓');
-                } else if (pushResult === 'no_remote') {
-                  summaryParts.push('No remote');
-                } else if (pushResult === 'no_changes') {
-                  summaryParts.push('Nothing to push');
-                } else {
-                  summaryParts.push('Push failed');
-                }
-              }
-
-              if (summaryParts.length > 0) {
-                gitSummary = summaryParts.join(' · ');
-              }
-            } catch (error) {
-              logger.error('Discord auto-commit/push failed', {
-                taskId: task.id,
-                error: getErrorMessage(error)
-              });
-            }
-          }
+          // Note: Commits are now handled by Claude using the /commit-commands:commit skill
+          const gitSummary: string | undefined = undefined;
 
           const embed = DiscordUIHelpers.createCompletionEmbed(
             currentTask as ClaudeTaskWithStreaming,

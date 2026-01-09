@@ -476,6 +476,20 @@ export class AnthropicSdkExecutor extends EventEmitter {
         // Build the final prompt - add ralph loop instructions if enabled
         let finalPrompt = effectivePrompt;
         const plugins: Array<{ type: 'local'; path: string }> = [];
+
+        // Load default plugins
+        for (const [name, preset] of Object.entries(PLUGIN_PRESETS)) {
+          if (preset.isDefault) {
+            const pluginSpec = `${preset.name}@${preset.registry}`;
+            const pluginPath = getInstalledPluginPath(pluginSpec);
+            if (pluginPath) {
+              plugins.push({ type: 'local', path: pluginPath });
+            } else {
+              logger.debug('Default plugin not installed', { plugin: name, spec: pluginSpec });
+            }
+          }
+        }
+
         if (ralphLoop) {
           finalPrompt = buildRalphLoopPrompt({
             request: task.prompt,
