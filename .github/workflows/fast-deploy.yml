@@ -1,0 +1,54 @@
+name: Fast Deploy (Local)
+
+on:
+  pull_request:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: Optional tag suffix for local testing
+        required: false
+        default: test
+
+jobs:
+  build-deploy:
+    runs-on: self-hosted
+    env:
+      IMAGE_NAME: tg-claude
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image locally
+        run: |
+          TAG_INPUT="${{ inputs.image_tag }}"
+          if [ -n "$TAG_INPUT" ]; then
+            IMAGE_TAG="${TAG_INPUT}-${GITHUB_SHA::7}"
+          else
+            IMAGE_TAG="${GITHUB_SHA::7}"
+          fi
+          echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          docker buildx build \
+            --load \
+            -t "${IMAGE_NAME}:${IMAGE_TAG}" \
+            --build-arg COMMIT_HASH="${GITHUB_SHA}" \
+            --cache-from type=local,src=/tmp/.buildx-cache \
+            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            .
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Deploy on runner host
+        run: |
+          export DOCKER_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
+          docker compose down --remove-orphans || true
+          docker compose up -d
+          docker compose ps
+          docker compose logs --tail=20
