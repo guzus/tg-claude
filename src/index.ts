@@ -18,6 +18,7 @@ import { BotHandlers, ChamberHandlers } from './clients/telegram';
 import { DiscordClient } from './clients/discord';
 import { getVersionHash } from './utils/version';
 import { getErrorMessage } from './utils/errors';
+import { AIProviderConfig, ClaudeTaskWithStreaming } from './types';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -57,10 +58,8 @@ const mothershipService = new MothershipService();
 
 // Initialize repository manager and user config manager (discover existing repos and configs)
 (async () => {
-  await Promise.all([
-    repositoryManager.initialize(),
-    userConfigManager.initialize()
-  ]);
+  await userConfigManager.initialize();
+  await repositoryManager.initialize();
 
   const stats = repositoryManager.getStats();
   if (stats.totalRepositories > 0) {
@@ -79,6 +78,73 @@ const mothershipService = new MothershipService();
 // Initialize Telegram bot
 const bot = new TelegramBot(config.telegramToken, { polling: true });
 const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
+
+executor.on('taskResumed', async (
+  _taskId: string,
+  task: ClaudeTaskWithStreaming,
+  meta?: { aiProvider?: AIProviderConfig }
+) => {
+  const chatId = task.chatId;
+  const userId = task.userId;
+  const workingDir = task.workingDir;
+  let messageId = task.messageId;
+
+  try {
+    await bot.sendMessage(
+      chatId,
+      `🔄 Task resumed after restart\n\nID: \`${task.id.substring(0, 8)}\``,
+      { parse_mode: 'Markdown' }
+    );
+  } catch {
+    logger.debug('Failed to send resume notification', { taskId: task.id });
+  }
+
+  if (messageId) {
+    try {
+      await bot.editMessageText('🔄 Resuming task...', {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
+            { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+          ]]
+        }
+      });
+    } catch {
+      messageId = undefined;
+    }
+  }
+
+  if (!messageId) {
+    try {
+      const statusMsg = await bot.sendMessage(chatId, '🔄 Resuming task...', {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
+            { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+          ]]
+        }
+      });
+      messageId = statusMsg.message_id;
+      executor.setTaskMessageId(task.id, messageId);
+    } catch (error) {
+      logger.debug('Failed to attach resume status message', { taskId: task.id, error: getErrorMessage(error) });
+      return;
+    }
+  }
+
+  handlers.resumeTaskMonitor({
+    taskId: task.id,
+    userId,
+    chatId,
+    messageId,
+    workingDir,
+    aiProvider: meta?.aiProvider
+  });
+});
 
 // Initialize Chamber handlers
 const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigManager);

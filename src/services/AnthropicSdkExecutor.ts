@@ -22,9 +22,23 @@ import { PLUGIN_PRESETS } from '../presets';
 import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
+import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
+const MAX_RESUME_ATTEMPTS = 3;
+
+type TaskRunOptions = {
+  workingDir?: string;
+  dangerMode?: boolean;
+  additionalFlags?: string[];
+  timeout?: number;
+  aiProvider?: AIProviderConfig;
+  ralphLoop?: { completionPromise: string; maxIterations: number };
+  mcpServers?: Record<string, McpServer>;
+  resumeSessionId?: string;
+  promptOverride?: string;
+};
 
 // Type guards for SDK message types
 function isAssistantMessage(msg: SDKMessage): msg is Extract<SDKMessage, { type: 'assistant' }> {
@@ -63,6 +77,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
   private taskInitialHeads: Map<string, string> = new Map();
   private actionCounter = 0;
   private claudeCodePath: string | undefined;
+  private taskStateStore: TaskStateStore;
 
   constructor(_apiKey?: string) {
     super();
@@ -76,6 +91,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
     if (!fs.existsSync(TASK_LOGS_DIR)) {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
+
+    this.taskStateStore = new TaskStateStore();
+    setTimeout(() => {
+      void this.resumeActiveTasks();
+    }, 0);
   }
 
   private createTaskLogFile(taskId: string): fs.WriteStream {
@@ -175,42 +195,131 @@ export class AnthropicSdkExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    workingDir: string
+    workingDir: string,
+    overrides: Partial<ClaudeTaskWithStreaming> = {}
   ): ClaudeTaskWithStreaming {
     const task: ClaudeTaskWithStreaming = {
-      id: uuidv4(),
+      id: overrides.id || uuidv4(),
       userId,
       chatId,
       prompt,
       workingDir,
-      status: TaskStatus.PENDING,
-      startTime: new Date(),
+      status: overrides.status || TaskStatus.PENDING,
+      startTime: overrides.startTime || new Date(),
       output: '',
       errorOutput: '',
       actions: [],
       events: [],
+      sessionId: overrides.sessionId,
+      messageId: overrides.messageId,
     };
 
     this.taskHistory.set(task.id, task);
     return task;
   }
 
+  private buildPersistedTask(task: ClaudeTaskWithStreaming, options: TaskRunOptions): PersistedTaskState {
+    return {
+      id: task.id,
+      userId: task.userId,
+      chatId: task.chatId,
+      messageId: task.messageId,
+      prompt: task.prompt,
+      workingDir: task.workingDir,
+      status: task.status,
+      startTime: task.startTime.toISOString(),
+      updatedAt: new Date().toISOString(),
+      sessionId: task.sessionId,
+      aiProvider: options.aiProvider,
+      ralphLoop: options.ralphLoop,
+      mcpServers: options.mcpServers,
+    };
+  }
+
+  private updateTaskSession(task: ClaudeTaskWithStreaming, sessionId: string): void {
+    if (task.sessionId === sessionId) return;
+    task.sessionId = sessionId;
+    this.taskStateStore.updateTask(task.id, { sessionId });
+  }
+
+  private buildResumePrompt(originalPrompt: string): string {
+    return [
+      'Continue the previous task after a restart.',
+      'Do not repeat completed work; pick up from the latest state.',
+      '',
+      `Original task: ${originalPrompt}`,
+    ].join('\n');
+  }
+
+  private async resumeActiveTasks(): Promise<void> {
+    const resumable = this.taskStateStore.getActiveTasks();
+    if (resumable.length === 0) return;
+
+    logger.info('Resuming persisted tasks', { count: resumable.length });
+
+    for (const persisted of resumable) {
+      const attempts = persisted.resumeAttempts ?? 0;
+      if (attempts >= MAX_RESUME_ATTEMPTS) {
+        logger.warn('Skipping task resume after max attempts', {
+          taskId: persisted.id,
+          attempts,
+        });
+        this.taskStateStore.removeTask(persisted.id);
+        continue;
+      }
+
+      if (!persisted.sessionId) {
+        logger.warn('Cannot resume task without session ID', { taskId: persisted.id });
+        this.taskStateStore.removeTask(persisted.id);
+        continue;
+      }
+
+      void this.resumeTask(persisted);
+    }
+  }
+
+  private async resumeTask(persisted: PersistedTaskState): Promise<void> {
+    this.taskStateStore.incrementResumeAttempts(persisted.id);
+
+    const task = this.createTask(
+      persisted.userId,
+      persisted.chatId,
+      persisted.prompt,
+      persisted.workingDir,
+      {
+        id: persisted.id,
+        startTime: new Date(persisted.startTime),
+        sessionId: persisted.sessionId,
+        messageId: persisted.messageId,
+      }
+    );
+    this.taskStateStore.updateTask(persisted.id, { status: TaskStatus.PENDING });
+    this.emit('taskResumed', persisted.id, task, { aiProvider: persisted.aiProvider });
+
+    void this.runTask(task, {
+      aiProvider: persisted.aiProvider,
+      ralphLoop: persisted.ralphLoop,
+      mcpServers: persisted.mcpServers,
+      resumeSessionId: persisted.sessionId,
+      promptOverride: this.buildResumePrompt(persisted.prompt),
+    }).catch((error) => {
+      logger.error('Failed to resume task', {
+        taskId: persisted.id,
+        error: getErrorMessage(error),
+      });
+      this.taskStateStore.removeTask(persisted.id);
+    });
+  }
+
   startTask(
     userId: number,
     chatId: number,
     prompt: string,
-    options: {
-      workingDir?: string;
-      dangerMode?: boolean;
-      additionalFlags?: string[];
-      timeout?: number;
-      aiProvider?: AIProviderConfig;
-      ralphLoop?: { completionPromise: string; maxIterations: number };
-      mcpServers?: Record<string, McpServer>;
-    } = {}
+    options: TaskRunOptions = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     void this.runTask(task, options).catch((error) => {
       logger.error('Agent SDK task failed', { taskId: task.id, error: getErrorMessage(error) });
@@ -223,32 +332,18 @@ export class AnthropicSdkExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: {
-      workingDir?: string;
-      dangerMode?: boolean;
-      additionalFlags?: string[];
-      timeout?: number;
-      aiProvider?: AIProviderConfig;
-      ralphLoop?: { completionPromise: string; maxIterations: number };
-    } = {}
+    options: TaskRunOptions = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
     await this.runTask(task, options);
     return task;
   }
 
   private async runTask(
     task: ClaudeTaskWithStreaming,
-    options: {
-      workingDir?: string;
-      dangerMode?: boolean;
-      additionalFlags?: string[];
-      timeout?: number;
-      aiProvider?: AIProviderConfig;
-      ralphLoop?: { completionPromise: string; maxIterations: number };
-      mcpServers?: Record<string, McpServer>;
-    }
+    options: TaskRunOptions
   ): Promise<void> {
     const {
       workingDir = task.workingDir,
@@ -256,9 +351,17 @@ export class AnthropicSdkExecutor extends EventEmitter {
       aiProvider,
       ralphLoop,
       mcpServers: mcpServersOverride,
+      resumeSessionId,
+      promptOverride,
     } = options;
+    const effectivePrompt = promptOverride || task.prompt;
 
-    logger.info('Starting Agent SDK task', { taskId: task.id, userId: task.userId, prompt: task.prompt.substring(0, 100) });
+    logger.info('Starting Agent SDK task', {
+      taskId: task.id,
+      userId: task.userId,
+      prompt: effectivePrompt.substring(0, 100),
+      resumeSessionId,
+    });
 
     try {
       if (!fs.existsSync(workingDir)) {
@@ -278,14 +381,17 @@ export class AnthropicSdkExecutor extends EventEmitter {
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
       task.status = TaskStatus.RUNNING;
+      this.taskStateStore.updateTask(task.id, { status: task.status });
 
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
-      logStream.write(`Prompt: ${task.prompt}\nWorkingDir: ${workingDir}\nModel: ${model}\n\n`);
+      logStream.write(`Prompt: ${effectivePrompt}\nWorkingDir: ${workingDir}\nModel: ${model}\n\n`);
+      if (resumeSessionId) {
+        logStream.write(`Resuming session: ${resumeSessionId}\n\n`);
+      }
 
       // Emit started event
-      const sessionId = task.id;
-      task.sessionId = sessionId;
+      const sessionId = task.sessionId || task.id;
       const startedEvent: StreamEvent = {
         type: 'started',
         sessionId,
@@ -339,7 +445,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         } : undefined;
 
         // Build the final prompt - add ralph loop instructions if enabled
-        let finalPrompt = task.prompt;
+        let finalPrompt = effectivePrompt;
         const plugins: Array<{ type: 'local'; path: string }> = [];
         if (ralphLoop) {
           finalPrompt = buildRalphLoopPrompt({
@@ -374,6 +480,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
             executable: 'bun',
             // Load local project settings
             settingSources: ['local'],
+            persistSession: true,
             ...(mcpServers && { mcpServers }),
             // Add plugins and Stop hook for ralph loop if enabled
             ...(plugins.length > 0 && { plugins }),
@@ -381,6 +488,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
               hooks: {
                 Stop: [{ hooks: [stopHook] }],
               },
+            }),
+            ...(resumeSessionId && {
+              resume: resumeSessionId,
+              forkSession: false,
             }),
           },
         });
@@ -394,6 +505,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
           }
 
           logStream.write(JSON.stringify(msg) + '\n');
+          const msgSessionId = (msg as { session_id?: string }).session_id;
+          if (msgSessionId) {
+            this.updateTaskSession(task, msgSessionId);
+          }
 
           if (isSystemMessage(msg)) {
             // System init message - log available tools
@@ -489,6 +604,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       logStream.end();
       this.taskLogFiles.delete(task.id);
       this.activeTasks.delete(task.id);
+      this.taskStateStore.removeTask(task.id);
 
       this.emit('taskComplete', task.id, task);
 
@@ -506,6 +622,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       this.emit('taskError', task.id, error);
       this.activeTasks.delete(task.id);
+      this.taskStateStore.removeTask(task.id);
 
       throw error;
     }
@@ -513,6 +630,13 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
   getTask(taskId: string): ClaudeTaskWithStreaming | undefined {
     return this.taskHistory.get(taskId);
+  }
+
+  setTaskMessageId(taskId: string, messageId: number): void {
+    const task = this.taskHistory.get(taskId);
+    if (!task) return;
+    task.messageId = messageId;
+    this.taskStateStore.updateTask(taskId, { messageId });
   }
 
   getActiveTasks(): ClaudeTaskWithStreaming[] {
@@ -549,6 +673,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       task.status = TaskStatus.CANCELLED;
       task.endTime = new Date();
       this.activeTasks.delete(taskId);
+      this.taskStateStore.removeTask(taskId);
       logger.info('Task cancelled', { taskId });
       return true;
     } catch {

@@ -1,7 +1,7 @@
 import { promises as fs } from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { v4 as uuidv4 } from 'uuid';
+import { createHash } from 'crypto';
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
 import { WORKSPACE_PATH } from '../config';
@@ -59,6 +59,21 @@ export class RepositoryManager {
           if (session.repositories.has(userConfig.currentRepositoryId)) {
             session.currentRepositoryId = userConfig.currentRepositoryId;
             logger.info('Restored current repository', { userId, repositoryId: userConfig.currentRepositoryId });
+            continue;
+          }
+        }
+
+        if (userConfig.currentRepositoryPath) {
+          const session = this.getUserSession(userId);
+          const repoId = this.findRepoIdByPath(userId, userConfig.currentRepositoryPath);
+          if (repoId) {
+            session.currentRepositoryId = repoId;
+            await this.persistCurrentRepository(userId, repoId);
+            logger.info('Restored current repository by path', {
+              userId,
+              repositoryId: repoId,
+              repositoryPath: userConfig.currentRepositoryPath
+            });
           }
         }
       }
@@ -111,7 +126,7 @@ export class RepositoryManager {
 
           if (await this.isRepositoryDeleted(userId, gitUrl, repoPath)) continue;
 
-          const repoId = uuidv4();
+          const repoId = this.buildRepositoryId(repoPath, gitUrl);
           const session = this.getUserSession(userId);
 
           const repository: Repository = {
@@ -156,7 +171,6 @@ export class RepositoryManager {
   async cloneRepository(userId: number, gitUrl: string, name?: string, branch?: string): Promise<Repository> {
     const session = this.getUserSession(userId);
     const repoName = name || this.extractRepoNameFromUrl(gitUrl);
-    const repoId = uuidv4();
     const repoPath = path.join(this.baseWorkspacePath, `user_${userId}`, repoName);
 
     if (await this.isRepositoryDeleted(userId, gitUrl, repoPath)) {
@@ -174,6 +188,7 @@ export class RepositoryManager {
 
       await gitService.clone(gitUrl, repoPath, branch);
 
+      const repoId = this.buildRepositoryId(repoPath, gitUrl);
       const repository: Repository = {
         id: repoId,
         name: repoName,
@@ -206,7 +221,6 @@ export class RepositoryManager {
 
   async createRepository(userId: number, name: string, initGit: boolean = true): Promise<Repository> {
     const session = this.getUserSession(userId);
-    const repoId = uuidv4();
     const repoPath = path.join(this.baseWorkspacePath, `user_${userId}`, name);
 
     if (await this.isRepositoryDeleted(userId, undefined, repoPath)) {
@@ -229,6 +243,7 @@ export class RepositoryManager {
         }
       }
 
+      const repoId = this.buildRepositoryId(repoPath);
       const repository: Repository = {
         id: repoId,
         name,
@@ -264,7 +279,6 @@ export class RepositoryManager {
       throw new Error(`Directory does not exist: ${repoPath}`);
     }
 
-    const repoId = uuidv4();
     const repoName = name || path.basename(repoPath);
     const isGitRepo = await this.directoryExists(path.join(repoPath, '.git'));
     const gitUrl = isGitRepo ? await gitService.getRemoteUrl(repoPath) || undefined : undefined;
@@ -273,6 +287,7 @@ export class RepositoryManager {
       throw new Error('This repository was previously deleted.');
     }
 
+    const repoId = this.buildRepositoryId(repoPath, gitUrl);
     const repository: Repository = {
       id: repoId,
       name: repoName,
@@ -433,7 +448,12 @@ export class RepositoryManager {
     if (!this.userConfigManager) return;
 
     try {
-      await this.userConfigManager.updateConfig(userId, { currentRepositoryId: repositoryId });
+      const session = this.userSessions.get(userId);
+      const repository = session?.repositories.get(repositoryId);
+      await this.userConfigManager.updateConfig(userId, {
+        currentRepositoryId: repositoryId,
+        currentRepositoryPath: repository?.path
+      });
     } catch (error) {
       logger.warn('Failed to persist current repository', {
         userId,
@@ -473,6 +493,12 @@ export class RepositoryManager {
       if (repo.path === repoPath) return id;
     }
     return undefined;
+  }
+
+  private buildRepositoryId(repoPath: string, gitUrl?: string): string {
+    const normalizedPath = path.resolve(repoPath);
+    const seed = `${gitUrl || 'local'}|${normalizedPath}`;
+    return createHash('sha1').update(seed).digest('hex');
   }
 
   private async isRepositoryDeleted(userId: number, gitUrl?: string, repoPath?: string): Promise<boolean> {

@@ -32,6 +32,7 @@ export interface IClaudeExecutor {
 
   // Task queries
   getTask(taskId: string): ClaudeTaskWithStreaming | undefined;
+  setTaskMessageId(taskId: string, messageId: number): void;
   getActiveTasks(): ClaudeTaskWithStreaming[];
   getActiveTasksForUser(userId: number): ClaudeTaskWithStreaming[];
   getCurrentAction(taskId: string): StreamAction | undefined;

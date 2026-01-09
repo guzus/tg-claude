@@ -316,6 +316,12 @@ export class ClaudeExecutor extends EventEmitter {
     return this.taskHistory.get(taskId);
   }
 
+  setTaskMessageId(taskId: string, messageId: number): void {
+    const task = this.taskHistory.get(taskId);
+    if (!task) return;
+    task.messageId = messageId;
+  }
+
   getActiveTasks(): ClaudeTaskWithStreaming[] {
     return Array.from(this.taskHistory.values()).filter(
       task => task.status === TaskStatus.RUNNING || task.status === TaskStatus.PENDING
