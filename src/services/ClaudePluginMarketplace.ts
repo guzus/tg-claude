@@ -94,3 +94,44 @@ export function getInstalledPluginPath(pluginSpec: string, homeDir: string = pro
     return null;
   }
 }
+
+export type InstalledPluginEntry = {
+  id: string;
+  scope?: string;
+  version?: string;
+  installedAt?: string;
+  installPath?: string;
+};
+
+export function listInstalledPlugins(homeDir: string = process.env.HOME || ''): InstalledPluginEntry[] {
+  if (!homeDir) return [];
+  const indexPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
+  if (!fs.existsSync(indexPath)) return [];
+
+  try {
+    const raw = fs.readFileSync(indexPath, 'utf-8');
+    const index = JSON.parse(raw) as InstalledPluginIndex;
+    const plugins = index.plugins || {};
+
+    const entries: InstalledPluginEntry[] = [];
+    for (const [id, installs] of Object.entries(plugins)) {
+      for (const install of installs || []) {
+        entries.push({
+          id,
+          scope: install.scope,
+          version: install.version,
+          installedAt: install.installedAt,
+          installPath: install.installPath,
+        });
+      }
+    }
+
+    return entries;
+  } catch (error) {
+    logger.warn('Failed to read installed plugins list', {
+      indexPath,
+      error: getErrorMessage(error)
+    });
+    return [];
+  }
+}

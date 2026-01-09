@@ -11,7 +11,7 @@ import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../../../services/StateManager';
 import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
-import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
+import { ensureDefaultPluginMarketplaces, listInstalledPlugins } from '../../../services/ClaudePluginMarketplace';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
@@ -969,6 +969,9 @@ export class ConfigHandlers extends BaseHandler {
         case 'presets':
           await this.showPluginPresets(msg);
           break;
+        case 'list':
+          await this.showInstalledPlugins(msg);
+          break;
         case 'remove':
         case 'rm':
         case 'uninstall':
@@ -995,6 +998,7 @@ export class ConfigHandlers extends BaseHandler {
       `🔌 *Claude Plugins*\n\n` +
       `*Commands:*\n` +
       `/plugin install <name>@<registry> - Install plugin\n` +
+      `/plugin list - Show installed plugins\n` +
       `/plugin preset <name> - Install from presets\n` +
       `/plugin presets - Show available presets\n` +
       `/plugin remove <name> - Remove plugin\n\n` +
@@ -1022,6 +1026,42 @@ export class ConfigHandlers extends BaseHandler {
       `Example: \`/plugin preset ralph-loop\``;
 
     await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+  }
+
+  private async showInstalledPlugins(msg: Message): Promise<void> {
+    const chatId = msg.chat.id;
+
+    const plugins = listInstalledPlugins()
+      .filter(plugin => !!plugin.id)
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    if (plugins.length === 0) {
+      await this.bot.sendMessage(chatId, 'No plugins installed for this user.', { parse_mode: 'Markdown' });
+      return;
+    }
+
+    const repoScoped = plugins.filter(plugin => plugin.scope === 'project' || plugin.scope === 'local');
+    const userScoped = plugins.filter(plugin => plugin.scope !== 'project' && plugin.scope !== 'local');
+
+    const lines: string[] = [];
+    if (repoScoped.length > 0) {
+      lines.push('*Repository plugins:*');
+      for (const plugin of repoScoped) {
+        const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+        lines.push(`• \`${plugin.id}\`${scopeLabel}`);
+      }
+    }
+
+    if (userScoped.length > 0) {
+      if (lines.length > 0) lines.push('');
+      lines.push('*User plugins:*');
+      for (const plugin of userScoped) {
+        const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+        lines.push(`• \`${plugin.id}\`${scopeLabel}`);
+      }
+    }
+
+    await this.bot.sendMessage(chatId, lines.join('\n'), { parse_mode: 'Markdown' });
   }
 
   private async installPlugin(msg: Message, args: string[], repoPath: string): Promise<void> {

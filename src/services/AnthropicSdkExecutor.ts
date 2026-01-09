@@ -17,7 +17,7 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { gitService } from './GitService';
 import { PLUGIN_PRESETS } from '../presets';
-import { buildRalphLoopPrompt } from '../utils/ralphPrompt';
+import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 
 const execAsync = promisify(exec);

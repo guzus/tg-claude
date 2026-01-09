@@ -8,7 +8,7 @@ import { UserConfigManager } from '../../../services/UserConfigManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { McpConfig, McpServer, AIProvider } from '../../../types';
 import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
-import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
+import { ensureDefaultPluginMarketplaces, listInstalledPlugins } from '../../../services/ClaudePluginMarketplace';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { toSafeDiscordId } from '../utils/ids';
@@ -396,6 +396,41 @@ export class ConfigHandlers extends BaseHandler {
         await interaction.deferReply({ flags: this.ephemeralFlags() });
       }
       switch (action) {
+        case 'list': {
+          const plugins = listInstalledPlugins()
+            .filter(plugin => !!plugin.id)
+            .sort((a, b) => a.id.localeCompare(b.id));
+
+          if (plugins.length === 0) {
+            await interaction.editReply({ content: 'No plugins installed for this user.' });
+            return;
+          }
+
+          const repoScoped = plugins.filter(plugin => plugin.scope === 'project' || plugin.scope === 'local');
+          const userScoped = plugins.filter(plugin => plugin.scope !== 'project' && plugin.scope !== 'local');
+
+          const lines: string[] = [];
+          if (repoScoped.length > 0) {
+            lines.push('**Repository plugins:**');
+            for (const plugin of repoScoped) {
+              const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+              lines.push(`- \`${plugin.id}\`${scopeLabel}`);
+            }
+          }
+
+          if (userScoped.length > 0) {
+            if (lines.length > 0) lines.push('');
+            lines.push('**User plugins:**');
+            for (const plugin of userScoped) {
+              const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+              lines.push(`- \`${plugin.id}\`${scopeLabel}`);
+            }
+          }
+
+          const message = lines.join('\n');
+          await interaction.editReply({ content: message.length > 1900 ? `${message.slice(0, 1900)}\n…` : message });
+          return;
+        }
         case 'presets': {
           const lines = Object.entries(PLUGIN_PRESETS).map(([name, preset]) => {
             const defaultTag = preset.isDefault ? ' (default)' : '';
