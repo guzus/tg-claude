@@ -90,7 +90,10 @@ export class DiscordUIHelpers {
     const completedEvent = task.events?.find(e => e.type === 'completed');
     if (completedEvent && completedEvent.type === 'completed' && completedEvent.answer) {
       const answer = completedEvent.answer;
-      const preview = answer.length > 3500 ? answer.substring(0, 3500) + '...' : answer;
+      const maxPreviewLength = 3800;
+      const preview = answer.length > maxPreviewLength
+        ? answer.substring(0, maxPreviewLength) + '...'
+        : answer;
       embed.setDescription(preview);
     }
 

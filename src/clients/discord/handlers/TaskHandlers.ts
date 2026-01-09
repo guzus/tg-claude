@@ -9,12 +9,17 @@ import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { toSafeDiscordId } from '../utils/ids';
 import { getErrorMessage } from '../../../utils/errors';
+import { gitService } from '../../../services/GitService';
+import { promisify } from 'util';
+import { exec } from 'child_process';
 
 /**
  * Handlers for task execution in Discord.
  * Uses channel-based workspace (mono-repo per channel).
  */
 export class TaskHandlers extends BaseHandler {
+  private execAsync = promisify(exec);
+
   constructor(
     executor: ClaudeExecutor,
     rateLimiter: RateLimiter,
@@ -72,6 +77,8 @@ export class TaskHandlers extends BaseHandler {
     const workingDir = this.getChannelWorkspace(channelId, channelName);
 
     try {
+      await this.ensureGitAuth(workingDir);
+
       // Add to conversation context
       this.conversationManager?.addUserMessage(safeChannelId, prompt);
 
@@ -183,6 +190,34 @@ export class TaskHandlers extends BaseHandler {
         userId,
         channelId,
         error: errorMessage
+      });
+    }
+  }
+
+  private async ensureGitAuth(workingDir: string): Promise<void> {
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (!githubToken) return;
+
+    try {
+      const remoteUrl = await gitService.getRemoteUrl(workingDir);
+      if (!remoteUrl || !remoteUrl.includes('github.com')) return;
+      if (remoteUrl.includes('x-access-token:') || remoteUrl.includes('oauth2:')) return;
+
+      const authUrl = gitService.injectTokenIntoUrl(remoteUrl);
+      if (authUrl === remoteUrl) return;
+
+      await this.execAsync(`git remote set-url origin "${authUrl}"`, {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      logger.info('Updated GitHub remote with token auth for Discord task', { workingDir });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      const safeMessage = githubToken ? errorMessage.replaceAll(githubToken, '***') : errorMessage;
+      logger.debug('Failed to update GitHub remote auth for Discord task', {
+        workingDir,
+        error: safeMessage
       });
     }
   }
