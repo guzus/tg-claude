@@ -21,6 +21,7 @@ import { gitService } from './GitService';
 import { PLUGIN_PRESETS } from '../presets';
 import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
+import { configureProviderEnv } from '../utils/ClaudeRunner';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
@@ -272,6 +273,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         // Not a git repo - ignore
       }
 
+      const provider = aiProvider?.provider || 'anthropic';
       const model = this.getModel(aiProvider);
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
@@ -367,6 +369,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
             permissionMode: 'bypassPermissions',
             abortController,
             pathToClaudeCodeExecutable: this.claudeCodePath,
+            env: configureProviderEnv(provider, aiProvider),
             // Use bun as the runtime since we're in a bun environment
             executable: 'bun',
             // Load local project settings
