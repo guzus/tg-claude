@@ -16,34 +16,14 @@ jobs:
     runs-on: self-hosted
     env:
       IMAGE_NAME: tg-claude
-      BRANCH_NAME: ${{ github.ref_name }}
     steps:
-      - name: Check for open PR
-        id: pr-check
-        if: github.event_name == 'push'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          PR_COUNT=$(gh api repos/${{ github.repository }}/pulls \
-            -f state=open \
-            -f head=${{ github.repository_owner }}:${BRANCH_NAME} \
-            --jq 'map(select(.base.ref != "main")) | length')
-          if [ "$PR_COUNT" -gt 0 ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Checkout repository
-        if: github.event_name == 'workflow_dispatch' || steps.pr-check.outputs.should_run == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        if: github.event_name == 'workflow_dispatch' || steps.pr-check.outputs.should_run == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Build image locally
-        if: github.event_name == 'workflow_dispatch' || steps.pr-check.outputs.should_run == 'true'
         run: |
           TAG_INPUT="${{ inputs.image_tag }}"
           if [ -n "$TAG_INPUT" ]; then
@@ -61,13 +41,11 @@ jobs:
             .
 
       - name: Move cache
-        if: github.event_name == 'workflow_dispatch' || steps.pr-check.outputs.should_run == 'true'
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
       - name: Deploy on runner host
-        if: github.event_name == 'workflow_dispatch' || steps.pr-check.outputs.should_run == 'true'
         run: |
           export DOCKER_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
           docker compose down --remove-orphans || true
