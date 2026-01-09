@@ -172,6 +172,15 @@ export class UserConfigManager {
     if (updates.limits) {
       config.limits = { ...config.limits, ...updates.limits };
     }
+    if (updates.currentRepositoryId !== undefined) {
+      config.currentRepositoryId = updates.currentRepositoryId;
+    }
+    if (updates.currentRepositoryPath !== undefined) {
+      config.currentRepositoryPath = updates.currentRepositoryPath;
+    }
+    if (updates.deletedRepositories !== undefined) {
+      config.deletedRepositories = updates.deletedRepositories;
+    }
 
     config.updatedAt = new Date();
 
