@@ -315,7 +315,8 @@ export class TaskHandlers extends BaseHandler {
             taskId: task.id,
             success: currentTask.status === TaskStatus.COMPLETED,
             executionTime,
-            error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined
+            error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined,
+            platform: 'telegram'
           });
         }
       }, 2000); // Update every 2 seconds
@@ -332,7 +333,8 @@ export class TaskHandlers extends BaseHandler {
         command: commitMessageContext,
         success: false,
         executionTime,
-        error: errorMessage
+        error: errorMessage,
+        platform: 'telegram'
       });
 
       logger.error('Task execution failed', {

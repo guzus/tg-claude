@@ -85,7 +85,8 @@ export class RalphHandlers extends BaseHandler {
         userId: safeUserId,
         username: interaction.user.username,
         command: '/ralph',
-        success: true
+        success: true,
+        platform: 'discord'
       });
     } catch (error) {
       const errorMessage = getErrorMessage(error);

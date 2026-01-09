@@ -51,7 +51,7 @@ export class RalphWiggumHandler extends BaseHandler {
     const userId = msg.from!.id;
     const argsText = match?.[1]?.trim() || '';
 
-    this.auditLogger.logCommand({ userId, command: 'ralph', success: true });
+    this.auditLogger.logCommand({ userId, command: 'ralph', success: true, platform: 'telegram' });
 
     // Parse arguments
     const { task, config } = this.parseArguments(argsText);

@@ -91,7 +91,8 @@ export class UtilityHandlers extends BaseHandler {
         username: interaction.user.username,
         command: `/cancel ${taskId}`,
         taskId,
-        success: true
+        success: true,
+        platform: 'discord'
       });
     } else {
       await interaction.reply({ content: `Failed to cancel task \`${taskId}\`.`, flags: MessageFlags.Ephemeral });

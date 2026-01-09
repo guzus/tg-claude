@@ -225,7 +225,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot run ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
@@ -245,7 +246,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot run ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -337,7 +339,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: '/bot list',
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
@@ -351,7 +354,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: '/bot list',
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -398,7 +402,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot status ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.sendMessage(
@@ -409,7 +414,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot status ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -466,7 +472,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot logs ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.sendMessage(
@@ -477,7 +484,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot logs ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -520,7 +528,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
@@ -534,7 +543,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -833,7 +843,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${botName}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
@@ -847,7 +858,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${botName}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }

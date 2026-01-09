@@ -81,6 +81,7 @@ export interface AuditLogEntry {
   success: boolean;
   executionTime?: number;
   error?: string;
+  platform?: 'telegram' | 'discord';
 }
 
 export interface DeletedRepository {

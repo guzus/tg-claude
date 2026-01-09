@@ -205,7 +205,8 @@ export class TaskHandlers extends BaseHandler {
             taskId: task.id,
             success,
             executionTime,
-            error: !success ? currentTask.errorOutput : undefined
+            error: !success ? currentTask.errorOutput : undefined,
+            platform: 'discord'
           });
         }
       }, 2000); // Update every 2 seconds
@@ -228,7 +229,8 @@ export class TaskHandlers extends BaseHandler {
         command: prompt.substring(0, 100),
         success: false,
         executionTime,
-        error: errorMessage
+        error: errorMessage,
+        platform: 'discord'
       });
 
       logger.error('Discord task execution failed', {
