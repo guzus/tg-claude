@@ -12,7 +12,7 @@ env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/tg-claude
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: self-hosted
     steps:
       - name: Checkout repository
@@ -47,12 +47,48 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             COMMIT_HASH=${{ github.sha }}
-          cache-from: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_NAME }}:buildcache,mode=max
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Deploy
+  deploy:
+    runs-on: self-hosted
+    needs: build
+    steps:
+      - name: Setup SSH
         run: |
-          cd ${{ secrets.DEPLOY_PATH }}
-          docker compose pull
-          docker compose up -d
-          docker compose ps
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Copy docker-compose.yml to server
+        run: |
+          scp -i ~/.ssh/deploy_key docker-compose.yml ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}:${{ secrets.DEPLOY_PATH }}/
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} << EOF
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # Create necessary directories
+            mkdir -p workspace data logs config
+
+            # Set image and deploy
+            export DOCKER_IMAGE=${IMAGE_NAME}:latest
+            docker compose down --remove-orphans || true
+            docker compose pull
+            docker compose up -d
+
+            # Show status
+            docker compose ps
+            docker compose logs --tail=20
+          EOF
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf ~/.ssh/deploy_key
