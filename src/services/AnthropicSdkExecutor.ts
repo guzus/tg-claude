@@ -186,9 +186,21 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
   constructor(apiKey?: string) {
     super();
-    this.client = new Anthropic({
-      apiKey: apiKey || process.env.ANTHROPIC_API_KEY,
-    });
+    // Support both API key and OAuth token
+    const authToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+    const apiKeyValue = apiKey || process.env.ANTHROPIC_API_KEY;
+
+    if (authToken) {
+      // Use authToken for OAuth (Claude subscription)
+      this.client = new Anthropic({ authToken });
+    } else if (apiKeyValue) {
+      // Use apiKey for direct API access
+      this.client = new Anthropic({ apiKey: apiKeyValue });
+    } else {
+      // Default - will fail if no auth configured
+      this.client = new Anthropic();
+    }
+
     if (!fs.existsSync(TASK_LOGS_DIR)) {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
@@ -219,9 +231,17 @@ export class AnthropicSdkExecutor extends EventEmitter {
     const provider = aiProvider?.provider || 'anthropic';
 
     if (provider === 'anthropic') {
-      this.client = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY,
-      });
+      // Support both OAuth token and API key for Anthropic
+      const authToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+      const apiKey = process.env.ANTHROPIC_API_KEY;
+
+      if (authToken) {
+        this.client = new Anthropic({ authToken });
+      } else if (apiKey) {
+        this.client = new Anthropic({ apiKey });
+      } else {
+        throw new Error('Anthropic requires ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN');
+      }
     } else if (provider === 'openrouter') {
       const apiKey = aiProvider?.openrouterApiKey || process.env.OPENROUTER_API_KEY;
       if (!apiKey) throw new Error('OpenRouter requires API key');
