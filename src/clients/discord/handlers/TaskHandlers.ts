@@ -34,11 +34,14 @@ export class TaskHandlers extends BaseHandler {
     // Skip messages starting with /
     if (msg.content.startsWith('/')) return;
 
-    const botId = msg.client.user?.id;
-    if (!botId) return;
+    const botUser = msg.client.user;
+    if (!botUser) return;
 
     // Only respond when explicitly mentioned
-    if (!msg.mentions.users.has(botId)) return;
+    const mentionPattern = new RegExp(`<@!?${botUser.id}>`, 'g');
+    const hasMention = msg.mentions.has(botUser, { ignoreRoles: true, ignoreEveryone: true })
+      || mentionPattern.test(msg.content);
+    if (!hasMention) return;
 
     if (!(await this.checkAccess(msg))) return;
 
@@ -46,7 +49,6 @@ export class TaskHandlers extends BaseHandler {
     const channelId = msg.channelId;
     const channel = msg.channel as TextChannel;
     const channelName = channel.name || 'unknown';
-    const mentionPattern = new RegExp(`<@!?${botId}>`, 'g');
     const prompt = msg.content.replace(mentionPattern, '').trim();
     if (!prompt) return;
     const startTime = Date.now();
