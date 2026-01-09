@@ -3,7 +3,7 @@ import { BaseHandler } from './BaseHandler';
 import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { ClaudeExecutorInstance } from '../../../services/IClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
@@ -20,7 +20,7 @@ import { formatDuration } from '../../../utils/time';
 export class TaskHandlers extends BaseHandler {
   constructor(
     bot: TelegramBot,
-    executor: ClaudeExecutor,
+    executor: ClaudeExecutorInstance,
     rateLimiter: RateLimiter,
     auditLogger: AuditLogger,
     repositoryManager: RepositoryManager,
@@ -28,6 +28,24 @@ export class TaskHandlers extends BaseHandler {
     userConfigManager?: UserConfigManager
   ) {
     super(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager);
+  }
+
+  resumeTaskMonitor(params: {
+    taskId: string;
+    userId: number;
+    chatId: number;
+    messageId: number;
+    workingDir?: string;
+    aiProvider?: { provider?: string };
+  }): void {
+    this.monitorTaskLifecycle(
+      params.taskId,
+      params.userId,
+      params.chatId,
+      params.messageId,
+      params.workingDir,
+      params.aiProvider
+    );
   }
 
   /**
@@ -81,250 +99,19 @@ export class TaskHandlers extends BaseHandler {
       });
 
       task.messageId = statusMsg.message_id;
+      this.executor.setTaskMessageId(task.id, statusMsg.message_id);
 
-      // Track last update to avoid hitting rate limits
-      let lastUpdateText = '';
-
-      // Poll for updates
-      const updateInterval = setInterval(async () => {
-        const currentTask = this.executor.getTask(task.id) as ClaudeTaskWithStreaming | undefined;
-        if (!currentTask) {
-          clearInterval(updateInterval);
-          return;
-        }
-
-        // Update message if task is still running
-        if (currentTask.status === TaskStatus.RUNNING) {
-          const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
-          const providerLabel = getProviderLabel(aiProvider?.provider);
-
-          // Build status message using streaming events
-          const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
-
-          // Create control buttons
-          const controlButtons = {
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
-                  { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
-                ]
-              ]
-            }
-          };
-
-          // Only update if text has changed (avoid rate limit errors)
-          if (newUpdateText !== lastUpdateText) {
-            try {
-              await this.bot.editMessageText(newUpdateText, {
-                chat_id: chatId,
-                message_id: statusMsg.message_id,
-                parse_mode: 'Markdown',
-                ...controlButtons
-              });
-              lastUpdateText = newUpdateText;
-            } catch (error) {
-              // Ignore edit errors (message not modified, rate limit, etc.)
-              logger.debug('Failed to update message', {
-                taskId: task.id,
-                error: getErrorMessage(error)
-              });
-            }
-          }
-        } else {
-          // Task completed
-          clearInterval(updateInterval);
-
-          const output = this.executor.getTaskOutput(task.id);
-          const errorOutput = currentTask.errorOutput || '';
-          const statusEmoji = currentTask.status === TaskStatus.COMPLETED ? '✅' : '❌';
-          const statusText = currentTask.status === TaskStatus.COMPLETED ? 'Completed' : 'Failed';
-
-          const executionTime = currentTask.endTime
-            ? Math.round((currentTask.endTime.getTime() - currentTask.startTime.getTime()) / 1000)
-            : 0;
-
-          // Auto-commit and push changes if task completed successfully
-          let commitInfo = '';
-          let needsRemoteSetup = false;
-          if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
-            try {
-              const commitHash = await gitService.autoCommit(actualWorkingDir);
-              let shouldPush = false;
-
-              if (commitHash) {
-                shouldPush = true;
-              } else {
-                // Check if there are unpushed commits
-                const hasUnpushedCommits = await gitService.hasUnpushedCommits(actualWorkingDir);
-                if (hasUnpushedCommits) {
-                  shouldPush = true;
-                }
-              }
-
-              // Attempt push if there are commits to push
-              if (shouldPush) {
-                const pushResult = (await gitService.push(actualWorkingDir)).status;
-
-                if (pushResult === 'success') {
-                  commitInfo = ' · Pushed ✓';
-                } else if (pushResult === 'no_remote') {
-                  needsRemoteSetup = true;
-                }
-              }
-            } catch (error) {
-              logger.error('Auto-commit/push failed', {
-                taskId: task.id,
-                error: getErrorMessage(error)
-              });
-            }
-          }
-
-          // Combine outputs for final display
-          let fullOutput = '';
-          if (output) {
-            fullOutput += output;
-          }
-          if (errorOutput) {
-            fullOutput += (fullOutput ? '\n\n---STDERR---\n' : '') + errorOutput;
-          }
-          if (!fullOutput.trim()) {
-            fullOutput = 'No output captured';
-          }
-
-          // Get repository info for quick access
-          const currentRepo = this.repositoryManager.getCurrentRepository(userId);
-          const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
-
-          // Build clean stats line
-          const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          const providerName = getProviderLabel(aiProvider?.provider);
-          let statsLine = formatDuration(executionTime);
-          if (streamingTask.costUsd && streamingTask.costUsd > 0) {
-            statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
-          }
-          statsLine += ` · ${providerName}`;
-
-          // Get commits made during task execution
-          let commitsInfo = '';
-          if (actualWorkingDir && currentRepo?.gitUrl) {
-            const commits = await this.executor.getTaskCommits(task.id, actualWorkingDir);
-            if (commits.length > 0) {
-              const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
-              if (webUrl) {
-                // Show commits with messages
-                commitsInfo = '\n';
-                for (const c of commits.slice(0, 3)) {
-                  const shortHash = c.hash.substring(0, 7);
-                  const shortMsg = c.message.length > 45 ? c.message.substring(0, 42) + '...' : c.message;
-                  commitsInfo += `› [\`${shortHash}\`](${webUrl}/commit/${c.hash}) ${shortMsg}\n`;
-                }
-                if (commits.length > 3) {
-                  commitsInfo += `_+${commits.length - 3} more_\n`;
-                }
-              }
-            }
-            // Clean up task head tracking
-            this.executor.cleanupTaskHead(task.id);
-          }
-
-          // Get final answer from streaming events (if available)
-          const completedEvent = streamingTask.events?.find(e => e.type === 'completed');
-          let answerPreview = '';
-          if (completedEvent && completedEvent.type === 'completed' && completedEvent.answer) {
-            const answer = completedEvent.answer;
-            answerPreview = answer.length > 400 ? answer.substring(0, 400) + '...' : answer;
-          }
-
-          // Build clean final message
-          const finalMessage =
-            `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
-            (answerPreview ? `\n${answerPreview}\n` : '') +
-            commitsInfo +
-            repoFooter;
-
-          // Completion buttons
-          const completionButtons = {
-            inline_keyboard: [
-              [
-                { text: '📋 View Log', callback_data: `view_log:${task.id}` }
-              ]
-            ]
-          };
-
-          // Try to update status message, fall back to shorter version if too long
-          try {
-            await this.bot.editMessageText(finalMessage, {
-              chat_id: chatId,
-              message_id: statusMsg.message_id,
-              parse_mode: 'Markdown',
-              reply_markup: completionButtons
-            });
-          } catch {
-            // Message too long - try shorter version without answer preview
-            const shortMessage =
-              `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
-              commitsInfo +
-              repoFooter;
-
-            try {
-              await this.bot.editMessageText(shortMessage, {
-                chat_id: chatId,
-                message_id: statusMsg.message_id,
-                parse_mode: 'Markdown',
-                reply_markup: completionButtons
-              });
-            } catch {
-              // Even shorter - minimal completion message
-              await this.bot.editMessageText(
-                `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}`,
-                {
-                  chat_id: chatId,
-                  message_id: statusMsg.message_id,
-                  parse_mode: 'Markdown',
-                  reply_markup: completionButtons
-                }
-              ).catch(() => {});
-            }
-          }
-
-          // Prompt user to create remote repository if needed
-          if (needsRemoteSetup && actualWorkingDir) {
-            await this.bot.sendMessage(
-              chatId,
-              '📦 *Create GitHub Repository?*\n\n' +
-              'Your changes have been committed locally but no remote repository exists.\n\n' +
-              'Would you like to create a GitHub repository and push your changes?',
-              {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                  inline_keyboard: [
-                    [
-                      { text: '✅ Create Public Repository', callback_data: `create_repo_public_${actualWorkingDir}` },
-                      { text: '🔒 Create Private Repository', callback_data: `create_repo_private_${actualWorkingDir}` }
-                    ],
-                    [
-                      { text: '❌ Skip', callback_data: 'create_repo_skip' }
-                    ]
-                  ]
-                }
-              }
-            );
-          }
-
-          // Log audit entry
-          this.auditLogger.logCommand({
-            userId,
-            username,
-            command: commitMessageContext,
-            taskId: task.id,
-            success: currentTask.status === TaskStatus.COMPLETED,
-            executionTime,
-            error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined,
-            platform: 'telegram'
-          });
-        }
-      }, 2000); // Update every 2 seconds
+      this.monitorTaskLifecycle(
+        task.id,
+        userId,
+        chatId,
+        statusMsg.message_id,
+        actualWorkingDir,
+        aiProvider,
+        startTime,
+        username,
+        commitMessageContext
+      );
 
     } catch (error) {
       const executionTime = Date.now() - startTime;
@@ -348,6 +135,236 @@ export class TaskHandlers extends BaseHandler {
         error: errorMessage
       });
     }
+  }
+
+  private monitorTaskLifecycle(
+    taskId: string,
+    userId: number,
+    chatId: number,
+    messageId: number,
+    workingDir?: string,
+    aiProvider?: { provider?: string },
+    startTime = Date.now(),
+    username?: string,
+    commitMessageContext?: string
+  ): void {
+    let lastUpdateText = '';
+
+    const updateInterval = setInterval(async () => {
+      const currentTask = this.executor.getTask(taskId) as ClaudeTaskWithStreaming | undefined;
+      if (!currentTask) {
+        clearInterval(updateInterval);
+        return;
+      }
+
+      if (currentTask.status === TaskStatus.RUNNING) {
+        const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
+        const providerLabel = getProviderLabel(aiProvider?.provider);
+        const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
+        const controlButtons = {
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: '🛑 Cancel', callback_data: `cancel_task:${taskId}` },
+                { text: '📋 Full Log', callback_data: `view_log:${taskId}` }
+              ]
+            ]
+          }
+        };
+
+        if (newUpdateText !== lastUpdateText) {
+          try {
+            await this.bot.editMessageText(newUpdateText, {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: 'Markdown',
+              ...controlButtons
+            });
+            lastUpdateText = newUpdateText;
+          } catch (error) {
+            logger.debug('Failed to update message', {
+              taskId,
+              error: getErrorMessage(error)
+            });
+          }
+        }
+        return;
+      }
+
+      clearInterval(updateInterval);
+
+      const output = this.executor.getTaskOutput(taskId);
+      const errorOutput = currentTask.errorOutput || '';
+      const statusEmoji = currentTask.status === TaskStatus.COMPLETED ? '✅' : '❌';
+      const statusText = currentTask.status === TaskStatus.COMPLETED ? 'Completed' : 'Failed';
+
+      const executionTime = currentTask.endTime
+        ? Math.round((currentTask.endTime.getTime() - currentTask.startTime.getTime()) / 1000)
+        : 0;
+
+      let commitInfo = '';
+      let needsRemoteSetup = false;
+      if (currentTask.status === TaskStatus.COMPLETED && workingDir) {
+        try {
+          const commitHash = await gitService.autoCommit(workingDir);
+          let shouldPush = false;
+
+          if (commitHash) {
+            shouldPush = true;
+          } else {
+            const hasUnpushedCommits = await gitService.hasUnpushedCommits(workingDir);
+            if (hasUnpushedCommits) {
+              shouldPush = true;
+            }
+          }
+
+          if (shouldPush) {
+            const pushResult = (await gitService.push(workingDir)).status;
+
+            if (pushResult === 'success') {
+              commitInfo = ' · Pushed ✓';
+            } else if (pushResult === 'no_remote') {
+              needsRemoteSetup = true;
+            }
+          }
+        } catch (error) {
+          logger.error('Auto-commit/push failed', {
+            taskId,
+            error: getErrorMessage(error)
+          });
+        }
+      }
+
+      let fullOutput = '';
+      if (output) {
+        fullOutput += output;
+      }
+      if (errorOutput) {
+        fullOutput += (fullOutput ? '\n\n---STDERR---\n' : '') + errorOutput;
+      }
+      if (!fullOutput.trim()) {
+        fullOutput = 'No output captured';
+      }
+
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      const repoFooter = UIHelpers.createRepositoryFooter(currentRepo || null);
+
+      const streamingTask = currentTask as ClaudeTaskWithStreaming;
+      const providerName = getProviderLabel(aiProvider?.provider);
+      let statsLine = formatDuration(executionTime);
+      if (streamingTask.costUsd && streamingTask.costUsd > 0) {
+        statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
+      }
+      statsLine += ` · ${providerName}`;
+
+      let commitsInfo = '';
+      if (workingDir && currentRepo?.gitUrl) {
+        const commits = await this.executor.getTaskCommits(taskId, workingDir);
+        if (commits.length > 0) {
+          const webUrl = UIHelpers.convertGitUrlToWeb(currentRepo.gitUrl);
+          if (webUrl) {
+            commitsInfo = '\n';
+            for (const c of commits.slice(0, 3)) {
+              const shortHash = c.hash.substring(0, 7);
+              const shortMsg = c.message.length > 45 ? c.message.substring(0, 42) + '...' : c.message;
+              commitsInfo += `› [\`${shortHash}\`](${webUrl}/commit/${c.hash}) ${shortMsg}\n`;
+            }
+            if (commits.length > 3) {
+              commitsInfo += `_+${commits.length - 3} more_\n`;
+            }
+          }
+        }
+        this.executor.cleanupTaskHead(taskId);
+      }
+
+      const completedEvent = streamingTask.events?.find(e => e.type === 'completed');
+      let answerPreview = '';
+      if (completedEvent && completedEvent.type === 'completed' && completedEvent.answer) {
+        const answer = completedEvent.answer;
+        answerPreview = answer.length > 400 ? answer.substring(0, 400) + '...' : answer;
+      }
+
+      const finalMessage =
+        `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
+        (answerPreview ? `\n${answerPreview}\n` : '') +
+        commitsInfo +
+        repoFooter;
+
+      const completionButtons = {
+        inline_keyboard: [
+          [
+            { text: '📋 View Log', callback_data: `view_log:${taskId}` }
+          ]
+        ]
+      };
+
+      try {
+        await this.bot.editMessageText(finalMessage, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown',
+          reply_markup: completionButtons
+        });
+      } catch {
+        const shortMessage =
+          `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}\n` +
+          commitsInfo +
+          repoFooter;
+
+        try {
+          await this.bot.editMessageText(shortMessage, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: 'Markdown',
+            reply_markup: completionButtons
+          });
+        } catch {
+          await this.bot.editMessageText(
+            `${statusEmoji} *${statusText}* · ${statsLine}${commitInfo}`,
+            {
+              chat_id: chatId,
+              message_id: messageId,
+              parse_mode: 'Markdown',
+              reply_markup: completionButtons
+            }
+          ).catch(() => {});
+        }
+      }
+
+      if (needsRemoteSetup && workingDir) {
+        await this.bot.sendMessage(
+          chatId,
+          '📦 *Create GitHub Repository?*\n\n' +
+          'Your changes have been committed locally but no remote repository exists.\n\n' +
+          'Would you like to create a GitHub repository and push your changes?',
+          {
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✅ Create Public Repository', callback_data: `create_repo_public_${workingDir}` },
+                  { text: '🔒 Create Private Repository', callback_data: `create_repo_private_${workingDir}` }
+                ],
+                [
+                  { text: '❌ Skip', callback_data: 'create_repo_skip' }
+                ]
+              ]
+            }
+          }
+        );
+      }
+
+      this.auditLogger.logCommand({
+        userId,
+        username,
+        command: commitMessageContext || currentTask.prompt,
+        taskId,
+        success: currentTask.status === TaskStatus.COMPLETED,
+        executionTime,
+        error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined,
+        platform: 'telegram'
+      });
+    }, 2000);
   }
 
   /**
