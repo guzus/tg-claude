@@ -28,6 +28,29 @@ export const commands = [
     .setName('version')
     .setDescription('Show bot version'),
   new SlashCommandBuilder()
+    .setName('ralph')
+    .setDescription('Start a Ralph loop in this channel')
+    .addStringOption(option =>
+      option.setName('task')
+        .setDescription('Task description for the loop')
+        .setRequired(true)
+    )
+    .addIntegerOption(option =>
+      option.setName('max_iterations')
+        .setDescription('Stop after N iterations (max 100)')
+        .setRequired(false)
+    )
+    .addStringOption(option =>
+      option.setName('promise')
+        .setDescription('Completion promise token')
+        .setRequired(false)
+    )
+    .addIntegerOption(option =>
+      option.setName('timeout_minutes')
+        .setDescription('Max duration in minutes (max 120)')
+        .setRequired(false)
+    ),
+  new SlashCommandBuilder()
     .setName('repo')
     .setDescription('Show repository info for this channel')
     .addStringOption(option =>

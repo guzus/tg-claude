@@ -20,6 +20,7 @@ export class DiscordUIHelpers {
           '`/status` - Show active tasks',
           '`/cancel <task_id>` - Cancel a task',
           '`/version` - Show bot version',
+          '`/ralph <task>` - Start a Ralph loop',
           '`/repo [status|remotes|path]` - Repo info for this channel',
           '`/repo_new <name> [visibility]` - Create GitHub repo from this workspace',
           '`/config` - Show channel config',

@@ -6,6 +6,7 @@ import { ConversationManager } from '../../../services/ConversationManager';
 import { UtilityHandlers } from './UtilityHandlers';
 import { TaskHandlers } from './TaskHandlers';
 import { ConfigHandlers } from './ConfigHandlers';
+import { RalphHandlers } from './RalphHandlers';
 import { logger } from '../../../utils/logger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
@@ -19,6 +20,7 @@ export class CommandDispatcher {
   private utilityHandlers: UtilityHandlers;
   private taskHandlers: TaskHandlers;
   private configHandlers: ConfigHandlers;
+  private ralphHandlers: RalphHandlers;
 
   constructor(
     executor: ClaudeExecutor,
@@ -30,6 +32,7 @@ export class CommandDispatcher {
   ) {
     this.utilityHandlers = new UtilityHandlers(executor, rateLimiter, auditLogger, conversationManager);
     this.taskHandlers = new TaskHandlers(executor, rateLimiter, auditLogger, conversationManager);
+    this.ralphHandlers = new RalphHandlers(executor, rateLimiter, auditLogger, userConfigManager);
     if (!repositoryManager || !userConfigManager) {
       throw new Error('RepositoryManager and UserConfigManager are required for Discord config commands.');
     }
@@ -93,6 +96,9 @@ export class CommandDispatcher {
         case 'whoami':
           await this.configHandlers.handleWhoAmI(interaction);
           break;
+        case 'ralph':
+          await this.ralphHandlers.handleRalph(interaction);
+          break;
         default:
           await interaction.reply({
             content: `Unknown command: ${commandName}`,
@@ -124,7 +130,10 @@ export class CommandDispatcher {
     });
 
     try {
-      await this.utilityHandlers.handleButton(interaction);
+      const handledByRalph = await this.ralphHandlers.handleButton(interaction);
+      if (!handledByRalph) {
+        await this.utilityHandlers.handleButton(interaction);
+      }
     } catch (error) {
       logger.error('Error handling Discord button', {
         customId: interaction.customId,
