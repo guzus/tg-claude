@@ -179,4 +179,10 @@ export class BotHandlers {
     // Otherwise treat as task command
     return this.taskHandlers.handlePlainMessage(msg);
   }
+
+  // ==================== Photo Messages ====================
+
+  async handlePhotoMessage(msg: Message): Promise<void> {
+    return this.taskHandlers.handlePhotoMessage(msg);
+  }
 }

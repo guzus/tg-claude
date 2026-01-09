@@ -251,6 +251,25 @@ export interface StreamCompletedEvent {
 
 export type StreamEvent = StreamStartedEvent | StreamActionEvent | StreamCompletedEvent;
 
+// Image content types for multimodal input
+export type ImageMediaType = 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+
+export interface ImageContent {
+  type: 'image';
+  source: {
+    type: 'base64';
+    media_type: ImageMediaType;
+    data: string; // base64 encoded image data
+  };
+}
+
+export interface TextContent {
+  type: 'text';
+  text: string;
+}
+
+export type MessageContent = TextContent | ImageContent;
+
 // Extended ClaudeTask with streaming support
 export interface ClaudeTaskWithStreaming extends ClaudeTask {
   sessionId?: string;
@@ -258,4 +277,5 @@ export interface ClaudeTaskWithStreaming extends ClaudeTask {
   currentAction?: StreamAction;
   costUsd?: number;
   events: StreamEvent[];
+  images?: ImageContent[]; // Optional images attached to the task
 }
