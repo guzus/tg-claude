@@ -1,4 +1,6 @@
 import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 
@@ -57,3 +59,38 @@ export function ensurePluginMarketplace(source: string, cwd?: string): void {
   }
 }
 
+type InstalledPluginIndex = {
+  version?: number;
+  plugins?: Record<string, Array<{
+    scope?: string;
+    installPath?: string;
+    version?: string;
+    installedAt?: string;
+    lastUpdated?: string;
+  }>>;
+};
+
+export function getInstalledPluginPath(pluginSpec: string, homeDir: string = process.env.HOME || ''): string | null {
+  if (!homeDir) return null;
+  const indexPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
+  if (!fs.existsSync(indexPath)) return null;
+
+  try {
+    const raw = fs.readFileSync(indexPath, 'utf-8');
+    const index = JSON.parse(raw) as InstalledPluginIndex;
+    const entries = index.plugins?.[pluginSpec];
+    if (!entries || entries.length === 0) return null;
+
+    const latest = entries[entries.length - 1];
+    const installPath = latest.installPath;
+    if (!installPath || !fs.existsSync(installPath)) return null;
+    return installPath;
+  } catch (error) {
+    logger.warn('Failed to read installed plugins index', {
+      pluginSpec,
+      indexPath,
+      error: getErrorMessage(error)
+    });
+    return null;
+  }
+}

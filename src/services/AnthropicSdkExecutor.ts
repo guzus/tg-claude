@@ -15,8 +15,10 @@ import {
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { gitService } from './GitService';
+import { PLUGIN_PRESETS } from '../presets';
+import { buildRalphLoopPrompt } from '../utils/ralphPrompt';
+import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
@@ -319,12 +321,22 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
         // Build the final prompt - add ralph loop instructions if enabled
         let finalPrompt = task.prompt;
+        const plugins: Array<{ type: 'local'; path: string }> = [];
         if (ralphLoop) {
           finalPrompt = buildRalphLoopPrompt({
             request: task.prompt,
             maxIterations: ralphLoop.maxIterations,
             completionPromise: ralphLoop.completionPromise,
           });
+
+          const preset = PLUGIN_PRESETS['ralph-loop'];
+          const pluginSpec = preset ? `${preset.name}@${preset.registry}` : 'ralph-loop@claude-plugins-official';
+          const pluginPath = getInstalledPluginPath(pluginSpec);
+          if (pluginPath) {
+            plugins.push({ type: 'local', path: pluginPath });
+          } else {
+            logger.warn('Ralph loop plugin path not found for SDK session', { pluginSpec });
+          }
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
@@ -340,7 +352,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
             executable: 'bun',
             // Load local project settings
             settingSources: ['local'],
-            // Add Stop hook for ralph loop if enabled
+            // Add plugins and Stop hook for ralph loop if enabled
+            ...(plugins.length > 0 && { plugins }),
             ...(stopHook && {
               hooks: {
                 Stop: [{ hooks: [stopHook] }],
