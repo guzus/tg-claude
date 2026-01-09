@@ -69,20 +69,12 @@ export class ClaudeExecutor extends EventEmitter {
     }
   }
 
-  async executeTask(
+  private createTask(
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
-  ): Promise<ClaudeTaskWithStreaming> {
-    const {
-      workingDir = WORKSPACE_PATH,
-      dangerMode = true,
-      additionalFlags = [],
-      timeout = config.taskTimeoutMs,
-      aiProvider
-    } = options;
-
+    workingDir: string
+  ): ClaudeTaskWithStreaming {
     const task: ClaudeTaskWithStreaming = {
       id: uuidv4(),
       userId,
@@ -97,7 +89,51 @@ export class ClaudeExecutor extends EventEmitter {
       events: []
     };
 
-    logger.info('Starting task', { taskId: task.id, userId, prompt: prompt.substring(0, 100) });
+    this.taskHistory.set(task.id, task);
+    return task;
+  }
+
+  startTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
+  ): ClaudeTaskWithStreaming {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+
+    void this.runTask(task, options).catch((error) => {
+      logger.error('Task execution failed', { taskId: task.id, error: getErrorMessage(error) });
+    });
+
+    return task;
+  }
+
+  async executeTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
+  ): Promise<ClaudeTaskWithStreaming> {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+    await this.runTask(task, options);
+    return task;
+  }
+
+  private async runTask(
+    task: ClaudeTaskWithStreaming,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig }
+  ): Promise<void> {
+    const {
+      workingDir = task.workingDir,
+      dangerMode = true,
+      additionalFlags = [],
+      timeout = config.taskTimeoutMs,
+      aiProvider
+    } = options;
+
+    logger.info('Starting task', { taskId: task.id, userId: task.userId, prompt: task.prompt.substring(0, 100) });
 
     try {
       await this.authenticateGitHub();
@@ -126,7 +162,7 @@ export class ClaudeExecutor extends EventEmitter {
         ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
         ...additionalFlags,
         '--',  // Separator before prompt
-        prompt
+        task.prompt
       ];
 
       logger.info('Using AI provider', { provider });
@@ -147,7 +183,6 @@ export class ClaudeExecutor extends EventEmitter {
 
       this.activeTasks.set(task.id, claudeProcess);
       task.status = TaskStatus.RUNNING;
-      this.taskHistory.set(task.id, task);
 
       // Create streaming parser for this task
       const parser = new StreamingOutputParser();
@@ -155,7 +190,7 @@ export class ClaudeExecutor extends EventEmitter {
 
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
-      logStream.write(`Prompt: ${prompt}\nWorkingDir: ${workingDir}\n\n`);
+      logStream.write(`Prompt: ${task.prompt}\nWorkingDir: ${workingDir}\n\n`);
 
       let timeoutHandle: NodeJS.Timeout | null = null;
 
@@ -269,7 +304,6 @@ export class ClaudeExecutor extends EventEmitter {
         this.emit('taskError', task.id, error);
       });
 
-      return task;
     } catch (error) {
       task.status = TaskStatus.FAILED;
       task.errorOutput = getErrorMessage(error);

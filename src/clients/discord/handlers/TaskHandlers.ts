@@ -88,7 +88,7 @@ export class TaskHandlers extends BaseHandler {
       });
 
       // Execute task
-      const task = await this.executor.executeTask(
+      const task = this.executor.startTask(
         safeUserId,
         safeChannelId,
         prompt,

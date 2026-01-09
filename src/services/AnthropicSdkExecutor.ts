@@ -182,26 +182,12 @@ export class AnthropicSdkExecutor extends EventEmitter {
     }
   }
 
-  async executeTask(
+  private createTask(
     userId: number,
     chatId: number,
     prompt: string,
-    options: {
-      workingDir?: string;
-      dangerMode?: boolean;
-      additionalFlags?: string[];
-      timeout?: number;
-      aiProvider?: AIProviderConfig;
-      ralphLoop?: { completionPromise: string; maxIterations: number };
-    } = {}
-  ): Promise<ClaudeTaskWithStreaming> {
-    const {
-      workingDir = WORKSPACE_PATH,
-      timeout = config.taskTimeoutMs,
-      aiProvider,
-      ralphLoop,
-    } = options;
-
+    workingDir: string
+  ): ClaudeTaskWithStreaming {
     const task: ClaudeTaskWithStreaming = {
       id: uuidv4(),
       userId,
@@ -216,7 +202,71 @@ export class AnthropicSdkExecutor extends EventEmitter {
       events: [],
     };
 
-    logger.info('Starting Agent SDK task', { taskId: task.id, userId, prompt: prompt.substring(0, 100) });
+    this.taskHistory.set(task.id, task);
+    return task;
+  }
+
+  startTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: {
+      workingDir?: string;
+      dangerMode?: boolean;
+      additionalFlags?: string[];
+      timeout?: number;
+      aiProvider?: AIProviderConfig;
+      ralphLoop?: { completionPromise: string; maxIterations: number };
+    } = {}
+  ): ClaudeTaskWithStreaming {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+
+    void this.runTask(task, options).catch((error) => {
+      logger.error('Agent SDK task failed', { taskId: task.id, error: getErrorMessage(error) });
+    });
+
+    return task;
+  }
+
+  async executeTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: {
+      workingDir?: string;
+      dangerMode?: boolean;
+      additionalFlags?: string[];
+      timeout?: number;
+      aiProvider?: AIProviderConfig;
+      ralphLoop?: { completionPromise: string; maxIterations: number };
+    } = {}
+  ): Promise<ClaudeTaskWithStreaming> {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+    await this.runTask(task, options);
+    return task;
+  }
+
+  private async runTask(
+    task: ClaudeTaskWithStreaming,
+    options: {
+      workingDir?: string;
+      dangerMode?: boolean;
+      additionalFlags?: string[];
+      timeout?: number;
+      aiProvider?: AIProviderConfig;
+      ralphLoop?: { completionPromise: string; maxIterations: number };
+    }
+  ): Promise<void> {
+    const {
+      workingDir = task.workingDir,
+      timeout = config.taskTimeoutMs,
+      aiProvider,
+      ralphLoop,
+    } = options;
+
+    logger.info('Starting Agent SDK task', { taskId: task.id, userId: task.userId, prompt: task.prompt.substring(0, 100) });
 
     try {
       if (!fs.existsSync(workingDir)) {
@@ -235,11 +285,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
       task.status = TaskStatus.RUNNING;
-      this.taskHistory.set(task.id, task);
 
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
-      logStream.write(`Prompt: ${prompt}\nWorkingDir: ${workingDir}\nModel: ${model}\n\n`);
+      logStream.write(`Prompt: ${task.prompt}\nWorkingDir: ${workingDir}\nModel: ${model}\n\n`);
 
       // Emit started event
       const sessionId = task.id;
@@ -297,7 +346,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         } : undefined;
 
         // Build the final prompt - add ralph loop instructions if enabled
-        let finalPrompt = prompt;
+        let finalPrompt = task.prompt;
         if (ralphLoop) {
           finalPrompt = `You are in autonomous loop mode. Keep working on the task until you complete it.
 
@@ -308,7 +357,7 @@ IMPORTANT INSTRUCTIONS:
 4. Maximum iterations: ${ralphLoop.maxIterations}
 
 TASK:
-${prompt}`;
+${task.prompt}`;
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
@@ -447,7 +496,6 @@ ${prompt}`;
         costUsd: task.costUsd,
       });
 
-      return task;
     } catch (error) {
       task.status = TaskStatus.FAILED;
       task.errorOutput = getErrorMessage(error);

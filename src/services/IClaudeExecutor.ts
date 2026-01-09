@@ -22,6 +22,12 @@ export interface IClaudeExecutor {
     prompt: string,
     options?: ExecutorOptions
   ): Promise<ClaudeTaskWithStreaming>;
+  startTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options?: ExecutorOptions
+  ): ClaudeTaskWithStreaming;
 
   // Task queries
   getTask(taskId: string): ClaudeTaskWithStreaming | undefined;

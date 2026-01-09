@@ -74,7 +74,7 @@ export class TaskHandlers extends BaseHandler {
       const aiProvider = userConfig?.aiProvider;
 
       // Execute task
-      const task = await this.executor.executeTask(userId, chatId, prompt, {
+      const task = this.executor.startTask(userId, chatId, prompt, {
         workingDir: actualWorkingDir,
         timeout: userTimeout,
         aiProvider

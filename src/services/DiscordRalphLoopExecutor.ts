@@ -216,7 +216,7 @@ export class DiscordRalphLoopExecutor {
       if (statusMessage) state.message = statusMessage;
 
       const prompt = this.buildRalphPrompt(state);
-      const task = await this.executor.executeTask(
+      const task = this.executor.startTask(
         state.userId,
         state.chatKey,
         prompt,

@@ -296,7 +296,7 @@ export class RalphLoopExecutor {
 
       // Execute Claude task with ralph loop mode enabled
       // The executor handles iterations via Stop hooks (SDK) or plugin (CLI)
-      const task = await this.executor.executeTask(
+      const task = this.executor.startTask(
         state.userId,
         state.chatId,
         prompt,
