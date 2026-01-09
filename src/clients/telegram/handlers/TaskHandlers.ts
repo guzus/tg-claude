@@ -57,7 +57,13 @@ export class TaskHandlers extends BaseHandler {
         `⏳ Starting...`,
         {
           parse_mode: 'Markdown',
-          reply_to_message_id: msg.message_id
+          reply_to_message_id: msg.message_id,
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🛑 Cancel', callback_data: 'cancel_pending' },
+              { text: '📋 Full Log', callback_data: 'log_pending' }
+            ]]
+          }
         }
       );
 
