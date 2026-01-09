@@ -381,6 +381,11 @@ bot.on('message', (msg) => {
   handlers.handlePlainMessage(msg);
 });
 
+// Handle photo messages (image input for Claude)
+bot.on('photo', (msg) => {
+  handlers.handlePhotoMessage(msg);
+});
+
 // Handle polling errors
 bot.on('polling_error', (error) => {
   logger.error('Telegram polling error', {

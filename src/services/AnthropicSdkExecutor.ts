@@ -13,6 +13,7 @@ import {
   ClaudeTaskWithStreaming,
   McpConfig,
   McpServer,
+  ImageContent,
 } from '../types';
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
@@ -38,6 +39,7 @@ type TaskRunOptions = {
   mcpServers?: Record<string, McpServer>;
   resumeSessionId?: string;
   promptOverride?: string;
+  images?: ImageContent[];
 };
 
 // Type guards for SDK message types
@@ -212,6 +214,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       events: [],
       sessionId: overrides.sessionId,
       messageId: overrides.messageId,
+      images: overrides.images,
     };
 
     this.taskHistory.set(task.id, task);
@@ -318,7 +321,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir);
+    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     void this.runTask(task, options).catch((error) => {
@@ -335,7 +338,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir);
+    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
     await this.runTask(task, options);
     return task;
@@ -353,6 +356,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       mcpServers: mcpServersOverride,
       resumeSessionId,
       promptOverride,
+      images,
     } = options;
     const effectivePrompt = promptOverride || task.prompt;
 
@@ -466,9 +470,42 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
         const mcpServers = mcpServersOverride || await this.readMcpServers(workingDir);
 
+        // Build prompt - use async generator for images, string otherwise
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        let promptInput: string | AsyncIterable<any> = finalPrompt;
+
+        if (images && images.length > 0) {
+          // Build content array with text and images
+          const contentBlocks: Array<{ type: string; text?: string; source?: ImageContent['source'] }> = [
+            { type: 'text', text: finalPrompt }
+          ];
+
+          // Add images to content
+          for (const img of images) {
+            contentBlocks.push({
+              type: 'image',
+              source: img.source
+            });
+          }
+
+          // Create async generator for SDK
+          const generateUserMessage = async function* () {
+            yield {
+              type: 'user' as const,
+              message: {
+                role: 'user' as const,
+                content: contentBlocks
+              }
+            };
+          };
+
+          promptInput = generateUserMessage();
+          logger.info('Task includes images', { taskId: task.id, imageCount: images.length });
+        }
+
         // Use the v1 query API which supports cwd and bypassPermissions
         const q = query({
-          prompt: finalPrompt,
+          prompt: promptInput,
           options: {
             model,
             cwd: workingDir,

@@ -1,6 +1,6 @@
-import TelegramBot, { Message } from 'node-telegram-bot-api';
+import TelegramBot, { Message, PhotoSize } from 'node-telegram-bot-api';
 import { BaseHandler } from './BaseHandler';
-import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
+import { TaskStatus, ClaudeTaskWithStreaming, ImageContent, ImageMediaType } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { ClaudeExecutorInstance } from '../../../services/IClaudeExecutor';
@@ -13,6 +13,8 @@ import { gitService } from '../../../services/GitService';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
+import * as https from 'https';
+import * as http from 'http';
 
 /**
  * Handlers for task execution commands
@@ -49,13 +51,83 @@ export class TaskHandlers extends BaseHandler {
   }
 
   /**
+   * Download image from URL and return as base64
+   */
+  private async downloadImageAsBase64(url: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const protocol = url.startsWith('https') ? https : http;
+      protocol.get(url, (res) => {
+        if (res.statusCode !== 200) {
+          reject(new Error(`Failed to download image: HTTP ${res.statusCode}`));
+          return;
+        }
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+        res.on('error', reject);
+      }).on('error', reject);
+    });
+  }
+
+  /**
+   * Get the best quality photo from Telegram's photo array
+   */
+  private getBestPhoto(photos: PhotoSize[]): PhotoSize {
+    // Telegram sends multiple sizes, get the largest one (last in array)
+    return photos.reduce((best, photo) =>
+      (photo.file_size || 0) > (best.file_size || 0) ? photo : best
+    );
+  }
+
+  /**
+   * Get mime type from file path
+   */
+  private getMimeType(filePath: string): ImageMediaType {
+    const ext = filePath.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'png': return 'image/png';
+      case 'gif': return 'image/gif';
+      case 'webp': return 'image/webp';
+      default: return 'image/jpeg';
+    }
+  }
+
+  /**
+   * Convert Telegram photo to ImageContent
+   */
+  async convertPhotoToImageContent(photo: PhotoSize): Promise<ImageContent> {
+    // Get file info from Telegram
+    const file = await this.bot.getFile(photo.file_id);
+    if (!file.file_path) {
+      throw new Error('Could not get file path from Telegram');
+    }
+
+    // Build download URL
+    const fileUrl = `https://api.telegram.org/file/bot${(this.bot as unknown as { token: string }).token}/${file.file_path}`;
+
+    // Download and convert to base64
+    const base64Data = await this.downloadImageAsBase64(fileUrl);
+    const mediaType = this.getMimeType(file.file_path);
+
+    return {
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: mediaType,
+        data: base64Data
+      }
+    };
+  }
+
+  /**
    * Execute a Claude task and stream output
    */
   async executeAndStream(
     msg: Message,
     prompt: string,
     workingDir?: string,
-    originalUserRequest?: string
+    originalUserRequest?: string,
+    images?: ImageContent[]
   ): Promise<void> {
     const userId = msg.from!.id;
     const chatId = msg.chat.id;
@@ -95,7 +167,8 @@ export class TaskHandlers extends BaseHandler {
       const task = this.executor.startTask(userId, chatId, prompt, {
         workingDir: actualWorkingDir,
         timeout: userTimeout,
-        aiProvider
+        aiProvider,
+        images
       });
 
       task.messageId = statusMsg.message_id;
@@ -456,6 +529,75 @@ Always commit and push your changes after completing the task unless explicitly 
 
     // Execute task with user's prompt
     await this.executeAndStream(msg, userMessage);
+  }
+
+  /**
+   * Handle photo messages with optional caption
+   */
+  async handlePhotoMessage(msg: Message): Promise<void> {
+    if (!(await this.checkAccess(msg))) return;
+
+    const chatId = msg.chat.id;
+    const userId = msg.from!.id;
+    const caption = msg.caption || 'Analyze this image';
+
+    // Ensure we have photos
+    if (!msg.photo || msg.photo.length === 0) {
+      await this.bot.sendMessage(chatId, '❌ No image found in message');
+      return;
+    }
+
+    // Get current repository
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+
+    if (!currentRepo) {
+      await this.bot.sendMessage(
+        chatId,
+        '📁 *No repository selected*\n\n' +
+        'Please set up a repository first:\n' +
+        '• /repo clone <url> - Clone a repository\n' +
+        '• /repo new <name> - Create new repository\n' +
+        '• /repo add <path> - Add existing repository\n' +
+        '• /scan - Scan for already-synced repositories',
+        {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: '📁 Setup Repository', callback_data: 'repo_menu' }],
+              [{ text: '📋 List Repositories', callback_data: 'repo_list' }]
+            ]
+          }
+        }
+      );
+      return;
+    }
+
+    try {
+      // Get the best quality photo
+      const bestPhoto = this.getBestPhoto(msg.photo);
+
+      // Send processing message
+      const processingMsg = await this.bot.sendMessage(chatId, '🖼️ Processing image...', {
+        reply_to_message_id: msg.message_id
+      });
+
+      // Convert photo to ImageContent
+      const imageContent = await this.convertPhotoToImageContent(bestPhoto);
+
+      // Delete processing message
+      await this.bot.deleteMessage(chatId, processingMsg.message_id).catch(() => {});
+
+      // Add user message to conversation history (caption only, not image)
+      this.conversationManager?.addUserMessage(userId, `[Image] ${caption}`, currentRepo.id);
+
+      // Execute task with image
+      await this.executeAndStream(msg, caption, undefined, caption, [imageContent]);
+
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      logger.error('Failed to process image', { userId, error: errorMessage });
+      await this.bot.sendMessage(chatId, `❌ Failed to process image: ${errorMessage}`);
+    }
   }
 
   /**

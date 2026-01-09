@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming, McpServer } from '../types';
+import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming, McpServer, ImageContent } from '../types';
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
@@ -97,10 +97,15 @@ export class ClaudeExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer>; images?: ImageContent[] } = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
+
+    // CLI mode doesn't support images - log warning if images were provided
+    if (options.images && options.images.length > 0) {
+      logger.warn('CLI executor does not support image inputs. Use SDK executor (EXECUTOR_TYPE=sdk) for image support.', { taskId: task.id });
+    }
 
     void this.runTask(task, options).catch((error) => {
       logger.error('Task execution failed', { taskId: task.id, error: getErrorMessage(error) });
@@ -113,7 +118,7 @@ export class ClaudeExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer>; images?: ImageContent[] } = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
