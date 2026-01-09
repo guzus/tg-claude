@@ -173,12 +173,8 @@ export class DiscordRalphLoopExecutor {
         timeout: 60000,
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      if (this.isPluginInstalled(workingDir, preset.name)) {
-        logger.info('Ralph Wiggum plugin ready', { workingDir, pluginSpec });
-        return { ok: true };
-      }
-      const error = 'Ralph plugin install reported success but plugin not listed';
-      return { ok: false, error, pluginSpec };
+      logger.info('Ralph Wiggum plugin ready', { workingDir, pluginSpec });
+      return { ok: true };
     } catch (error) {
       const errMsg = getErrorMessage(error);
       logger.warn('Plugin install returned non-zero', {
@@ -195,32 +191,14 @@ export class DiscordRalphLoopExecutor {
             timeout: 60000,
             stdio: ['pipe', 'pipe', 'pipe']
           });
-          if (this.isPluginInstalled(workingDir, preset.name)) {
-            logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
-            return { ok: true };
-          }
-          const error = 'Ralph plugin install reported success but plugin not listed';
-          return { ok: false, error, pluginSpec };
+          logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
+          return { ok: true };
         } catch (retryError) {
           const retryMsg = getErrorMessage(retryError);
           return { ok: false, error: retryMsg, pluginSpec };
         }
       }
       return { ok: false, error: errMsg, pluginSpec };
-    }
-  }
-
-  private isPluginInstalled(workingDir: string, pluginName: string): boolean {
-    try {
-      const output = execSync('claude plugin list', {
-        cwd: workingDir,
-        encoding: 'utf-8',
-        timeout: 10000,
-        stdio: ['pipe', 'pipe', 'pipe']
-      });
-      return output.includes(pluginName);
-    } catch {
-      return false;
     }
   }
 
