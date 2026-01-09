@@ -341,7 +341,7 @@ ${prompt}`;
             break;
           }
 
-          logStream.write(`\n--- Message: ${msg.type} ---\n${JSON.stringify(msg, null, 2)}\n`);
+          logStream.write(JSON.stringify(msg) + '\n');
 
           if (isSystemMessage(msg)) {
             // System init message - log available tools
