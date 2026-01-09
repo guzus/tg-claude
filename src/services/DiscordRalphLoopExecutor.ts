@@ -12,6 +12,7 @@ import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
 import { gitService } from './GitService';
 import { getProviderLabel } from '../utils/providers';
+import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 export enum DiscordRalphLoopStatus {
   RUNNING = 'running',
@@ -279,19 +280,12 @@ export class DiscordRalphLoopExecutor {
   }
 
   private buildRalphPrompt(state: DiscordRalphLoopState, repository: Repository | null): string {
-    const repoContext = repository
-      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-      : '';
-
-    const taskPrompt = `${repoContext}${state.originalRequest}
-
-ITERATION TRACKING: At the START of each iteration, output: [RALPH_LOOP_ITERATION]
-
-When COMPLETELY done and verified, output: <promise>${state.config.completionPromise}</promise>`;
-
-    const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-
-    return `/ralph-loop:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
+    return buildRalphLoopPrompt({
+      request: state.originalRequest,
+      completionPromise: state.config.completionPromise,
+      maxIterations: state.config.maxIterations,
+      repository
+    });
   }
 
   private async monitorTask(state: DiscordRalphLoopState, taskId: string): Promise<void> {

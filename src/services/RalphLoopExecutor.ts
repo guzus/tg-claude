@@ -12,6 +12,7 @@ import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
 import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
+import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -333,22 +334,12 @@ export class RalphLoopExecutor {
    * Build the Ralph loop command using the plugin's /ralph-loop format
    */
   private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    // Build the task prompt with clear completion criteria
-    const repoContext = repository
-      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-      : '';
-
-    const taskPrompt = `${repoContext}${state.originalRequest}
-
-ITERATION TRACKING: At the START of each iteration, output: [RALPH_LOOP_ITERATION]
-
-When COMPLETELY done and verified, output: <promise>${state.config.completionPromise}</promise>`;
-
-    // Escape the prompt for shell (double quotes inside the command)
-    const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-
-    // Use the plugin's /ralph-loop command format
-    return `/ralph-loop:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
+    return buildRalphLoopPrompt({
+      request: state.originalRequest,
+      completionPromise: state.config.completionPromise,
+      maxIterations: state.config.maxIterations,
+      repository
+    });
   }
 
   /**
