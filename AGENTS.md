@@ -12,7 +12,7 @@
 2. Fix the code
 3. Commit
 4. Push
-5. Deploy: `gh workflow run deploy.yml --ref "$(git rev-parse --abbrev-ref HEAD)" && gh run watch`
+5. Deploy: `gh workflow run deploy.yml --ref "$(git rev-parse --abbrev-ref HEAD)"`
 
 ## What to Record When Debugging
 - Problem statement (one sentence)
