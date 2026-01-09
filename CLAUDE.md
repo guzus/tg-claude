@@ -35,4 +35,4 @@
 11. Claude Agent SDK:
     - Reference: https://github.com/anthropics/claude-agent-sdk-demos
     - Use this as good practice when working with the Agent SDK
-
+    - TypeScript docs: https://platform.claude.com/docs/en/agent-sdk/typescript

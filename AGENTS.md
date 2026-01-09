@@ -26,3 +26,4 @@
 
 ## References
 - Claude Agent SDK: https://github.com/anthropics/claude-agent-sdk-demos
+- Claude Agent SDK (TypeScript): https://platform.claude.com/docs/en/agent-sdk/typescript

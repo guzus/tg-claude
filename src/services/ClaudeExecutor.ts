@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming, McpServer } from '../types';
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
@@ -97,7 +97,7 @@ export class ClaudeExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
@@ -113,7 +113,7 @@ export class ClaudeExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir);
@@ -123,7 +123,7 @@ export class ClaudeExecutor extends EventEmitter {
 
   private async runTask(
     task: ClaudeTaskWithStreaming,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig }
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> }
   ): Promise<void> {
     const {
       workingDir = task.workingDir,

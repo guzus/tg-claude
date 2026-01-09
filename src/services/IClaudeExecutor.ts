@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { ClaudeTaskWithStreaming, AIProviderConfig, StreamAction, StreamEvent } from '../types';
+import { ClaudeTaskWithStreaming, AIProviderConfig, StreamAction, StreamEvent, McpServer } from '../types';
 
 export interface ExecutorOptions {
   workingDir?: string;
@@ -8,6 +8,7 @@ export interface ExecutorOptions {
   timeout?: number;
   aiProvider?: AIProviderConfig;
   ralphLoop?: { completionPromise: string; maxIterations: number };
+  mcpServers?: Record<string, McpServer>;
 }
 
 /**

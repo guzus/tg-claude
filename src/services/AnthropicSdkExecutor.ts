@@ -11,6 +11,8 @@ import {
   StreamEvent,
   StreamAction,
   ClaudeTaskWithStreaming,
+  McpConfig,
+  McpServer,
 } from '../types';
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
@@ -156,6 +158,18 @@ export class AnthropicSdkExecutor extends EventEmitter {
     }
   }
 
+  private async readMcpServers(repoPath: string): Promise<Record<string, McpServer> | undefined> {
+    const mcpPath = path.join(repoPath, '.mcp.json');
+    try {
+      const raw = await fs.promises.readFile(mcpPath, 'utf-8');
+      const config = JSON.parse(raw) as McpConfig;
+      if (!config?.mcpServers || Object.keys(config.mcpServers).length === 0) return undefined;
+      return config.mcpServers;
+    } catch {
+      return undefined;
+    }
+  }
+
   private createTask(
     userId: number,
     chatId: number,
@@ -191,6 +205,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       timeout?: number;
       aiProvider?: AIProviderConfig;
       ralphLoop?: { completionPromise: string; maxIterations: number };
+      mcpServers?: Record<string, McpServer>;
     } = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
@@ -231,6 +246,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       timeout?: number;
       aiProvider?: AIProviderConfig;
       ralphLoop?: { completionPromise: string; maxIterations: number };
+      mcpServers?: Record<string, McpServer>;
     }
   ): Promise<void> {
     const {
@@ -238,6 +254,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       timeout = config.taskTimeoutMs,
       aiProvider,
       ralphLoop,
+      mcpServers: mcpServersOverride,
     } = options;
 
     logger.info('Starting Agent SDK task', { taskId: task.id, userId: task.userId, prompt: task.prompt.substring(0, 100) });
@@ -339,6 +356,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
           }
         }
 
+        const mcpServers = mcpServersOverride || await this.readMcpServers(workingDir);
+
         // Use the v1 query API which supports cwd and bypassPermissions
         const q = query({
           prompt: finalPrompt,
@@ -352,6 +371,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
             executable: 'bun',
             // Load local project settings
             settingSources: ['local'],
+            ...(mcpServers && { mcpServers }),
             // Add plugins and Stop hook for ralph loop if enabled
             ...(plugins.length > 0 && { plugins }),
             ...(stopHook && {
