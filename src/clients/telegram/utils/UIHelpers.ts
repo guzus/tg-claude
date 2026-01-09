@@ -1,6 +1,8 @@
 import { InlineKeyboardMarkup, InlineKeyboardButton } from 'node-telegram-bot-api';
 import { Repository, StreamAction, ClaudeTaskWithStreaming, McpServer } from '../../../types';
 import { formatDuration } from '../../../utils/time';
+import { InstalledPluginEntry } from '../../../services/ClaudePluginMarketplace';
+import { PluginPreset } from '../../../presets';
 
 export class UIHelpers {
   /**
@@ -369,6 +371,71 @@ export class UIHelpers {
     return {
       inline_keyboard: [
         [{ text: '➕ Add Preset', callback_data: 'mcp_presets' }]
+      ]
+    };
+  }
+
+  /**
+   * Creates plugin list keyboard with remove buttons
+   */
+  static createPluginListKeyboard(
+    plugins: InstalledPluginEntry[],
+    showPresets: boolean = true
+  ): InlineKeyboardMarkup {
+    const buttons: InlineKeyboardButton[][] = [];
+
+    // List current plugins with remove buttons
+    for (const plugin of plugins) {
+      const shortId = plugin.id.length > 20 ? plugin.id.substring(0, 17) + '...' : plugin.id;
+      buttons.push([
+        { text: `🔌 ${shortId}`, callback_data: `plugin_info_${plugin.id}` },
+        { text: '×', callback_data: `plugin_remove_${plugin.id}` }
+      ]);
+    }
+
+    // Action row
+    if (showPresets) {
+      buttons.push([
+        { text: '➕ Add Preset', callback_data: 'plugin_presets' }
+      ]);
+    }
+
+    return { inline_keyboard: buttons };
+  }
+
+  /**
+   * Creates plugin presets selection keyboard
+   */
+  static createPluginPresetsKeyboard(
+    presets: Record<string, PluginPreset>,
+    installedPluginIds: string[] = []
+  ): InlineKeyboardMarkup {
+    const buttons: InlineKeyboardButton[][] = [];
+
+    for (const [key, preset] of Object.entries(presets)) {
+      const isInstalled = installedPluginIds.includes(preset.name);
+      const icon = isInstalled ? '✓' : '○';
+      const defaultTag = preset.isDefault ? ' ★' : '';
+      const shortDesc = preset.description.length > 20 ? preset.description.substring(0, 17) + '...' : preset.description;
+
+      buttons.push([{
+        text: `${icon} ${preset.name}${defaultTag} - ${shortDesc}`,
+        callback_data: isInstalled ? `plugin_info_${preset.name}` : `plugin_add_${key}`
+      }]);
+    }
+
+    buttons.push([{ text: '← Back', callback_data: 'plugin_list' }]);
+
+    return { inline_keyboard: buttons };
+  }
+
+  /**
+   * Creates plugin empty state keyboard
+   */
+  static createPluginEmptyKeyboard(): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [{ text: '➕ Add Preset', callback_data: 'plugin_presets' }]
       ]
     };
   }

@@ -997,27 +997,37 @@ export class ConfigHandlers extends BaseHandler {
   }
 
   private async showPluginHelp(chatId: number): Promise<void> {
-    const presetNames = Object.keys(PLUGIN_PRESETS).join(', ');
-    const defaultPlugins = Object.entries(PLUGIN_PRESETS)
-      .filter(([, p]) => p.isDefault)
-      .map(([name]) => name)
-      .join(', ');
+    const plugins = listInstalledPlugins()
+      .filter(plugin => !!plugin.id)
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    if (plugins.length === 0) {
+      const message =
+        `🔌 *Claude Plugins*\n\n` +
+        `No plugins installed.\n\n` +
+        `_Add a preset to get started:_`;
+
+      await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: UIHelpers.createPluginPresetsKeyboard(PLUGIN_PRESETS)
+      });
+      return;
+    }
+
+    // Build plugin list
+    const pluginLines = plugins.map(plugin => {
+      const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+      return `• \`${plugin.id}\`${scopeLabel}`;
+    });
 
     const message =
-      `🔌 *Claude Plugins*\n\n` +
-      `*Commands:*\n` +
-      `/plugin install <name>@<registry> - Install plugin\n` +
-      `/plugin list - Show installed plugins\n` +
-      `/plugin preset <name> - Install from presets\n` +
-      `/plugin presets - Show available presets\n` +
-      `/plugin remove <name> - Remove plugin\n\n` +
-      `*Available presets:* ${presetNames}\n` +
-      `*Auto-installed:* ${defaultPlugins || 'none'}\n\n` +
-      `*Examples:*\n` +
-      `\`/plugin preset ralph-loop\`\n` +
-      `\`/plugin install my-plugin@my-registry\``;
+      `🔌 *Claude Plugins* (${plugins.length})\n\n` +
+      pluginLines.join('\n');
 
-    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: UIHelpers.createPluginListKeyboard(plugins)
+    });
   }
 
   private async showPluginPresets(msg: Message): Promise<void> {
