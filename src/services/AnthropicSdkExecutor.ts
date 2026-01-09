@@ -191,10 +191,17 @@ export class AnthropicSdkExecutor extends EventEmitter {
     const apiKeyValue = apiKey || process.env.ANTHROPIC_API_KEY;
 
     if (authToken) {
-      // Use authToken for OAuth (Claude subscription)
+      // Warn if both are set - ANTHROPIC_API_KEY will cause billing conflicts
+      if (apiKeyValue) {
+        logger.warn(
+          'Both CLAUDE_CODE_OAUTH_TOKEN and ANTHROPIC_API_KEY are set. ' +
+          'Using OAuth token. Unset ANTHROPIC_API_KEY to avoid billing conflicts.'
+        );
+      }
+      // Use authToken for OAuth (Claude subscription billing)
       this.client = new Anthropic({ authToken });
     } else if (apiKeyValue) {
-      // Use apiKey for direct API access
+      // Use apiKey for direct API access (API key billing)
       this.client = new Anthropic({ apiKey: apiKeyValue });
     } else {
       // Default - will fail if no auth configured

@@ -106,7 +106,15 @@ Set via `EXECUTOR_TYPE` environment variable:
 - `EXECUTOR_TYPE=sdk` - Anthropic SDK (default)
 - `EXECUTOR_TYPE=cli` - Claude Code CLI
 
-> **Note for CLI mode in Docker**: If using `EXECUTOR_TYPE=cli` with OAuth token, you may need to create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
+### Authentication
+
+**For SDK mode**, set ONE of:
+- `CLAUDE_CODE_OAUTH_TOKEN` - Uses your Claude subscription (run `claude setup-token` to get it)
+- `ANTHROPIC_API_KEY` - Uses API key billing from [Anthropic Console](https://console.anthropic.com/)
+
+> **Important**: Do NOT set both. If `ANTHROPIC_API_KEY` is set alongside OAuth token, it may cause billing conflicts.
+
+**For CLI mode in Docker**: Create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
 
 ### SDK Executor Tools
 
