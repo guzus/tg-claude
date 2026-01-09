@@ -32,18 +32,19 @@ jobs:
             IMAGE_TAG="${GITHUB_SHA::7}"
           fi
           echo "IMAGE_TAG=$IMAGE_TAG" >> "$GITHUB_ENV"
+          mkdir -p /var/lib/buildx-cache
           docker buildx build \
             --load \
             -t "${IMAGE_NAME}:${IMAGE_TAG}" \
             --build-arg COMMIT_HASH="${GITHUB_SHA}" \
-            --cache-from type=local,src=/tmp/.buildx-cache \
-            --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+            --cache-from type=local,src=/var/lib/buildx-cache \
+            --cache-to type=local,dest=/var/lib/buildx-cache-new,mode=max \
             .
 
       - name: Move cache
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          rm -rf /var/lib/buildx-cache
+          mv /var/lib/buildx-cache-new /var/lib/buildx-cache
 
       - name: Sync docker-compose.yml to deploy path
         run: |

@@ -39,6 +39,9 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=match,pattern=v(.*),group=1
 
+      - name: Prepare build cache directory
+        run: mkdir -p /var/lib/buildx-cache
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -47,13 +50,14 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           build-args: |
             COMMIT_HASH=${{ github.sha }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          cache-from: type=local,src=/var/lib/buildx-cache
+          cache-to: type=local,dest=/var/lib/buildx-cache-new,mode=max
 
       - name: Move cache
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          mkdir -p /var/lib/buildx-cache
+          rm -rf /var/lib/buildx-cache
+          mv /var/lib/buildx-cache-new /var/lib/buildx-cache
 
   deploy:
     runs-on: self-hosted
