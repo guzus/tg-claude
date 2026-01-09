@@ -7,6 +7,7 @@ export interface ExecutorOptions {
   additionalFlags?: string[];
   timeout?: number;
   aiProvider?: AIProviderConfig;
+  ralphLoop?: { completionPromise: string; maxIterations: number };
 }
 
 /**

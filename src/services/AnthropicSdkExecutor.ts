@@ -1,4 +1,4 @@
-import { query, SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { query, SDKMessage, HookCallback } from '@anthropic-ai/claude-agent-sdk';
 import { EventEmitter } from 'events';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
@@ -186,12 +186,20 @@ export class AnthropicSdkExecutor extends EventEmitter {
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
+    options: {
+      workingDir?: string;
+      dangerMode?: boolean;
+      additionalFlags?: string[];
+      timeout?: number;
+      aiProvider?: AIProviderConfig;
+      ralphLoop?: { completionPromise: string; maxIterations: number };
+    } = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const {
       workingDir = WORKSPACE_PATH,
       timeout = config.taskTimeoutMs,
       aiProvider,
+      ralphLoop,
     } = options;
 
     const task: ClaudeTaskWithStreaming = {
@@ -252,9 +260,46 @@ export class AnthropicSdkExecutor extends EventEmitter {
       }, timeout);
 
       try {
+        // Build ralph loop Stop hook if enabled
+        let ralphIterations = 0;
+        const stopHook: HookCallback | undefined = ralphLoop ? async () => {
+          ralphIterations++;
+
+          // Check if we've reached max iterations
+          if (ralphIterations >= ralphLoop.maxIterations) {
+            logger.info('Ralph loop max iterations reached', { taskId: task.id, iterations: ralphIterations });
+            return { continue: false, stopReason: `Max iterations (${ralphLoop.maxIterations}) reached` };
+          }
+
+          // Check if completion promise is in the output
+          if (task.output.includes(ralphLoop.completionPromise)) {
+            logger.info('Ralph loop completion promise found', { taskId: task.id, iterations: ralphIterations });
+            return { continue: false, stopReason: 'Completion promise found' };
+          }
+
+          // Continue the loop
+          logger.debug('Ralph loop continuing', { taskId: task.id, iteration: ralphIterations });
+          return { continue: true };
+        } : undefined;
+
+        // Build the final prompt - add ralph loop instructions if enabled
+        let finalPrompt = prompt;
+        if (ralphLoop) {
+          finalPrompt = `You are in autonomous loop mode. Keep working on the task until you complete it.
+
+IMPORTANT INSTRUCTIONS:
+1. Work autonomously without asking for confirmation
+2. When you have FULLY completed the task, output exactly: ${ralphLoop.completionPromise}
+3. Do NOT output ${ralphLoop.completionPromise} until ALL work is done
+4. Maximum iterations: ${ralphLoop.maxIterations}
+
+TASK:
+${prompt}`;
+        }
+
         // Use the v1 query API which supports cwd and bypassPermissions
         const q = query({
-          prompt,
+          prompt: finalPrompt,
           options: {
             model,
             cwd: workingDir,
@@ -263,8 +308,14 @@ export class AnthropicSdkExecutor extends EventEmitter {
             pathToClaudeCodeExecutable: this.claudeCodePath,
             // Use bun as the runtime since we're in a bun environment
             executable: 'bun',
-            // Load local project settings to enable installed plugins (e.g., ralph-loop)
+            // Load local project settings
             settingSources: ['local'],
+            // Add Stop hook for ralph loop if enabled
+            ...(stopHook && {
+              hooks: {
+                Stop: [{ hooks: [stopHook] }],
+              },
+            }),
           },
         });
 

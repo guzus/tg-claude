@@ -12,7 +12,6 @@ import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
 import { gitService } from './GitService';
 import { getProviderLabel } from '../utils/providers';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 export enum DiscordRalphLoopStatus {
   RUNNING = 'running',
@@ -224,7 +223,11 @@ export class DiscordRalphLoopExecutor {
         {
           workingDir: state.workingDir,
           timeout: state.config.maxDurationMs,
-          aiProvider: state.aiProvider
+          aiProvider: state.aiProvider,
+          ralphLoop: {
+            completionPromise: state.config.completionPromise,
+            maxIterations: state.config.maxIterations,
+          },
         }
       );
 
@@ -258,12 +261,10 @@ export class DiscordRalphLoopExecutor {
   }
 
   private buildRalphPrompt(state: DiscordRalphLoopState, repository: Repository | null): string {
-    return buildRalphLoopPrompt({
-      request: state.originalRequest,
-      completionPromise: state.config.completionPromise,
-      maxIterations: state.config.maxIterations,
-      repository
-    });
+    const repoContext = repository
+      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
+      : '';
+    return `${repoContext}${state.originalRequest}`;
   }
 
   private async monitorTask(state: DiscordRalphLoopState, taskId: string): Promise<void> {

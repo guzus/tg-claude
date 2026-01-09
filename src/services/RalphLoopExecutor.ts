@@ -12,7 +12,6 @@ import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
 import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -291,11 +290,11 @@ export class RalphLoopExecutor {
       const statusMsg = await this.sendStatusMessage(state, repository);
       state.messageId = statusMsg?.message_id;
 
-      // Build the prompt with Ralph loop instructions
+      // Build the prompt (just the request with repo context)
       const prompt = this.buildRalphPrompt(state, repository);
 
-      // Execute Claude task with the Ralph plugin active
-      // The plugin handles iterations via stop hooks
+      // Execute Claude task with ralph loop mode enabled
+      // The executor handles iterations via Stop hooks (SDK) or plugin (CLI)
       const task = await this.executor.executeTask(
         state.userId,
         state.chatId,
@@ -303,7 +302,11 @@ export class RalphLoopExecutor {
         {
           workingDir: state.workingDir,
           timeout: state.config.maxDurationMs,
-          aiProvider: state.aiProvider
+          aiProvider: state.aiProvider,
+          ralphLoop: {
+            completionPromise: state.config.completionPromise,
+            maxIterations: state.config.maxIterations,
+          },
         }
       );
 
@@ -330,15 +333,14 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Build the Ralph loop command using the plugin's /ralph-loop format
+   * Build the Ralph loop prompt (just request with repo context)
+   * Ralph loop instructions are added by the executor
    */
   private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    return buildRalphLoopPrompt({
-      request: state.originalRequest,
-      completionPromise: state.config.completionPromise,
-      maxIterations: state.config.maxIterations,
-      repository
-    });
+    const repoContext = repository
+      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
+      : '';
+    return `${repoContext}${state.originalRequest}`;
   }
 
   /**
