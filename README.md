@@ -5,11 +5,12 @@
 <h1 align="center">tg-claude</h1>
 
 <p align="center">
-  Control Claude Code remotely via Telegram with your Claude subscription.
+  Control Claude Code remotely via Telegram or Discord with your Claude subscription.
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Telegram-26A5E4?logo=telegram&logoColor=white" alt="Telegram" height="24">
+  <img src="./assets/telegram.webp" alt="Telegram" height="24">
+  <img src="./assets/discord.svg" alt="Discord" height="24">
   <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" alt="Docker" height="24">
   <img src="https://img.shields.io/badge/Bun-000000?logo=bun&logoColor=white" alt="Bun" height="24">
   <img src="https://img.shields.io/badge/GitHub-181717?logo=github&logoColor=white" alt="GitHub" height="24">
@@ -25,12 +26,13 @@
 flowchart TB
     subgraph User
         TG[Telegram App]
+        DC[Discord App]
     end
 
     subgraph Docker Container
         Bot[tg-claude Bot]
         Claude[Claude Code CLI]
-        
+
         subgraph Services
             Executor[ClaudeExecutor]
             Ralph[RalphLoopExecutor]
@@ -53,6 +55,7 @@ flowchart TB
     end
 
     TG -->|Commands| Bot
+    DC -->|Slash Commands| Bot
     Bot -->|Parse & Route| Executor
     Bot -->|Autonomous Tasks| Ralph
     Executor -->|Execute| Claude
@@ -66,11 +69,26 @@ flowchart TB
     Bot -->|State| Data
     Bot -->|Settings| Config
     Bot -->|Response| TG
+    Bot -->|Response| DC
+
+    classDef user fill:#E8F3FF,stroke:#1E78D6,stroke-width:1px,color:#0B2D52;
+    classDef bot fill:#FFF3E0,stroke:#FB8C00,stroke-width:1px,color:#5A2D00;
+    classDef services fill:#E8F5E9,stroke:#2E7D32,stroke-width:1px,color:#0F3B17;
+    classDef storage fill:#F3E5F5,stroke:#7B1FA2,stroke-width:1px,color:#3B0C4A;
+    classDef external fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238;
+
+    class TG,DC user;
+    class Bot,Claude bot;
+    class Executor,Ralph,Git,Repo services;
+    class Workspace,Data,Config storage;
+    class GitHub,ClaudeAPI,ZaiAPI,OpenRouter external;
 ```
 
 ## Quick Start
 
 📖 **[Full Deployment Guide](./docs/DEPLOYMENT.md)** - Complete step-by-step tutorial
+
+📖 **[Discord Integration Guide](./docs/DISCORD.md)** - Set up the Discord client
 
 ### Deploy on Railway (Easiest)
 

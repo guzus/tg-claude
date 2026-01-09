@@ -10,6 +10,9 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
+import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 /**
  * Handlers for task execution commands
@@ -88,7 +91,7 @@ export class TaskHandlers extends BaseHandler {
         // Update message if task is still running
         if (currentTask.status === TaskStatus.RUNNING) {
           const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
-          const providerLabel = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
+          const providerLabel = getProviderLabel(aiProvider?.provider);
 
           // Build status message using streaming events
           const newUpdateText = this.buildStreamingStatusMessage(currentTask, elapsed, providerLabel);
@@ -119,7 +122,7 @@ export class TaskHandlers extends BaseHandler {
               // Ignore edit errors (message not modified, rate limit, etc.)
               logger.debug('Failed to update message', {
                 taskId: task.id,
-                error: error instanceof Error ? error.message : String(error)
+                error: getErrorMessage(error)
               });
             }
           }
@@ -167,7 +170,7 @@ export class TaskHandlers extends BaseHandler {
             } catch (error) {
               logger.error('Auto-commit/push failed', {
                 taskId: task.id,
-                error: error instanceof Error ? error.message : String(error)
+                error: getErrorMessage(error)
               });
             }
           }
@@ -190,8 +193,8 @@ export class TaskHandlers extends BaseHandler {
 
           // Build clean stats line
           const streamingTask = currentTask as ClaudeTaskWithStreaming;
-          const providerName = aiProvider?.provider === 'glm' ? 'GLM' : aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
-          let statsLine = UIHelpers.formatDuration(executionTime);
+          const providerName = getProviderLabel(aiProvider?.provider);
+          let statsLine = formatDuration(executionTime);
           if (streamingTask.costUsd && streamingTask.costUsd > 0) {
             statsLine += ` · $${streamingTask.costUsd.toFixed(2)}`;
           }
@@ -312,14 +315,15 @@ export class TaskHandlers extends BaseHandler {
             taskId: task.id,
             success: currentTask.status === TaskStatus.COMPLETED,
             executionTime,
-            error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined
+            error: currentTask.status !== TaskStatus.COMPLETED ? currentTask.errorOutput : undefined,
+            platform: 'telegram'
           });
         }
       }, 2000); // Update every 2 seconds
 
     } catch (error) {
       const executionTime = Date.now() - startTime;
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
 
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
 
@@ -329,7 +333,8 @@ export class TaskHandlers extends BaseHandler {
         command: commitMessageContext,
         success: false,
         executionTime,
-        error: errorMessage
+        error: errorMessage,
+        platform: 'telegram'
       });
 
       logger.error('Task execution failed', {
@@ -387,6 +392,7 @@ Always commit and push your changes after completing the task unless explicitly 
 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
+
 
   /**
    * Handle plain text messages
@@ -504,4 +510,3 @@ Always commit and push your changes after completing the task unless explicitly 
     return null;
   }
 }
-

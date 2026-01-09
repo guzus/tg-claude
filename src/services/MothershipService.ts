@@ -1,6 +1,7 @@
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -59,7 +60,7 @@ export class MothershipService {
       logger.info('Mothership CLI detected', { version: stdout.trim() });
       return true;
     } catch (error) {
-      logger.error('Mothership CLI not found', { error });
+      logger.error('Mothership CLI not found', { error: getErrorMessage(error) });
       return false;
     }
   }
@@ -73,7 +74,7 @@ export class MothershipService {
       logger.info('Nomad detected', { version: stdout.trim() });
       return true;
     } catch (error) {
-      logger.error('Nomad not found', { error });
+      logger.error('Nomad not found', { error: getErrorMessage(error) });
       return false;
     }
   }
@@ -104,9 +105,9 @@ export class MothershipService {
     } catch (error) {
       logger.error('Failed to create bot', {
         name,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
-      throw new Error(`Failed to create bot: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to create bot: ${getErrorMessage(error)}`);
     }
   }
 
@@ -155,9 +156,9 @@ export class MothershipService {
     } catch (error) {
       logger.error('Failed to deploy bot', {
         name: config.name,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
-      throw new Error(`Failed to deploy bot: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to deploy bot: ${getErrorMessage(error)}`);
     }
   }
 
@@ -253,7 +254,7 @@ export class MothershipService {
       return stdout;
     } catch (error) {
       logger.error('Failed to get bot logs', { name, error });
-      throw new Error(`Failed to get logs: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to get logs: ${getErrorMessage(error)}`);
     }
   }
 
@@ -276,7 +277,7 @@ export class MothershipService {
       return stdout;
     } catch (error) {
       logger.error('Failed to stop bot', { name, error });
-      throw new Error(`Failed to stop bot: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to stop bot: ${getErrorMessage(error)}`);
     }
   }
 
@@ -298,7 +299,7 @@ export class MothershipService {
       logger.info('Set Vault secret', { key, botName });
     } catch (error) {
       logger.error('Failed to set Vault secret', { key, error });
-      throw new Error(`Failed to set Vault secret: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to set Vault secret: ${getErrorMessage(error)}`);
     }
   }
 
@@ -380,7 +381,7 @@ export class MothershipService {
       return imageName;
     } catch (error) {
       logger.error('Failed to build Docker image', { name, error });
-      throw new Error(`Failed to build Docker image: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Failed to build Docker image: ${getErrorMessage(error)}`);
     }
   }
 

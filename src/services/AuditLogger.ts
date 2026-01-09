@@ -72,12 +72,23 @@ export class AuditLogger {
     failedCommands: number;
     uniqueUsers: number;
   } {
-    const uniqueUsers = new Set(this.entries.map(e => e.userId));
+    const uniqueUsers = new Set<number>();
+    let successfulCommands = 0;
+    let failedCommands = 0;
+
+    for (const entry of this.entries) {
+      uniqueUsers.add(entry.userId);
+      if (entry.success) {
+        successfulCommands++;
+      } else {
+        failedCommands++;
+      }
+    }
 
     return {
       totalCommands: this.entries.length,
-      successfulCommands: this.entries.filter(e => e.success).length,
-      failedCommands: this.entries.filter(e => !e.success).length,
+      successfulCommands,
+      failedCommands,
       uniqueUsers: uniqueUsers.size
     };
   }

@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 
 const execAsync = promisify(exec);
 
@@ -60,6 +61,26 @@ class GitService {
     }
 
     return url;
+  }
+
+  /**
+   * Convert a git remote URL to a web URL
+   */
+  toWebUrl(gitUrl: string): string | null {
+    if (!gitUrl) return null;
+
+    let url = gitUrl.trim();
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      url = url.replace(/https?:\/\/[^@]+@/i, 'https://');
+      return url.replace(/\.git$/, '');
+    }
+
+    const match = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+    if (match) {
+      return `https://${match[1]}/${match[2]}`;
+    }
+
+    return null;
   }
 
   /**
@@ -180,6 +201,40 @@ class GitService {
   }
 
   /**
+   * Ensure GitHub remote uses token auth for non-interactive pushes
+   */
+  async ensureAuthRemote(workingDir: string): Promise<boolean> {
+    if (!this.githubToken) return false;
+
+    try {
+      const remoteUrl = await this.getRemoteUrl(workingDir);
+      if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+      if (remoteUrl.includes('x-access-token:') || remoteUrl.includes('oauth2:')) return false;
+
+      const authUrl = this.injectTokenIntoUrl(remoteUrl);
+      if (authUrl === remoteUrl) return false;
+
+      await execAsync(`git remote set-url origin "${authUrl}"`, {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      logger.info('Updated GitHub remote with token auth', { workingDir });
+      return true;
+    } catch (error) {
+      const errMsg = this.maskGitHubToken(getErrorMessage(error));
+      logger.debug('Failed to update GitHub remote auth', { workingDir, error: errMsg });
+      return false;
+    }
+  }
+
+  private maskGitHubToken(value: string): string {
+    return value
+      .replace(/x-access-token:[^@]+@/gi, 'x-access-token:***@')
+      .replace(/oauth2:[^@]+@/gi, 'oauth2:***@');
+  }
+
+  /**
    * Get current branch
    */
   async getCurrentBranch(workingDir: string): Promise<string | null> {
@@ -208,8 +263,8 @@ class GitService {
       // Not configured, set defaults
     }
 
-const userName = name || 'tg-claude';
-const userEmail = email || 'claude-code@remote.machine';
+    const userName = name || 'tg-claude';
+    const userEmail = email || 'claude-code@remote.machine';
 
     await execAsync(`git config user.name "${userName}"`, { cwd: workingDir, timeout: 5000 });
     await execAsync(`git config user.email "${userEmail}"`, { cwd: workingDir, timeout: 5000 });
@@ -239,7 +294,7 @@ const userEmail = email || 'claude-code@remote.machine';
       logger.info('Committed changes', { workingDir, hash, message });
       return { success: true, hash, message };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
       logger.error('Failed to commit', { workingDir, error: errMsg });
       return { success: false, hash: null, message: errMsg };
     }
@@ -277,7 +332,7 @@ const userEmail = email || 'claude-code@remote.machine';
       logger.info('Pushed changes', { workingDir, branch });
       return { status: 'success' };
     } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
 
       if (errMsg.includes('Everything up-to-date')) {
         return { status: 'no_changes' };

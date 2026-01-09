@@ -10,6 +10,9 @@ import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithSt
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
+import { getErrorMessage } from '../utils/errors';
+import { formatDuration } from '../utils/time';
+import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -108,7 +111,7 @@ export class RalphLoopExecutor {
       return { ok: true };
     } catch (error) {
       // Log warning but don't fail - plugin might already be installed
-      const errMsg = error instanceof Error ? error.message : String(error);
+      const errMsg = getErrorMessage(error);
       logger.warn('Plugin install returned non-zero', {
         workingDir,
         error: errMsg
@@ -127,7 +130,7 @@ export class RalphLoopExecutor {
           logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
           return { ok: true };
         } catch (retryError) {
-          const retryMsg = retryError instanceof Error ? retryError.message : String(retryError);
+          const retryMsg = getErrorMessage(retryError);
           return { ok: false, error: retryMsg, pluginSpec };
         }
       }
@@ -191,7 +194,7 @@ export class RalphLoopExecutor {
     this.runRalphLoop(state).catch(error => {
       logger.error('Ralph loop failed', {
         sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       this.cleanupSession(state);
     });
@@ -219,8 +222,7 @@ export class RalphLoopExecutor {
 
     logger.info('Ralph loop session cleaned up', {
       sessionId: state.sessionId,
-      status: state.status,
-      iterations: state.iteration
+      status: state.status
     });
   }
 
@@ -331,55 +333,12 @@ export class RalphLoopExecutor {
    * Build the Ralph loop command using the plugin's /ralph-loop format
    */
   private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    // Build the task prompt with clear completion criteria
-    const repoContext = repository
-      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-      : '';
-
-    const taskPrompt = `${repoContext}${state.originalRequest}
-
-ITERATION TRACKING: At the START of each iteration, output: [RALPH_LOOP_ITERATION]
-
-When COMPLETELY done and verified, output: <promise>${state.config.completionPromise}</promise>`;
-
-    // Escape the prompt for shell (double quotes inside the command)
-    const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-
-    // Use the plugin's /ralph-loop command format
-    return `/ralph-loop:ralph-loop "${escapedPrompt}" --max-iterations ${state.config.maxIterations} --completion-promise "${state.config.completionPromise}"`;
-  }
-
-  /**
-   * Count iterations from task output
-   */
-  private countIterationsFromOutput(taskId: string): number {
-    const task = this.executor.getTask(taskId);
-    if (!task?.output) return 1;
-
-    // Count explicit iteration markers
-    const markerMatches = task.output.match(/\[RALPH_LOOP_ITERATION\]/g);
-    if (markerMatches && markerMatches.length > 0) {
-      return markerMatches.length;
-    }
-
-    // Fallback: count common iteration patterns
-    const iterationPatterns = [
-      /iteration\s*#?\d+/gi,
-      /loop\s*#?\d+/gi,
-      /cycle\s*#?\d+/gi,
-      /round\s*#?\d+/gi,
-      /attempt\s*#?\d+/gi
-    ];
-
-    let maxCount = 0;
-    for (const pattern of iterationPatterns) {
-      const matches = task.output.match(pattern);
-      if (matches) {
-        maxCount = Math.max(maxCount, matches.length);
-      }
-    }
-
-    return Math.max(1, maxCount);
+    return buildRalphLoopPrompt({
+      request: state.originalRequest,
+      completionPromise: state.config.completionPromise,
+      maxIterations: state.config.maxIterations,
+      repository
+    });
   }
 
   /**
@@ -394,18 +353,6 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       const handleStreamEvent = (eventTaskId: string, event: StreamEvent) => {
         if (eventTaskId !== taskId) return;
 
-        // Check for iteration markers in note/text events
-        if (event.type === 'action' && event.action?.kind === 'note') {
-          const text = String(event.action.detail?.text || event.message || '');
-          if (text.includes('[RALPH_LOOP_ITERATION]')) {
-            state.iteration++;
-            logger.info('Ralph loop iteration (stream)', {
-              sessionId: state.sessionId,
-              iteration: state.iteration
-            });
-          }
-        }
-
         // Throttle UI updates (every 2s) for any action event
         if (event.type === 'action' && Date.now() - lastUpdateTime > 2000) {
           lastUpdateTime = Date.now();
@@ -418,8 +365,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
           state.endTime = new Date();
           logger.info('Ralph loop task finished (stream)', {
             sessionId: state.sessionId,
-            ok: event.ok,
-            iterations: state.iteration
+            ok: event.ok
           });
           resolve();
         }
@@ -438,7 +384,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
           cleanup();
           state.status = RalphLoopStatus.TIMEOUT;
           state.endTime = new Date();
-          logger.warn('Ralph loop timeout', { sessionId: state.sessionId, iterations: state.iteration });
+          logger.warn('Ralph loop timeout', { sessionId: state.sessionId });
           resolve();
           return;
         }
@@ -462,13 +408,9 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
           cleanup();
           state.endTime = new Date();
-          // Final count from output in case stream missed some
-          const finalCount = this.countIterationsFromOutput(taskId);
-          if (finalCount > state.iteration) state.iteration = finalCount;
           logger.info('Ralph loop task finished (fallback)', {
             sessionId: state.sessionId,
-            taskStatus: task.status,
-            iterations: state.iteration
+            taskStatus: task.status
           });
           resolve();
         }
@@ -483,8 +425,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     if (state.status !== RalphLoopStatus.RUNNING) {
       logger.info('Ralph loop outcome already determined', {
         sessionId: state.sessionId,
-        status: state.status,
-        iterations: state.iteration
+        status: state.status
       });
       return;
     }
@@ -498,15 +439,13 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
         sessionId: state.sessionId,
         taskStatus: task?.status,
         hasCompletionPromise: hasPromise,
-        iterations: state.iteration,
         outputLength: task?.output?.length ?? 0
       });
 
       if (hasPromise) {
         state.status = RalphLoopStatus.COMPLETED;
         logger.info('Ralph loop completed via promise', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
         return;
       }
@@ -515,8 +454,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       if (task?.status === TaskStatus.COMPLETED) {
         state.status = RalphLoopStatus.COMPLETED;
         logger.info('Ralph loop completed via task status', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
         return;
       }
@@ -526,8 +464,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
         state.status = RalphLoopStatus.FAILED;
         logger.warn('Ralph loop failed', {
           sessionId: state.sessionId,
-          taskStatus: task?.status,
-          iterations: state.iteration
+          taskStatus: task?.status
         });
         return;
       }
@@ -536,8 +473,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     // Default to failed if we can't determine
     state.status = RalphLoopStatus.FAILED;
     logger.warn('Ralph loop failed - could not determine outcome', {
-      sessionId: state.sessionId,
-      iterations: state.iteration
+      sessionId: state.sessionId
     });
   }
 
@@ -561,7 +497,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     } catch (error) {
       logger.error('Failed to send Ralph status message', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       return undefined;
     }
@@ -581,8 +517,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
 
     let msg = `${emoji} *Ralph Loop*\n\n`;
     msg += `📋 ${escapedRequest}\n\n`;
-    msg += `🔁 Loops: ${state.iteration}/${state.config.maxIterations}\n`;
-    msg += `⏱️ Time: ${UIHelpers.formatDuration(elapsed)}\n`;
+    msg += `⏱️ Time: ${formatDuration(elapsed)}\n`;
     msg += `🎯 Promise: ${escapedPromise}\n`;
     if (repository) {
       msg += `📁 Repo: ${UIHelpers.escapeMarkdown(repository.name)}\n`;
@@ -632,7 +567,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
         state.aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
 
       // Ralph header
-      const header = `🔄 *Ralph Loop* · ${state.iteration}/${state.config.maxIterations}`;
+      const header = '🔄 *Ralph Loop*';
 
       // Use shared streaming status builder
       const message = UIHelpers.buildStreamingStatusMessage(task, elapsed, providerLabel, header);
@@ -682,8 +617,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       let report = `${statusEmoji} *Ralph Loop ${statusText}*\n\n`;
       report += `📋 ${escapedReq}\n\n`;
       report += `📊 *Summary:*\n`;
-      report += `- Loops: ${state.iteration}\n`;
-      report += `- Duration: ${UIHelpers.formatDuration(duration)}\n`;
+      report += `- Duration: ${formatDuration(duration)}\n`;
       report += `- Promise: ${escapedPromise}\n`;
 
       const keyboard = state.taskId ? {
@@ -699,7 +633,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     } catch (error) {
       logger.error('Failed to send Ralph final report', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }
@@ -736,7 +670,6 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     logger.info('Ralph loop attempting commit', {
       sessionId: state.sessionId,
       status: state.status,
-      iterations: state.iteration,
       workingDir: state.workingDir
     });
 
@@ -745,8 +678,7 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
       if (commitHash) {
         logger.info('Ralph loop committed changes', {
           sessionId: state.sessionId,
-          commitHash,
-          iterations: state.iteration
+          commitHash
         });
 
         const pushResult = await this.executor.autoPushChanges(state.workingDir);
@@ -772,14 +704,13 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
         await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
       } else {
         logger.info('Ralph loop no changes to commit', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
       }
     } catch (error) {
       logger.error('Failed to commit/push Ralph changes', {
         sessionId: state.sessionId,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
     }
   }

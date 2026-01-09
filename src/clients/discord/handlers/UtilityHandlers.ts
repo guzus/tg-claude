@@ -1,0 +1,151 @@
+import { ChatInputCommandInteraction, ButtonInteraction, MessageFlags } from 'discord.js';
+import { BaseHandler } from './BaseHandler';
+import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { RateLimiter } from '../../../services/RateLimiter';
+import { AuditLogger } from '../../../services/AuditLogger';
+import { ConversationManager } from '../../../services/ConversationManager';
+import { DiscordUIHelpers } from '../utils/UIHelpers';
+import { TaskStatus } from '../../../types';
+import { toSafeDiscordId } from '../utils/ids';
+import { getVersionHash } from '../../../utils/version';
+import { formatDuration } from '../../../utils/time';
+
+/**
+ * Handlers for utility commands: /help, /status, /cancel, /version
+ */
+export class UtilityHandlers extends BaseHandler {
+  constructor(
+    executor: ClaudeExecutor,
+    rateLimiter: RateLimiter,
+    auditLogger: AuditLogger,
+    conversationManager?: ConversationManager
+  ) {
+    super(executor, rateLimiter, auditLogger, conversationManager);
+  }
+
+  /**
+   * Handle /help command
+   */
+  async handleHelp(interaction: ChatInputCommandInteraction): Promise<void> {
+    const embed = DiscordUIHelpers.createHelpEmbed();
+    await interaction.reply({ embeds: [embed] });
+  }
+
+  /**
+   * Handle /status command
+   */
+  async handleStatus(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!(await this.checkAccess(interaction))) return;
+
+    const channelId = interaction.channelId;
+    const safeChannelId = toSafeDiscordId(channelId);
+    const activeTasks = this.executor.getActiveTasks();
+
+    // Filter tasks for this channel
+    const channelTasks = activeTasks.filter(task => task.chatId === safeChannelId);
+
+    if (channelTasks.length === 0) {
+      await interaction.reply({ content: 'No active tasks in this channel.', flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    const taskList = channelTasks.map(task => {
+      const elapsed = Math.round((Date.now() - task.startTime.getTime()) / 1000);
+      const emoji = DiscordUIHelpers.getStatusEmoji(task.status);
+      return `${emoji} \`${task.id}\` - ${formatDuration(elapsed)}`;
+    }).join('\n');
+
+    await interaction.reply({
+      content: `**Active Tasks (${channelTasks.length})**\n${taskList}`,
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  /**
+   * Handle /cancel command
+   */
+  async handleCancel(interaction: ChatInputCommandInteraction): Promise<void> {
+    if (!(await this.checkAccess(interaction))) return;
+
+    const taskId = interaction.options.getString('task_id', true);
+    const task = this.executor.getTask(taskId);
+
+    if (!task) {
+      await interaction.reply({ content: `Task \`${taskId}\` not found.`, flags: MessageFlags.Ephemeral });
+      return;
+    }
+
+    if (task.status !== TaskStatus.RUNNING) {
+      await interaction.reply({
+        content: `Task \`${taskId}\` is not running (status: ${task.status}).`,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const cancelled = this.executor.cancelTask(taskId);
+    if (cancelled) {
+      await interaction.reply({ content: `Task \`${taskId}\` cancelled.` });
+      this.auditLogger.logCommand({
+        userId: toSafeDiscordId(interaction.user.id),
+        username: interaction.user.username,
+        command: `/cancel ${taskId}`,
+        taskId,
+        success: true,
+        platform: 'discord'
+      });
+    } else {
+      await interaction.reply({ content: `Failed to cancel task \`${taskId}\`.`, flags: MessageFlags.Ephemeral });
+    }
+  }
+
+  /**
+   * Handle /version command
+   */
+  async handleVersion(interaction: ChatInputCommandInteraction): Promise<void> {
+    const shortHash = getVersionHash().substring(0, 8);
+    await interaction.reply({
+      content: `**Claude Code Bot**\nCommit: \`${shortHash}\``,
+      flags: MessageFlags.Ephemeral
+    });
+  }
+
+  /**
+   * Handle button interactions
+   */
+  async handleButton(interaction: ButtonInteraction): Promise<void> {
+    const [action, ...params] = interaction.customId.split(':');
+
+    switch (action) {
+      case 'cancel_task': {
+        const taskId = params[0];
+        const cancelled = this.executor.cancelTask(taskId);
+        if (cancelled) {
+          await interaction.reply({ content: `Task \`${taskId}\` cancelled.` });
+        } else {
+          await interaction.reply({ content: `Failed to cancel task.`, flags: MessageFlags.Ephemeral });
+        }
+        break;
+      }
+      case 'view_log': {
+        const taskId = params[0];
+        const output = this.executor.getTaskOutput(taskId);
+        if (output) {
+          // Truncate if too long
+          const truncated = output.length > 1900
+            ? output.substring(0, 1900) + '\n... (truncated)'
+            : output;
+          await interaction.reply({
+            content: `\`\`\`\n${truncated}\n\`\`\``,
+            flags: MessageFlags.Ephemeral
+          });
+        } else {
+          await interaction.reply({ content: 'No output available.', flags: MessageFlags.Ephemeral });
+        }
+        break;
+      }
+      default:
+        await interaction.reply({ content: 'Unknown action.', flags: MessageFlags.Ephemeral });
+    }
+  }
+}

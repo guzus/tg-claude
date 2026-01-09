@@ -2,12 +2,7 @@
  * Clients Module
  *
  * This module provides client implementations for different chat platforms.
- * Currently supported: Telegram
- *
- * To add a new client (e.g., Discord):
- * 1. Create a new folder: src/clients/discord/
- * 2. Implement handlers following the patterns in telegram/handlers/
- * 3. Export the client from this file
+ * Currently supported: Telegram, Discord
  *
  * The base client interface is defined in ./base/types.ts
  */
@@ -17,3 +12,6 @@ export * from './base';
 
 // Export Telegram client
 export * as telegram from './telegram';
+
+// Export Discord client
+export * as discord from './discord';

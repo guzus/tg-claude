@@ -4,6 +4,7 @@ import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { config } from '../../../config';
 import { logger } from '../../../utils/logger';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Handlers for mothership bot deployment commands
@@ -145,7 +146,7 @@ export class MothershipHandlers {
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Error checking status: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Error checking status: ${getErrorMessage(error)}`
       );
     }
   }
@@ -224,11 +225,12 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot run ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to run bot: ${error instanceof Error ? error.message : String(error)}\n\n` +
+        `❌ Failed to run bot: ${getErrorMessage(error)}\n\n` +
         `Make sure:\n` +
         `1. Bot directory exists: \`bots/${name}/\`\n` +
         `2. Bot has a Dockerfile\n` +
@@ -244,7 +246,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot run ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -336,11 +339,12 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: '/bot list',
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to list bots: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to list bots: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: statusMsg.message_id
@@ -350,7 +354,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: '/bot list',
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -397,18 +402,20 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot status ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Failed to get status: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Failed to get status: ${getErrorMessage(error)}`
       );
 
       this.auditLogger.logCommand({
         userId,
         command: `/bot status ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -465,18 +472,20 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot logs ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Failed to get logs: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Failed to get logs: ${getErrorMessage(error)}`
       );
 
       this.auditLogger.logCommand({
         userId,
         command: `/bot logs ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -519,11 +528,12 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${name}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to stop bot: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to stop bot: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: statusMsg.message_id
@@ -533,7 +543,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${name}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }
@@ -586,7 +597,7 @@ export class MothershipHandlers {
     } catch (error) {
       logger.error('Error handling bot callback', { error, data });
       await this.bot.answerCallbackQuery(query.id, {
-        text: '❌ Error: ' + (error instanceof Error ? error.message : String(error)),
+        text: '❌ Error: ' + (getErrorMessage(error)),
         show_alert: true
       });
     }
@@ -648,7 +659,7 @@ export class MothershipHandlers {
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to refresh: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to refresh: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: messageId
@@ -698,7 +709,7 @@ export class MothershipHandlers {
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to get status: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to get status: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: messageId
@@ -728,7 +739,7 @@ export class MothershipHandlers {
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Failed to get logs: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Failed to get logs: ${getErrorMessage(error)}`
       );
     }
   }
@@ -790,7 +801,7 @@ export class MothershipHandlers {
       }
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to restart: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to restart: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: messageId
@@ -832,11 +843,12 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${botName}`,
-        success: true
+        success: true,
+        platform: 'telegram'
       });
     } catch (error) {
       await this.bot.editMessageText(
-        `❌ Failed to stop: ${error instanceof Error ? error.message : String(error)}`,
+        `❌ Failed to stop: ${getErrorMessage(error)}`,
         {
           chat_id: chatId,
           message_id: messageId
@@ -846,7 +858,8 @@ export class MothershipHandlers {
       this.auditLogger.logCommand({
         userId,
         command: `/bot stop ${botName}`,
-        success: false
+        success: false,
+        platform: 'telegram'
       });
     }
   }

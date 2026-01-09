@@ -7,6 +7,7 @@ import { RepositoryManager } from '../../../services/RepositoryManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
 import { RalphLoopExecutor, RalphLoopStatus, RalphLoopConfig } from '../../../services/RalphLoopExecutor';
 import { logger } from '../../../utils/logger';
+import { getErrorMessage } from '../../../utils/errors';
 
 /**
  * Ralph Wiggum Handler - Implements the Ralph Wiggum loop plugin
@@ -50,7 +51,7 @@ export class RalphWiggumHandler extends BaseHandler {
     const userId = msg.from!.id;
     const argsText = match?.[1]?.trim() || '';
 
-    this.auditLogger.logCommand({ userId, command: 'ralph', success: true });
+    this.auditLogger.logCommand({ userId, command: 'ralph', success: true, platform: 'telegram' });
 
     // Parse arguments
     const { task, config } = this.parseArguments(argsText);
@@ -110,7 +111,7 @@ export class RalphWiggumHandler extends BaseHandler {
       });
 
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to start Ralph loop: ${errorMessage}`);
       logger.error('Failed to start Ralph loop', { userId, error: errorMessage });
     }

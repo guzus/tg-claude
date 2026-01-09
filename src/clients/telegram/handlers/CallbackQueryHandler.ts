@@ -3,12 +3,15 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../../../utils/logger';
-import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../../../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import path from 'path';
+import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 const execAsync = promisify(exec);
 
@@ -59,7 +62,11 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.bot.sendMessage(chatId, 'Unknown action');
       }
     } catch (error) {
-      logger.error('Callback query error', { error: error instanceof Error ? error.message : String(error), userId, data });
+      logger.error('Callback query error', {
+        error: getErrorMessage(error),
+        userId,
+        data
+      });
       await this.bot.sendMessage(chatId, 'An error occurred. Please try again.');
     }
   }
@@ -89,7 +96,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
     stateManager.setPendingApiKeyEntry(userId, { userId, chatId, messageId, provider });
 
-    const providerLabel = provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const providerLabel = getProviderLabel(provider);
     const field = provider === 'glm' ? '`aiProvider.glmApiKey`' : '`aiProvider.openrouterApiKey`';
 
     await this.editMessage(
@@ -441,7 +448,7 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.editMessage(chatId, messageId, '*Failed*\n\nCheck gh CLI and GitHub authentication.');
       }
     } catch (error) {
-      await this.editMessage(chatId, messageId, `*Error*\n\n${error instanceof Error ? error.message : String(error)}`);
+      await this.editMessage(chatId, messageId, `*Error*\n\n${getErrorMessage(error)}`);
     }
   }
 
@@ -496,7 +503,7 @@ export class CallbackQueryHandler extends BaseHandler {
           await this.editMessage(chatId, messageId, `Repository \`${repo.name}\` ${result === 'already_exists' ? 'already exists' : 'creation failed'}`);
         }
       } catch (error) {
-        await this.editMessage(chatId, messageId, `Error: ${error instanceof Error ? error.message : String(error)}`);
+        await this.editMessage(chatId, messageId, `Error: ${getErrorMessage(error)}`);
       }
     }
   }
@@ -533,7 +540,7 @@ export class CallbackQueryHandler extends BaseHandler {
           { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
       }
     } catch (error) {
-      await this.bot.editMessageText(`Error: ${error instanceof Error ? error.message : String(error)}`,
+      await this.bot.editMessageText(`Error: ${getErrorMessage(error)}`,
         { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
     }
   }
@@ -591,19 +598,13 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     // Extract provider from "switch_<provider>"
-    const newProvider = subAction.replace('switch_', '') as 'anthropic' | 'glm' | 'openrouter';
+    const newProvider = subAction.replace('switch_', '') as AIProvider;
     const updatedConfig = await this.userConfigManager.updateConfig(userId, { aiProvider: { provider: newProvider } });
-
-    const providerLabels: Record<string, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
-    };
 
     // Build buttons for other providers
     const buttons = (['anthropic', 'glm', 'openrouter'] as const)
       .filter(p => p !== newProvider)
-      .map(p => ({ text: providerLabels[p], callback_data: `ai_switch_${p}` }));
+      .map(p => ({ text: getProviderLabel(p), callback_data: `ai_switch_${p}` }));
 
     const models = this.getProviderModelMap(newProvider, updatedConfig);
     const modelLines = [
@@ -615,12 +616,12 @@ export class CallbackQueryHandler extends BaseHandler {
     await this.editMessage(
       chatId,
       messageId,
-      `*${providerLabels[newProvider]}*\n\n${modelLines}`,
+      `*${getProviderLabel(newProvider)}*\n\n${modelLines}`,
       { inline_keyboard: [buttons] }
     );
   }
 
-  private getProviderModelMap(provider: 'anthropic' | 'glm' | 'openrouter', config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+  private getProviderModelMap(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
     const ai = config.aiProvider;
 
     if (provider === 'glm') {
@@ -652,7 +653,7 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     if (this.executor.cancelTask(actualTaskId)) {
-      const duration = UIHelpers.formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
+      const duration = formatDuration(Math.round((Date.now() - task.startTime.getTime()) / 1000));
       await this.editMessage(chatId, messageId, `*Task Cancelled*\n\nID: \`${actualTaskId.substring(0, 8)}\`\nTime: ${duration}`);
       logger.info('Task cancelled', { taskId: actualTaskId, userId });
     } else {
@@ -904,7 +905,7 @@ export class CallbackQueryHandler extends BaseHandler {
         );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.editMessage(chatId, messageId, `Error: ${errorMessage}`);
       logger.error('Failed to create new repo via callback', { userId, name, error: errorMessage });
     }

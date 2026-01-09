@@ -12,6 +12,9 @@ import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../../../services/StateManager';
 import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
 import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginMarketplace';
+import { getErrorMessage } from '../../../utils/errors';
+import { getProviderLabel } from '../../../utils/providers';
+import { formatDuration } from '../../../utils/time';
 
 export class ConfigHandlers extends BaseHandler {
   private repoManager: RepositoryManager;
@@ -47,9 +50,9 @@ export class ConfigHandlers extends BaseHandler {
     const provider = config.aiProvider?.provider || 'anthropic';
 
     const providerLabels: Record<AIProvider, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
+      anthropic: getProviderLabel('anthropic'),
+      glm: getProviderLabel('glm'),
+      openrouter: getProviderLabel('openrouter')
     };
 
     const models = this.getProviderModelMap(provider, config);
@@ -157,7 +160,7 @@ export class ConfigHandlers extends BaseHandler {
     }
 
     const masked = this.maskSecret(key);
-    const providerLabel = pending.provider === 'glm' ? 'GLM' : 'OpenRouter';
+    const providerLabel = getProviderLabel(pending.provider);
     const switchCb = pending.provider === 'glm' ? 'ai_switch_glm' : 'ai_switch_openrouter';
 
     await this.bot.editMessageText(
@@ -313,7 +316,7 @@ export class ConfigHandlers extends BaseHandler {
           );
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
       logger.error('Config command failed', {
         userId,
@@ -335,12 +338,6 @@ export class ConfigHandlers extends BaseHandler {
     const config = await this.userConfigManager.getConfig(userId);
     const provider: AIProvider = config.aiProvider?.provider || 'anthropic';
 
-    const providerLabels: Record<string, string> = {
-      anthropic: 'Claude',
-      glm: 'GLM',
-      openrouter: 'OpenRouter'
-    };
-
     const models = this.getProviderModelMap(provider, config);
 
     const glmKeyMasked = config.aiProvider?.glmApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.glmApiKey))}\`)` : '–';
@@ -351,7 +348,7 @@ export class ConfigHandlers extends BaseHandler {
     const mcpServerCount = repoId ? Object.keys(config.mcpConfigs?.[repoId]?.mcpServers || {}).length : 0;
 
     const timeoutMs = config.limits?.taskTimeoutMs;
-    const timeoutStr = timeoutMs ? UIHelpers.formatDuration(Math.round(timeoutMs / 1000)) : '–';
+    const timeoutStr = timeoutMs ? formatDuration(Math.round(timeoutMs / 1000)) : '–';
 
     const lines: string[] = [];
 
@@ -365,7 +362,7 @@ export class ConfigHandlers extends BaseHandler {
 
     // AI
     lines.push('🤖 *AI*');
-    lines.push(`Provider: *${providerLabels[provider]}*`);
+    lines.push(`Provider: *${getProviderLabel(provider)}*`);
     lines.push(`GLM key: ${glmKeyMasked}`);
     lines.push(`OpenRouter key: ${openRouterKeyMasked}`);
     lines.push(`Models (effective): H \`${UIHelpers.escapeMarkdown(models.haiku)}\`  S \`${UIHelpers.escapeMarkdown(models.sonnet)}\`  O \`${UIHelpers.escapeMarkdown(models.opus)}\``);
@@ -465,7 +462,7 @@ export class ConfigHandlers extends BaseHandler {
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Failed to update config: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Failed to update config: ${getErrorMessage(error)}`
       );
     }
   }
@@ -575,7 +572,7 @@ export class ConfigHandlers extends BaseHandler {
     } catch (error) {
       await this.bot.sendMessage(
         chatId,
-        `❌ Failed to reset config: ${error instanceof Error ? error.message : String(error)}`
+        `❌ Failed to reset config: ${getErrorMessage(error)}`
       );
     }
   }
@@ -684,7 +681,7 @@ export class ConfigHandlers extends BaseHandler {
           await this.bot.sendMessage(chatId, `❌ Unknown subcommand: ${subcommand}\nUse /mcp for help.`);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
       logger.error('MCP command failed', { userId, subcommand, error: errorMessage });
     }
@@ -985,7 +982,7 @@ export class ConfigHandlers extends BaseHandler {
           await this.bot.sendMessage(chatId, `❌ Unknown subcommand: ${subcommand}\nUse /plugin for help.`);
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Error: ${errorMessage}`);
       logger.error('Plugin command failed', { userId, subcommand, error: errorMessage });
     }
@@ -1067,7 +1064,7 @@ export class ConfigHandlers extends BaseHandler {
 
       logger.info('Plugin installed', { userId, pluginSpec, repoPath });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(
         `❌ Failed to install plugin: ${errorMessage}`,
         { chat_id: chatId, message_id: statusMsg.message_id }
@@ -1111,7 +1108,7 @@ export class ConfigHandlers extends BaseHandler {
 
       logger.info('Plugin preset installed', { userId, presetName, pluginSpec, repoPath });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(
         `❌ Failed to install preset: ${errorMessage}`,
         { chat_id: chatId, message_id: statusMsg.message_id }
@@ -1135,7 +1132,7 @@ export class ConfigHandlers extends BaseHandler {
         { parse_mode: 'Markdown' }
       );
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.sendMessage(chatId, `❌ Failed to list plugins: ${errorMessage}`);
     }
   }
@@ -1162,7 +1159,7 @@ export class ConfigHandlers extends BaseHandler {
 
       logger.info('Plugin removed', { userId, pluginName, repoPath });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage = getErrorMessage(error);
       await this.bot.editMessageText(
         `❌ Failed to remove plugin: ${errorMessage}`,
         { chat_id: chatId, message_id: statusMsg.message_id }
@@ -1217,7 +1214,7 @@ export class ConfigHandlers extends BaseHandler {
         logger.warn('Failed to install default plugin', {
           pluginSpec,
           repoPath,
-          error: error instanceof Error ? error.message : String(error)
+          error: getErrorMessage(error)
         });
       }
     }

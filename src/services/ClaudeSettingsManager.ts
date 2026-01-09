@@ -2,6 +2,7 @@ import { promises as fs } from 'fs';
 import path from 'path';
 import { TechStackPreferences, McpConfig } from '../types';
 import { logger } from '../utils/logger';
+import { getErrorMessage } from '../utils/errors';
 
 interface ClaudeSettings {
   permissions?: {
@@ -77,7 +78,7 @@ export class ClaudeSettingsManager {
     } catch (error) {
       logger.error('Failed to sync Claude settings', {
         repoPath,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
@@ -119,7 +120,7 @@ export class ClaudeSettingsManager {
     } catch (error) {
       logger.error('Failed to sync MCP config', {
         repoPath,
-        error: error instanceof Error ? error.message : String(error)
+        error: getErrorMessage(error)
       });
       throw error;
     }
