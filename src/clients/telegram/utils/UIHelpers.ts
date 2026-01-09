@@ -1,5 +1,5 @@
 import { InlineKeyboardMarkup, InlineKeyboardButton } from 'node-telegram-bot-api';
-import { Repository, StreamAction, ClaudeTaskWithStreaming } from '../../../types';
+import { Repository, StreamAction, ClaudeTaskWithStreaming, McpServer } from '../../../types';
 import { formatDuration } from '../../../utils/time';
 
 export class UIHelpers {
@@ -307,5 +307,69 @@ export class UIHelpers {
     }
 
     return lines.join('\n');
+  }
+
+  /**
+   * Creates MCP server list keyboard with remove buttons
+   */
+  static createMcpServerListKeyboard(
+    servers: Record<string, McpServer>,
+    showPresets: boolean = true
+  ): InlineKeyboardMarkup {
+    const buttons: InlineKeyboardButton[][] = [];
+
+    // List current servers with remove buttons
+    for (const serverName of Object.keys(servers)) {
+      buttons.push([
+        { text: `🔌 ${serverName}`, callback_data: `mcp_info_${serverName}` },
+        { text: '×', callback_data: `mcp_remove_${serverName}` }
+      ]);
+    }
+
+    // Action row
+    if (showPresets) {
+      buttons.push([
+        { text: '➕ Add Preset', callback_data: 'mcp_presets' },
+        { text: '🗑️ Clear All', callback_data: 'mcp_clear' }
+      ]);
+    }
+
+    return { inline_keyboard: buttons };
+  }
+
+  /**
+   * Creates MCP presets selection keyboard
+   */
+  static createMcpPresetsKeyboard(
+    presets: Record<string, { description: string }>,
+    existingServers: string[] = []
+  ): InlineKeyboardMarkup {
+    const buttons: InlineKeyboardButton[][] = [];
+
+    for (const [name, { description }] of Object.entries(presets)) {
+      const isInstalled = existingServers.includes(name);
+      const icon = isInstalled ? '✓' : '○';
+      const shortDesc = description.length > 25 ? description.substring(0, 22) + '...' : description;
+
+      buttons.push([{
+        text: `${icon} ${name} - ${shortDesc}`,
+        callback_data: isInstalled ? `mcp_info_${name}` : `mcp_add_${name}`
+      }]);
+    }
+
+    buttons.push([{ text: '← Back', callback_data: 'mcp_list' }]);
+
+    return { inline_keyboard: buttons };
+  }
+
+  /**
+   * Creates MCP main menu keyboard (when no servers configured)
+   */
+  static createMcpEmptyKeyboard(): InlineKeyboardMarkup {
+    return {
+      inline_keyboard: [
+        [{ text: '➕ Add Preset', callback_data: 'mcp_presets' }]
+      ]
+    };
   }
 }

@@ -690,27 +690,36 @@ export class ConfigHandlers extends BaseHandler {
   private async showMcpHelp(chatId: number, userId: number, repoId: string): Promise<void> {
     const config = await this.userConfigManager?.getConfig(userId);
     const mcpConfig = config?.mcpConfigs?.[repoId];
-    const serverCount = mcpConfig ? Object.keys(mcpConfig.mcpServers).length : 0;
+    const servers = mcpConfig?.mcpServers || {};
+    const serverCount = Object.keys(servers).length;
 
-    const presetNames = Object.keys(MCP_PRESETS).join(', ');
+    if (serverCount === 0) {
+      const message =
+        `🔌 *MCP Servers*\n\n` +
+        `No servers configured.\n\n` +
+        `_Add a preset to get started:_`;
+
+      await this.bot.sendMessage(chatId, message, {
+        parse_mode: 'Markdown',
+        reply_markup: UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+      });
+      return;
+    }
+
+    // Build server list with details
+    const serverLines = Object.entries(servers).map(([name, server]) => {
+      const argsStr = server.args?.join(' ') || '';
+      return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+    });
 
     const message =
-      `🔌 *MCP Servers* (current repo)\n\n` +
-      `Configured servers: ${serverCount}\n\n` +
-      `*Commands:*\n` +
-      `/mcp preset <name> - Add from presets\n` +
-      `/mcp presets - Show available presets\n` +
-      `/mcp add <name> <cmd> [args...] - Add custom\n` +
-      `/mcp remove <name> - Remove server\n` +
-      `/mcp list - Show all servers\n` +
-      `/mcp clear - Remove all servers\n\n` +
-      `*Quick presets:* ${presetNames}\n\n` +
-      `*Examples:*\n` +
-      `\`/mcp preset playwright\` ← Browser automation\n` +
-      `\`/mcp preset filesystem\` ← File access\n` +
-      `\`/mcp add custom npx my-mcp-server\``;
+      `🔌 *MCP Servers* (${serverCount})\n\n` +
+      serverLines.join('\n\n');
 
-    await this.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+    await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
+      reply_markup: UIHelpers.createMcpServerListKeyboard(servers)
+    });
   }
 
   private async addMcpServer(msg: Message, args: string[], repoId: string): Promise<void> {

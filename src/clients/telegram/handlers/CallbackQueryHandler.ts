@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../../../utils/logger';
-import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider, StreamAction } from '../../../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider, StreamAction, McpConfig } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { gitService } from '../../../services/GitService';
@@ -13,6 +13,7 @@ import path from 'path';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
+import { MCP_PRESETS } from '../../../presets';
 
 const execAsync = promisify(exec);
 
@@ -53,7 +54,8 @@ export class CallbackQueryHandler extends BaseHandler {
         ralph: () => this.handleRalphAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction),
         apikey: () => this.handleApiKeyAction(chatId, messageId, userId, subAction),
-        model: () => this.handleModelAction(chatId, messageId, userId, subAction)
+        model: () => this.handleModelAction(chatId, messageId, userId, subAction),
+        mcp: () => this.handleMcpAction(chatId, messageId, userId, subAction)
       };
 
       const handler = handlers[action];
@@ -889,6 +891,217 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.bot.sendMessage(chatId, 'Could not stop. Loop may have completed.');
       }
     }
+  }
+
+  private async handleMcpAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.editMessage(chatId, messageId, '❌ No repository selected.\n\nUse /repo first.');
+      return;
+    }
+
+    const repoId = currentRepo.id;
+    const config = await this.userConfigManager.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig: McpConfig = mcpConfigs[repoId] || { mcpServers: {} };
+    const servers = repoMcpConfig.mcpServers;
+    const existingServers = Object.keys(servers);
+
+    // Handle different MCP actions
+    if (subAction === 'list') {
+      await this.showMcpList(chatId, messageId, servers);
+    } else if (subAction === 'presets') {
+      await this.showMcpPresets(chatId, messageId, existingServers);
+    } else if (subAction === 'clear') {
+      await this.clearMcpServers(chatId, messageId, userId, repoId);
+    } else if (subAction.startsWith('add_')) {
+      const presetName = subAction.replace('add_', '');
+      await this.addMcpPreset(chatId, messageId, userId, repoId, presetName);
+    } else if (subAction.startsWith('remove_')) {
+      const serverName = subAction.replace('remove_', '');
+      await this.removeMcpServer(chatId, messageId, userId, repoId, serverName);
+    } else if (subAction.startsWith('info_')) {
+      const serverName = subAction.replace('info_', '');
+      await this.showMcpServerInfo(chatId, messageId, serverName, servers[serverName]);
+    }
+  }
+
+  private async showMcpList(chatId: number, messageId: number, servers: Record<string, { command: string; args?: string[] }>): Promise<void> {
+    const serverCount = Object.keys(servers).length;
+
+    if (serverCount === 0) {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🔌 *MCP Servers*\n\nNo servers configured.\n\n_Add a preset to get started:_`,
+        UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+      );
+      return;
+    }
+
+    const serverLines = Object.entries(servers).map(([name, server]) => {
+      const argsStr = server.args?.join(' ') || '';
+      return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+    });
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+      UIHelpers.createMcpServerListKeyboard(servers)
+    );
+  }
+
+  private async showMcpPresets(chatId: number, messageId: number, existingServers: string[]): Promise<void> {
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🎯 *Available MCP Presets*\n\n_Tap to add:_`,
+      UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS, existingServers)
+    );
+  }
+
+  private async addMcpPreset(chatId: number, messageId: number, userId: number, repoId: string, presetName: string): Promise<void> {
+    const preset = MCP_PRESETS[presetName];
+    if (!preset) {
+      await this.editMessage(chatId, messageId, `❌ Unknown preset: \`${presetName}\``);
+      return;
+    }
+
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig: McpConfig = mcpConfigs[repoId] || { mcpServers: {} };
+
+    if (repoMcpConfig.mcpServers[presetName]) {
+      await this.editMessage(chatId, messageId, `⚠️ \`${presetName}\` already exists.`);
+      return;
+    }
+
+    repoMcpConfig.mcpServers[presetName] = preset.server;
+    mcpConfigs[repoId] = repoMcpConfig;
+
+    await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (currentRepo) {
+      await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+    }
+
+    const servers = repoMcpConfig.mcpServers;
+    const serverCount = Object.keys(servers).length;
+
+    const serverLines = Object.entries(servers).map(([name, server]) => {
+      const argsStr = server.args?.join(' ') || '';
+      return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+    });
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `✅ Added \`${presetName}\`\n\n🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+      UIHelpers.createMcpServerListKeyboard(servers)
+    );
+
+    logger.info('MCP preset added via callback', { userId, repoId, presetName });
+  }
+
+  private async removeMcpServer(chatId: number, messageId: number, userId: number, repoId: string, serverName: string): Promise<void> {
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig = mcpConfigs[repoId];
+
+    if (!repoMcpConfig || !repoMcpConfig.mcpServers[serverName]) {
+      await this.editMessage(chatId, messageId, `❌ Server not found: \`${serverName}\``);
+      return;
+    }
+
+    delete repoMcpConfig.mcpServers[serverName];
+    mcpConfigs[repoId] = repoMcpConfig;
+
+    await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (currentRepo) {
+      await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+    }
+
+    const servers = repoMcpConfig.mcpServers;
+    const serverCount = Object.keys(servers).length;
+
+    if (serverCount === 0) {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ Removed \`${serverName}\`\n\n🔌 *MCP Servers*\n\nNo servers configured.`,
+        UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+      );
+    } else {
+      const serverLines = Object.entries(servers).map(([name, server]) => {
+        const argsStr = server.args?.join(' ') || '';
+        return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+      });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ Removed \`${serverName}\`\n\n🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+        UIHelpers.createMcpServerListKeyboard(servers)
+      );
+    }
+
+    logger.info('MCP server removed via callback', { userId, repoId, serverName });
+  }
+
+  private async clearMcpServers(chatId: number, messageId: number, userId: number, repoId: string): Promise<void> {
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+
+    if (mcpConfigs[repoId]) {
+      delete mcpConfigs[repoId];
+      await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      if (currentRepo) {
+        await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+      }
+    }
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `✅ All MCP servers cleared.\n\n🔌 *MCP Servers*\n\nNo servers configured.`,
+      UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+    );
+
+    logger.info('MCP servers cleared via callback', { userId, repoId });
+  }
+
+  private async showMcpServerInfo(chatId: number, messageId: number, serverName: string, server: { command: string; args?: string[] } | undefined): Promise<void> {
+    if (!server) {
+      await this.editMessage(chatId, messageId, `❌ Server not found: \`${serverName}\``);
+      return;
+    }
+
+    const preset = MCP_PRESETS[serverName];
+    const description = preset?.description || 'Custom MCP server';
+    const argsStr = server.args?.join(' ') || '';
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *${serverName}*\n\n` +
+      `${description}\n\n` +
+      `*Command:* \`${server.command} ${argsStr}\``,
+      { inline_keyboard: [
+        [{ text: '🗑️ Remove', callback_data: `mcp_remove_${serverName}` }],
+        [{ text: '← Back', callback_data: 'mcp_list' }]
+      ]}
+    );
   }
 
   private async handleNewRepoCommandCallback(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
