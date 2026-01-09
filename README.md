@@ -118,6 +118,7 @@ The SDK executor includes built-in tools:
 - `bash` - Command execution
 - `glob`, `grep` - File search
 - `list_directory` - Directory listing
+It also supports MCP servers, plugins, skills, and subagents through the Anthropic SDK toolchain.
 
 ## Quick Start
 
