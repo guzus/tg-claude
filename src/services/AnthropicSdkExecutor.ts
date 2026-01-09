@@ -28,6 +28,7 @@ import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 const MAX_RESUME_ATTEMPTS = 3;
+const RESUME_LOCK_TTL_MS = 2 * 60 * 1000;
 
 type TaskRunOptions = {
   workingDir?: string;
@@ -81,6 +82,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
   private actionCounter = 0;
   private claudeCodePath: string | undefined;
   private taskStateStore: TaskStateStore;
+  private resumeLockId: string;
+  private resumedTasks: Set<string> = new Set();
 
   constructor(_apiKey?: string) {
     super();
@@ -95,6 +98,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
 
+    this.resumeLockId = uuidv4();
     this.taskStateStore = new TaskStateStore();
     setTimeout(() => {
       void this.resumeActiveTasks();
@@ -283,6 +287,13 @@ export class AnthropicSdkExecutor extends EventEmitter {
   }
 
   private async resumeTask(persisted: PersistedTaskState): Promise<void> {
+    if (this.resumedTasks.has(persisted.id)) return;
+    if (!this.taskStateStore.tryLockResume(persisted.id, this.resumeLockId, RESUME_LOCK_TTL_MS)) {
+      logger.info('Skip resume, lock held', { taskId: persisted.id });
+      return;
+    }
+
+    this.resumedTasks.add(persisted.id);
     this.taskStateStore.incrementResumeAttempts(persisted.id);
 
     const task = this.createTask(

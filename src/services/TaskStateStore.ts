@@ -19,6 +19,9 @@ export interface PersistedTaskState {
   ralphLoop?: { completionPromise: string; maxIterations: number };
   mcpServers?: Record<string, McpServer>;
   resumeAttempts?: number;
+  resumeLockedAt?: string;
+  resumeLockId?: string;
+  resumeNotifiedAt?: string;
 }
 
 const TASK_STATE_FILE = path.join(STATE_PATH, 'tasks.json');
@@ -57,6 +60,27 @@ export class TaskStateStore {
       updatedAt: new Date().toISOString(),
     });
     this.queueWrite();
+  }
+
+  tryLockResume(taskId: string, lockId: string, ttlMs: number): boolean {
+    const existing = this.tasks.get(taskId);
+    if (!existing) return false;
+    if (existing.resumeLockedAt && existing.resumeLockId && existing.resumeLockId !== lockId) {
+      const lockedAt = new Date(existing.resumeLockedAt).getTime();
+      if (Number.isFinite(lockedAt) && Date.now() - lockedAt < ttlMs) {
+        return false;
+      }
+    }
+
+    this.updateTask(taskId, {
+      resumeLockedAt: new Date().toISOString(),
+      resumeLockId: lockId,
+    });
+    return true;
+  }
+
+  markResumeNotified(taskId: string): void {
+    this.updateTask(taskId, { resumeNotifiedAt: new Date().toISOString() });
   }
 
   incrementResumeAttempts(taskId: string): number {
