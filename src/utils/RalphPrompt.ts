@@ -12,11 +12,7 @@ export function buildRalphLoopPrompt(params: {
     ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
     : '';
 
-  const taskPrompt = `${repoContext}${request}
-
-ITERATION TRACKING: At the START of each iteration, output: [RALPH_LOOP_ITERATION]
-
-When COMPLETELY done and verified, output: <promise>${completionPromise}</promise>`;
+  const taskPrompt = `${repoContext}${request}`;
 
   const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
