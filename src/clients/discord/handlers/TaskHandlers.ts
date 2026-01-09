@@ -10,9 +10,6 @@ import { logger } from '../../../utils/logger';
 import { toSafeDiscordId } from '../utils/ids';
 import { getErrorMessage } from '../../../utils/errors';
 import { gitService } from '../../../services/GitService';
-import { PromptBuilder } from '../../../utils/PromptBuilder';
-import { Repository, RepositoryType } from '../../../types';
-import * as path from 'path';
 
 /**
  * Handlers for task execution in Discord.
@@ -81,9 +78,6 @@ export class TaskHandlers extends BaseHandler {
       // Add to conversation context
       this.conversationManager?.addUserMessage(safeChannelId, prompt);
 
-      // Build enhanced prompt to align with Telegram workflow and include git instructions.
-      const enhancedPrompt = await this.buildEnhancedPrompt(prompt, workingDir, safeChannelId);
-
       // Send initial status message
       const statusMsg = await msg.reply({
         embeds: [{
@@ -97,7 +91,7 @@ export class TaskHandlers extends BaseHandler {
       const task = await this.executor.executeTask(
         safeUserId,
         safeChannelId,
-        enhancedPrompt,
+        prompt,
         { workingDir }
       );
 
@@ -243,38 +237,5 @@ export class TaskHandlers extends BaseHandler {
 
   private async ensureGitAuth(workingDir: string): Promise<void> {
     await gitService.ensureAuthRemote(workingDir);
-  }
-
-  private async buildEnhancedPrompt(
-    prompt: string,
-    workingDir: string,
-    channelKey: number
-  ): Promise<string> {
-    try {
-      const [remoteUrl, branch] = await Promise.all([
-        gitService.getRemoteUrl(workingDir),
-        gitService.getCurrentBranch(workingDir)
-      ]);
-
-      const repo: Repository = {
-        id: `discord_${channelKey}`,
-        name: path.basename(workingDir),
-        path: workingDir,
-        type: RepositoryType.EXISTING,
-        gitUrl: remoteUrl || undefined,
-        branch: branch || undefined,
-        createdAt: new Date(),
-        lastUsed: new Date()
-      };
-
-      const context = this.conversationManager?.getContext(channelKey) || '';
-      return PromptBuilder.buildEnhancedPrompt(prompt, repo, context);
-    } catch (error) {
-      logger.debug('Failed to build enhanced prompt for Discord task', {
-        workingDir,
-        error: getErrorMessage(error)
-      });
-      return prompt;
-    }
   }
 }

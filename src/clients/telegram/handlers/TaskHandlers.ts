@@ -3,7 +3,6 @@ import { BaseHandler } from './BaseHandler';
 import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { PromptBuilder } from '../../../utils/PromptBuilder';
 import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
@@ -433,18 +432,8 @@ Always commit and push your changes after completing the task unless explicitly 
     // Add user message to conversation history
     this.conversationManager?.addUserMessage(userId, userMessage, currentRepo.id);
 
-    // Get conversation context
-    const context = this.conversationManager?.getContext(userId);
-
-    // Build enhanced prompt with context
-    const enhancedPrompt = PromptBuilder.buildEnhancedPrompt(
-      userMessage,
-      currentRepo,
-      context
-    );
-
-    // Execute with enhanced prompt, passing original user message for commit messages
-    await this.executeAndStream(msg, enhancedPrompt, undefined, userMessage);
+    // Execute task with user's prompt
+    await this.executeAndStream(msg, userMessage);
   }
 
   /**
