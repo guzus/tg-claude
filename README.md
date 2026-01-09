@@ -140,7 +140,8 @@ The SDK executor includes built-in tools:
 2. Set required environment variables:
    - `TELEGRAM_BOT_TOKEN` - from [@BotFather](https://t.me/BotFather)
    - `ALLOWED_USER_IDS` - your Telegram ID (get from [@userinfobot](https://t.me/userinfobot))
-   - `ANTHROPIC_API_KEY` - from [Anthropic Console](https://console.anthropic.com/)
+   - `CLAUDE_CODE_OAUTH_TOKEN` - from `claude setup-token` (uses your Claude subscription)
+   - Or `ANTHROPIC_API_KEY` - from [Anthropic Console](https://console.anthropic.com/) (uses API billing)
 3. Deploy!
 
 ### Deploy on VPS (Docker Compose)
