@@ -385,7 +385,7 @@ export class ConfigHandlers extends BaseHandler {
   async handlePlugin(interaction: ChatInputCommandInteraction): Promise<void> {
     if (!(await this.checkAccess(interaction))) return;
 
-    const action = interaction.options.getString('action') || 'list';
+    const action = interaction.options.getString('action') || 'presets';
     const spec = interaction.options.getString('spec') || '';
     const context = this.getChannelContext(interaction);
 
@@ -396,14 +396,6 @@ export class ConfigHandlers extends BaseHandler {
         await interaction.deferReply({ flags: this.ephemeralFlags() });
       }
       switch (action) {
-        case 'list':
-        case 'show': {
-          const output = await this.execClaudePlugin(['plugin', 'list'], context.workingDir);
-          await interaction.editReply({
-            content: output.trim() ? `\`\`\`\n${output.trim()}\n\`\`\`` : 'No plugins installed.'
-          });
-          return;
-        }
         case 'presets': {
           const lines = Object.entries(PLUGIN_PRESETS).map(([name, preset]) => {
             const defaultTag = preset.isDefault ? ' (default)' : '';

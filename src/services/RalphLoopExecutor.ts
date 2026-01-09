@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { ClaudeExecutor } from './ClaudeExecutor';
+import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
@@ -68,14 +68,14 @@ const TASK_POLL_INTERVAL_MS = 5000;
  */
 export class RalphLoopExecutor {
   private bot: TelegramBot;
-  private executor: ClaudeExecutor;
+  private executor: ClaudeExecutorInstance;
   private repositoryManager: RepositoryManager;
   private activeSessions: Map<string, RalphLoopState> = new Map();
   private userSessions: Map<number, string> = new Map();
 
   constructor(
     bot: TelegramBot,
-    executor: ClaudeExecutor,
+    executor: ClaudeExecutorInstance,
     repositoryManager: RepositoryManager
   ) {
     this.bot = bot;

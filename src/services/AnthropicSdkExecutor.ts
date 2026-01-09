@@ -263,6 +263,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
             pathToClaudeCodeExecutable: this.claudeCodePath,
             // Use bun as the runtime since we're in a bun environment
             executable: 'bun',
+            // Load local project settings to enable installed plugins (e.g., ralph-loop)
+            settingSources: ['local'],
           },
         });
 

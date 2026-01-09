@@ -969,10 +969,6 @@ export class ConfigHandlers extends BaseHandler {
         case 'presets':
           await this.showPluginPresets(msg);
           break;
-        case 'list':
-        case 'show':
-          await this.listPlugins(msg, currentRepo.path);
-          break;
         case 'remove':
         case 'rm':
         case 'uninstall':
@@ -1001,7 +997,6 @@ export class ConfigHandlers extends BaseHandler {
       `/plugin install <name>@<registry> - Install plugin\n` +
       `/plugin preset <name> - Install from presets\n` +
       `/plugin presets - Show available presets\n` +
-      `/plugin list - Show installed plugins\n` +
       `/plugin remove <name> - Remove plugin\n\n` +
       `*Available presets:* ${presetNames}\n` +
       `*Auto-installed:* ${defaultPlugins || 'none'}\n\n` +
@@ -1116,27 +1111,6 @@ export class ConfigHandlers extends BaseHandler {
     }
   }
 
-  private async listPlugins(msg: Message, repoPath: string): Promise<void> {
-    const chatId = msg.chat.id;
-
-    try {
-      const output = await this.executePluginCommand('list', '', repoPath);
-
-      if (!output || output.trim() === '' || output.includes('No plugins installed')) {
-        await this.bot.sendMessage(chatId, '📭 No plugins installed.\n\nUse `/plugin preset ralph-loop` to install the Ralph Wiggum loop.', { parse_mode: 'Markdown' });
-        return;
-      }
-
-      await this.bot.sendMessage(chatId,
-        `🔌 *Installed Plugins*\n\n\`\`\`\n${output}\n\`\`\``,
-        { parse_mode: 'Markdown' }
-      );
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      await this.bot.sendMessage(chatId, `❌ Failed to list plugins: ${errorMessage}`);
-    }
-  }
-
   private async removePlugin(msg: Message, args: string[], repoPath: string): Promise<void> {
     const chatId = msg.chat.id;
     const userId = msg.from!.id;
@@ -1170,7 +1144,7 @@ export class ConfigHandlers extends BaseHandler {
   /**
    * Execute a claude plugin command
    */
-  private async executePluginCommand(action: 'install' | 'uninstall' | 'list', arg: string, repoPath: string): Promise<string> {
+  private async executePluginCommand(action: 'install' | 'uninstall', arg: string, repoPath: string): Promise<string> {
     const { execSync } = await import('child_process');
 
     const cmd = arg ? `claude plugin ${action} ${arg}` : `claude plugin ${action}`;

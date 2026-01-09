@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { ClaudeExecutor } from './ClaudeExecutor';
+import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 import { TaskStatus, Repository, RepositoryType, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { PLUGIN_PRESETS } from '../presets';
@@ -60,11 +60,11 @@ const SESSION_CLEANUP_DELAY_MS = 60 * 60 * 1000;
 const TASK_POLL_INTERVAL_MS = 5000;
 
 export class DiscordRalphLoopExecutor {
-  private executor: ClaudeExecutor;
+  private executor: ClaudeExecutorInstance;
   private activeSessions: Map<string, DiscordRalphLoopState> = new Map();
   private userSessions: Map<number, string> = new Map();
 
-  constructor(executor: ClaudeExecutor) {
+  constructor(executor: ClaudeExecutorInstance) {
     this.executor = executor;
   }
 
