@@ -430,4 +430,13 @@ export class ClaudeExecutor extends EventEmitter {
     if (cleaned > 0) logger.info('Cleaned old tasks', { count: cleaned });
     return cleaned;
   }
+
+  // Session management stubs (CLI mode doesn't support session resumption)
+  clearChatSession(_chatId: number): boolean {
+    return false;
+  }
+
+  getChatSessionId(_chatId: number): string | undefined {
+    return undefined;
+  }
 }
