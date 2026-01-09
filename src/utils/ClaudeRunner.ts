@@ -38,8 +38,8 @@ function configureGitEnv(env: NodeJS.ProcessEnv): void {
   };
 
   // Configure git identity for commits (fallback if not already configured)
-  const gitAuthorName = process.env.GIT_AUTHOR_NAME || 'Claude';
-  const gitAuthorEmail = process.env.GIT_AUTHOR_EMAIL || 'claude@anthropic.com';
+  const gitAuthorName = process.env.GIT_AUTHOR_NAME || 'tg-claude';
+  const gitAuthorEmail = process.env.GIT_AUTHOR_EMAIL || 'tg-claude@remote';
   addConfig('user.name', gitAuthorName);
   addConfig('user.email', gitAuthorEmail);
 
