@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../../../utils/logger';
-import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider, StreamAction } from '../../../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider, StreamAction, McpConfig } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { gitService } from '../../../services/GitService';
@@ -13,6 +13,8 @@ import path from 'path';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
+import { MCP_PRESETS, PLUGIN_PRESETS } from '../../../presets';
+import { listInstalledPlugins } from '../../../services/ClaudePluginMarketplace';
 
 const execAsync = promisify(exec);
 
@@ -53,7 +55,9 @@ export class CallbackQueryHandler extends BaseHandler {
         ralph: () => this.handleRalphAction(chatId, messageId, userId, subAction),
         ai: () => this.handleAiSwitch(chatId, messageId, userId, subAction),
         apikey: () => this.handleApiKeyAction(chatId, messageId, userId, subAction),
-        model: () => this.handleModelAction(chatId, messageId, userId, subAction)
+        model: () => this.handleModelAction(chatId, messageId, userId, subAction),
+        mcp: () => this.handleMcpAction(chatId, messageId, userId, subAction),
+        plugin: () => this.handlePluginAction(chatId, messageId, userId, subAction)
       };
 
       const handler = handlers[action];
@@ -889,6 +893,396 @@ export class CallbackQueryHandler extends BaseHandler {
         await this.bot.sendMessage(chatId, 'Could not stop. Loop may have completed.');
       }
     }
+  }
+
+  private async handleMcpAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    if (!this.userConfigManager) {
+      await this.bot.sendMessage(chatId, '❌ Config manager not available');
+      return;
+    }
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.editMessage(chatId, messageId, '❌ No repository selected.\n\nUse /repo first.');
+      return;
+    }
+
+    const repoId = currentRepo.id;
+    const config = await this.userConfigManager.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig: McpConfig = mcpConfigs[repoId] || { mcpServers: {} };
+    const servers = repoMcpConfig.mcpServers;
+    const existingServers = Object.keys(servers);
+
+    // Handle different MCP actions
+    if (subAction === 'list') {
+      await this.showMcpList(chatId, messageId, servers);
+    } else if (subAction === 'presets') {
+      await this.showMcpPresets(chatId, messageId, existingServers);
+    } else if (subAction === 'clear') {
+      await this.clearMcpServers(chatId, messageId, userId, repoId);
+    } else if (subAction.startsWith('add_')) {
+      const presetName = subAction.replace('add_', '');
+      await this.addMcpPreset(chatId, messageId, userId, repoId, presetName);
+    } else if (subAction.startsWith('remove_')) {
+      const serverName = subAction.replace('remove_', '');
+      await this.removeMcpServer(chatId, messageId, userId, repoId, serverName);
+    } else if (subAction.startsWith('info_')) {
+      const serverName = subAction.replace('info_', '');
+      await this.showMcpServerInfo(chatId, messageId, serverName, servers[serverName]);
+    }
+  }
+
+  private async showMcpList(chatId: number, messageId: number, servers: Record<string, { command: string; args?: string[] }>): Promise<void> {
+    const serverCount = Object.keys(servers).length;
+
+    if (serverCount === 0) {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🔌 *MCP Servers*\n\nNo servers configured.\n\n_Add a preset to get started:_`,
+        UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+      );
+      return;
+    }
+
+    const serverLines = Object.entries(servers).map(([name, server]) => {
+      const argsStr = server.args?.join(' ') || '';
+      return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+    });
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+      UIHelpers.createMcpServerListKeyboard(servers)
+    );
+  }
+
+  private async showMcpPresets(chatId: number, messageId: number, existingServers: string[]): Promise<void> {
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🎯 *Available MCP Presets*\n\n_Tap to add:_`,
+      UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS, existingServers)
+    );
+  }
+
+  private async addMcpPreset(chatId: number, messageId: number, userId: number, repoId: string, presetName: string): Promise<void> {
+    const preset = MCP_PRESETS[presetName];
+    if (!preset) {
+      await this.editMessage(chatId, messageId, `❌ Unknown preset: \`${presetName}\``);
+      return;
+    }
+
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig: McpConfig = mcpConfigs[repoId] || { mcpServers: {} };
+
+    if (repoMcpConfig.mcpServers[presetName]) {
+      await this.editMessage(chatId, messageId, `⚠️ \`${presetName}\` already exists.`);
+      return;
+    }
+
+    repoMcpConfig.mcpServers[presetName] = preset.server;
+    mcpConfigs[repoId] = repoMcpConfig;
+
+    await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (currentRepo) {
+      await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+    }
+
+    const servers = repoMcpConfig.mcpServers;
+    const serverCount = Object.keys(servers).length;
+
+    const serverLines = Object.entries(servers).map(([name, server]) => {
+      const argsStr = server.args?.join(' ') || '';
+      return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+    });
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `✅ Added \`${presetName}\`\n\n🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+      UIHelpers.createMcpServerListKeyboard(servers)
+    );
+
+    logger.info('MCP preset added via callback', { userId, repoId, presetName });
+  }
+
+  private async removeMcpServer(chatId: number, messageId: number, userId: number, repoId: string, serverName: string): Promise<void> {
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+    const repoMcpConfig = mcpConfigs[repoId];
+
+    if (!repoMcpConfig || !repoMcpConfig.mcpServers[serverName]) {
+      await this.editMessage(chatId, messageId, `❌ Server not found: \`${serverName}\``);
+      return;
+    }
+
+    delete repoMcpConfig.mcpServers[serverName];
+    mcpConfigs[repoId] = repoMcpConfig;
+
+    await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (currentRepo) {
+      await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+    }
+
+    const servers = repoMcpConfig.mcpServers;
+    const serverCount = Object.keys(servers).length;
+
+    if (serverCount === 0) {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ Removed \`${serverName}\`\n\n🔌 *MCP Servers*\n\nNo servers configured.`,
+        UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+      );
+    } else {
+      const serverLines = Object.entries(servers).map(([name, server]) => {
+        const argsStr = server.args?.join(' ') || '';
+        return `• \`${name}\`\n  ${server.command} ${argsStr}`.trim();
+      });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ Removed \`${serverName}\`\n\n🔌 *MCP Servers* (${serverCount})\n\n${serverLines.join('\n\n')}`,
+        UIHelpers.createMcpServerListKeyboard(servers)
+      );
+    }
+
+    logger.info('MCP server removed via callback', { userId, repoId, serverName });
+  }
+
+  private async clearMcpServers(chatId: number, messageId: number, userId: number, repoId: string): Promise<void> {
+    const config = await this.userConfigManager!.getConfig(userId);
+    const mcpConfigs = config.mcpConfigs || {};
+
+    if (mcpConfigs[repoId]) {
+      delete mcpConfigs[repoId];
+      await this.userConfigManager!.updateConfig(userId, { mcpConfigs });
+
+      const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+      if (currentRepo) {
+        await this.repositoryManager.syncClaudeSettings(userId, currentRepo.path, repoId);
+      }
+    }
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `✅ All MCP servers cleared.\n\n🔌 *MCP Servers*\n\nNo servers configured.`,
+      UIHelpers.createMcpPresetsKeyboard(MCP_PRESETS)
+    );
+
+    logger.info('MCP servers cleared via callback', { userId, repoId });
+  }
+
+  private async showMcpServerInfo(chatId: number, messageId: number, serverName: string, server: { command: string; args?: string[] } | undefined): Promise<void> {
+    if (!server) {
+      await this.editMessage(chatId, messageId, `❌ Server not found: \`${serverName}\``);
+      return;
+    }
+
+    const preset = MCP_PRESETS[serverName];
+    const description = preset?.description || 'Custom MCP server';
+    const argsStr = server.args?.join(' ') || '';
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *${serverName}*\n\n` +
+      `${description}\n\n` +
+      `*Command:* \`${server.command} ${argsStr}\``,
+      { inline_keyboard: [
+        [{ text: '🗑️ Remove', callback_data: `mcp_remove_${serverName}` }],
+        [{ text: '← Back', callback_data: 'mcp_list' }]
+      ]}
+    );
+  }
+
+  private async handlePluginAction(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
+    const currentRepo = this.repositoryManager.getCurrentRepository(userId);
+    if (!currentRepo) {
+      await this.editMessage(chatId, messageId, '❌ No repository selected.\n\nUse /repo first.');
+      return;
+    }
+
+    const plugins = listInstalledPlugins()
+      .filter(plugin => !!plugin.id)
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const installedIds = plugins.map(p => p.id);
+
+    // Handle different plugin actions
+    if (subAction === 'list') {
+      await this.showPluginList(chatId, messageId, plugins);
+    } else if (subAction === 'presets') {
+      await this.showPluginPresets(chatId, messageId, installedIds);
+    } else if (subAction.startsWith('add_')) {
+      const presetKey = subAction.replace('add_', '');
+      await this.addPluginPreset(chatId, messageId, userId, currentRepo.path, presetKey);
+    } else if (subAction.startsWith('remove_')) {
+      const pluginId = subAction.replace('remove_', '');
+      await this.removePluginCallback(chatId, messageId, userId, currentRepo.path, pluginId);
+    } else if (subAction.startsWith('info_')) {
+      const pluginId = subAction.replace('info_', '');
+      const plugin = plugins.find(p => p.id === pluginId);
+      await this.showPluginInfo(chatId, messageId, pluginId, plugin);
+    }
+  }
+
+  private async showPluginList(chatId: number, messageId: number, plugins: { id: string; scope?: string }[]): Promise<void> {
+    if (plugins.length === 0) {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🔌 *Claude Plugins*\n\nNo plugins installed.\n\n_Add a preset to get started:_`,
+        UIHelpers.createPluginPresetsKeyboard(PLUGIN_PRESETS)
+      );
+      return;
+    }
+
+    const pluginLines = plugins.map(plugin => {
+      const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+      return `• \`${plugin.id}\`${scopeLabel}`;
+    });
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *Claude Plugins* (${plugins.length})\n\n${pluginLines.join('\n')}`,
+      UIHelpers.createPluginListKeyboard(plugins)
+    );
+  }
+
+  private async showPluginPresets(chatId: number, messageId: number, installedIds: string[]): Promise<void> {
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🎯 *Available Plugin Presets*\n\n_Tap to install:_`,
+      UIHelpers.createPluginPresetsKeyboard(PLUGIN_PRESETS, installedIds)
+    );
+  }
+
+  private async addPluginPreset(chatId: number, messageId: number, userId: number, repoPath: string, presetKey: string): Promise<void> {
+    const preset = PLUGIN_PRESETS[presetKey];
+    if (!preset) {
+      await this.editMessage(chatId, messageId, `❌ Unknown preset: \`${presetKey}\``);
+      return;
+    }
+
+    const pluginSpec = `${preset.name}@${preset.registry}`;
+
+    // Show installing message
+    await this.editMessage(chatId, messageId, `⏳ Installing \`${preset.name}\`...`);
+
+    try {
+      const cmd = `claude plugin install ${pluginSpec}`;
+      await execAsync(cmd, { cwd: repoPath, timeout: 60000 });
+
+      // Refresh plugin list
+      const plugins = listInstalledPlugins()
+        .filter(plugin => !!plugin.id)
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      const pluginLines = plugins.map(plugin => {
+        const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+        return `• \`${plugin.id}\`${scopeLabel}`;
+      });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ Installed \`${preset.name}\`\n\n🔌 *Claude Plugins* (${plugins.length})\n\n${pluginLines.join('\n')}`,
+        UIHelpers.createPluginListKeyboard(plugins)
+      );
+
+      logger.info('Plugin preset installed via callback', { userId, presetKey, pluginSpec });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      await this.editMessage(
+        chatId,
+        messageId,
+        `❌ Failed to install \`${preset.name}\`\n\n${errorMessage}`,
+        { inline_keyboard: [[{ text: '← Back', callback_data: 'plugin_presets' }]] }
+      );
+      logger.error('Plugin preset installation failed', { userId, presetKey, error: errorMessage });
+    }
+  }
+
+  private async removePluginCallback(chatId: number, messageId: number, userId: number, repoPath: string, pluginId: string): Promise<void> {
+    // Show removing message
+    await this.editMessage(chatId, messageId, `⏳ Removing \`${pluginId}\`...`);
+
+    try {
+      const cmd = `claude plugin uninstall ${pluginId}`;
+      await execAsync(cmd, { cwd: repoPath, timeout: 60000 });
+
+      // Refresh plugin list
+      const plugins = listInstalledPlugins()
+        .filter(plugin => !!plugin.id)
+        .sort((a, b) => a.id.localeCompare(b.id));
+
+      if (plugins.length === 0) {
+        await this.editMessage(
+          chatId,
+          messageId,
+          `✅ Removed \`${pluginId}\`\n\n🔌 *Claude Plugins*\n\nNo plugins installed.`,
+          UIHelpers.createPluginPresetsKeyboard(PLUGIN_PRESETS)
+        );
+      } else {
+        const pluginLines = plugins.map(plugin => {
+          const scopeLabel = plugin.scope ? ` (${plugin.scope})` : '';
+          return `• \`${plugin.id}\`${scopeLabel}`;
+        });
+
+        await this.editMessage(
+          chatId,
+          messageId,
+          `✅ Removed \`${pluginId}\`\n\n🔌 *Claude Plugins* (${plugins.length})\n\n${pluginLines.join('\n')}`,
+          UIHelpers.createPluginListKeyboard(plugins)
+        );
+      }
+
+      logger.info('Plugin removed via callback', { userId, pluginId });
+    } catch (error) {
+      const errorMessage = getErrorMessage(error);
+      await this.editMessage(
+        chatId,
+        messageId,
+        `❌ Failed to remove \`${pluginId}\`\n\n${errorMessage}`,
+        { inline_keyboard: [[{ text: '← Back', callback_data: 'plugin_list' }]] }
+      );
+      logger.error('Plugin removal failed', { userId, pluginId, error: errorMessage });
+    }
+  }
+
+  private async showPluginInfo(chatId: number, messageId: number, pluginId: string, plugin: { id: string; scope?: string; version?: string } | undefined): Promise<void> {
+    // Find preset info if it's a known preset
+    const presetEntry = Object.entries(PLUGIN_PRESETS).find(([, p]) => p.name === pluginId);
+    const preset = presetEntry?.[1];
+    const description = preset?.description || 'Custom plugin';
+    const registry = preset?.registry || 'unknown';
+
+    const scopeLabel = plugin?.scope ? `\n*Scope:* ${plugin.scope}` : '';
+    const versionLabel = plugin?.version ? `\n*Version:* ${plugin.version}` : '';
+
+    await this.editMessage(
+      chatId,
+      messageId,
+      `🔌 *${pluginId}*\n\n` +
+      `${description}\n` +
+      `*Registry:* ${registry}${scopeLabel}${versionLabel}`,
+      { inline_keyboard: [
+        [{ text: '🗑️ Remove', callback_data: `plugin_remove_${pluginId}` }],
+        [{ text: '← Back', callback_data: 'plugin_list' }]
+      ]}
+    );
   }
 
   private async handleNewRepoCommandCallback(chatId: number, messageId: number, userId: number, subAction: string): Promise<void> {
