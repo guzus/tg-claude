@@ -1,7 +1,10 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import { createHash } from 'crypto';
+
+const execAsync = promisify(exec);
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
 import { WORKSPACE_PATH } from '../config';
@@ -588,13 +591,12 @@ export class RepositoryManager {
       .filter(([, preset]) => preset.isDefault)
       .map(([, preset]) => `${preset.name}@${preset.registry}`);
 
-    for (const pluginSpec of defaultPlugins) {
+    // Install plugins in parallel for faster setup
+    await Promise.all(defaultPlugins.map(async (pluginSpec) => {
       try {
-        execSync(`claude plugin install ${pluginSpec}`, {
+        await execAsync(`claude plugin install ${pluginSpec}`, {
           cwd: repoPath,
-          encoding: 'utf-8',
           timeout: 60000,
-          stdio: ['pipe', 'pipe', 'pipe']
         });
         logger.info('Default plugin installed', { pluginSpec, repoPath });
       } catch (error) {
@@ -605,6 +607,6 @@ export class RepositoryManager {
           error: getErrorMessage(error)
         });
       }
-    }
+    }));
   }
 }

@@ -124,11 +124,26 @@ export class DiscordClient {
   }
 
   /**
+   * Validate Discord token format (three dot-separated base64 parts)
+   */
+  private isValidTokenFormat(token: string): boolean {
+    if (!token || typeof token !== 'string') return false;
+    const parts = token.split('.');
+    // Discord tokens have 3 parts separated by dots
+    return parts.length === 3 && parts.every(part => part.length > 0);
+  }
+
+  /**
    * Start the Discord client
    */
   async start(): Promise<void> {
     if (!config.discordToken) {
       logger.warn('Discord token not configured, skipping Discord client');
+      return;
+    }
+
+    if (!this.isValidTokenFormat(config.discordToken)) {
+      logger.warn('Discord token appears invalid (expected 3-part format), skipping Discord client');
       return;
     }
 
