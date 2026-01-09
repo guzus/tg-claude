@@ -344,6 +344,32 @@ class GitService {
   }
 
   /**
+   * Create GitHub repository using gh CLI
+   */
+  async createGitHubRepository(
+    workingDir: string,
+    isPrivate = false,
+    customRepoName?: string
+  ): Promise<'success' | 'already_exists' | 'error'> {
+    try {
+      const path = await import('path');
+      const repoName = customRepoName || path.basename(workingDir);
+      const visibility = isPrivate ? '--private' : '--public';
+      await execAsync(`gh repo create ${repoName} ${visibility} --source=. --remote=origin --push`, {
+        cwd: workingDir,
+        timeout: 30000,
+      });
+      logger.info('Created GitHub repository', { repoName, visibility });
+      return 'success';
+    } catch (error) {
+      const errMsg = getErrorMessage(error);
+      if (errMsg.includes('Name already exists')) return 'already_exists';
+      logger.error('Failed to create GitHub repository', { error: errMsg });
+      return 'error';
+    }
+  }
+
+  /**
    * Clone repository
    */
   async clone(gitUrl: string, targetPath: string, branch?: string): Promise<void> {
