@@ -110,7 +110,7 @@ export class TaskHandlers extends BaseHandler {
         }
 
         if (currentTask.status === TaskStatus.RUNNING) {
-          const elapsed = Math.round((Date.now() - currentTask.startTime.getTime()) / 1000);
+          const elapsed = Math.round((Date.now() - startTime) / 1000);
 
           const embed = DiscordUIHelpers.createTaskStatusEmbed(currentTask, elapsed);
           const buttons = DiscordUIHelpers.createTaskControlButtons(task.id);
