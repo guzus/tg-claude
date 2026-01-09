@@ -348,16 +348,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         // Build the final prompt - add ralph loop instructions if enabled
         let finalPrompt = task.prompt;
         if (ralphLoop) {
-          finalPrompt = `You are in autonomous loop mode. Keep working on the task until you complete it.
-
-IMPORTANT INSTRUCTIONS:
-1. Work autonomously without asking for confirmation
-2. When you have FULLY completed the task, output exactly: ${ralphLoop.completionPromise}
-3. Do NOT output ${ralphLoop.completionPromise} until ALL work is done
-4. Maximum iterations: ${ralphLoop.maxIterations}
-
-TASK:
-${task.prompt}`;
+          finalPrompt = `/ralph-loop:ralph-loop "${task.prompt}" --max-iterations ${ralphLoop.maxIterations} --completion-promise "${ralphLoop.completionPromise}"`;
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
