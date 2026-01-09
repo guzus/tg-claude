@@ -99,12 +99,12 @@ tg-claude supports two execution modes:
 
 | Mode | Description | Best For |
 |------|-------------|----------|
-| **SDK** (default) | Uses [@anthropic-ai/sdk](https://github.com/anthropics/anthropic-sdk-typescript) directly | Direct API access, simpler setup |
-| **CLI** | Uses Claude Code CLI with full tool support | MCP servers, plugins, advanced features |
+| **SDK** (default) | Uses [@anthropic-ai/claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-demos) directly | Direct API access, simpler setup |
+| **CLI** (deprecated) | Uses Claude Code CLI with full tool support | Not maintained |
 
 Set via `EXECUTOR_TYPE` environment variable:
-- `EXECUTOR_TYPE=sdk` - Anthropic SDK (default)
-- `EXECUTOR_TYPE=cli` - Claude Code CLI
+- `EXECUTOR_TYPE=sdk` - Anthropic SDK (default, recommended)
+- `EXECUTOR_TYPE=cli` - Claude Code CLI (deprecated, not maintained)
 
 ### Authentication
 
@@ -114,7 +114,7 @@ Set via `EXECUTOR_TYPE` environment variable:
 
 > **Important**: Do NOT set both. If `ANTHROPIC_API_KEY` is set alongside OAuth token, it may cause billing conflicts.
 
-**For CLI mode in Docker**: Create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
+**For CLI mode in Docker** (deprecated): Create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
 
 ### SDK Executor Tools
 
@@ -140,8 +140,7 @@ The SDK executor includes built-in tools:
 2. Set required environment variables:
    - `TELEGRAM_BOT_TOKEN` - from [@BotFather](https://t.me/BotFather)
    - `ALLOWED_USER_IDS` - your Telegram ID (get from [@userinfobot](https://t.me/userinfobot))
-   - `ANTHROPIC_API_KEY` - from [Anthropic Console](https://console.anthropic.com/) (for SDK mode)
-   - Or `CLAUDE_CODE_OAUTH_TOKEN` - from `claude setup-token` (for CLI mode with `EXECUTOR_TYPE=cli`)
+   - `ANTHROPIC_API_KEY` - from [Anthropic Console](https://console.anthropic.com/)
 3. Deploy!
 
 ### Deploy on VPS (Docker Compose)

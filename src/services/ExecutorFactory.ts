@@ -21,6 +21,8 @@ export function createExecutor(
     return new AnthropicSdkExecutor(apiKey);
   }
 
+  // CLI mode is deprecated - warn but still allow
+  logger.warn('CLI executor is deprecated and not maintained. Consider using SDK mode (EXECUTOR_TYPE=sdk)');
   return new ClaudeExecutor();
 }
 

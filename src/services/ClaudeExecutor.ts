@@ -16,6 +16,10 @@ import { EventEmitter } from 'events';
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 
+/**
+ * @deprecated CLI mode is not maintained. Use AnthropicSdkExecutor (SDK mode) instead.
+ * Set EXECUTOR_TYPE=sdk in your environment to use the SDK executor.
+ */
 export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
