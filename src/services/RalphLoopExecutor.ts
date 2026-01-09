@@ -222,8 +222,7 @@ export class RalphLoopExecutor {
 
     logger.info('Ralph loop session cleaned up', {
       sessionId: state.sessionId,
-      status: state.status,
-      iterations: state.iteration
+      status: state.status
     });
   }
 
@@ -343,39 +342,6 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Count iterations from task output
-   */
-  private countIterationsFromOutput(taskId: string): number {
-    const task = this.executor.getTask(taskId);
-    if (!task?.output) return 1;
-
-    // Count explicit iteration markers
-    const markerMatches = task.output.match(/\[RALPH_LOOP_ITERATION\]/g);
-    if (markerMatches && markerMatches.length > 0) {
-      return markerMatches.length;
-    }
-
-    // Fallback: count common iteration patterns
-    const iterationPatterns = [
-      /iteration\s*#?\d+/gi,
-      /loop\s*#?\d+/gi,
-      /cycle\s*#?\d+/gi,
-      /round\s*#?\d+/gi,
-      /attempt\s*#?\d+/gi
-    ];
-
-    let maxCount = 0;
-    for (const pattern of iterationPatterns) {
-      const matches = task.output.match(pattern);
-      if (matches) {
-        maxCount = Math.max(maxCount, matches.length);
-      }
-    }
-
-    return Math.max(1, maxCount);
-  }
-
-  /**
    * Monitor task progress using stream events (DRY - reuses ClaudeExecutor's streaming)
    */
   private async monitorTask(state: RalphLoopState, taskId: string): Promise<void> {
@@ -386,18 +352,6 @@ export class RalphLoopExecutor {
       // Stream event handler - reuses ClaudeExecutor's parsed events
       const handleStreamEvent = (eventTaskId: string, event: StreamEvent) => {
         if (eventTaskId !== taskId) return;
-
-        // Check for iteration markers in note/text events
-        if (event.type === 'action' && event.action?.kind === 'note') {
-          const text = String(event.action.detail?.text || event.message || '');
-          if (text.includes('[RALPH_LOOP_ITERATION]')) {
-            state.iteration++;
-            logger.info('Ralph loop iteration (stream)', {
-              sessionId: state.sessionId,
-              iteration: state.iteration
-            });
-          }
-        }
 
         // Throttle UI updates (every 2s) for any action event
         if (event.type === 'action' && Date.now() - lastUpdateTime > 2000) {
@@ -411,8 +365,7 @@ export class RalphLoopExecutor {
           state.endTime = new Date();
           logger.info('Ralph loop task finished (stream)', {
             sessionId: state.sessionId,
-            ok: event.ok,
-            iterations: state.iteration
+            ok: event.ok
           });
           resolve();
         }
@@ -431,7 +384,7 @@ export class RalphLoopExecutor {
           cleanup();
           state.status = RalphLoopStatus.TIMEOUT;
           state.endTime = new Date();
-          logger.warn('Ralph loop timeout', { sessionId: state.sessionId, iterations: state.iteration });
+          logger.warn('Ralph loop timeout', { sessionId: state.sessionId });
           resolve();
           return;
         }
@@ -455,13 +408,9 @@ export class RalphLoopExecutor {
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
           cleanup();
           state.endTime = new Date();
-          // Final count from output in case stream missed some
-          const finalCount = this.countIterationsFromOutput(taskId);
-          if (finalCount > state.iteration) state.iteration = finalCount;
           logger.info('Ralph loop task finished (fallback)', {
             sessionId: state.sessionId,
-            taskStatus: task.status,
-            iterations: state.iteration
+            taskStatus: task.status
           });
           resolve();
         }
@@ -476,8 +425,7 @@ export class RalphLoopExecutor {
     if (state.status !== RalphLoopStatus.RUNNING) {
       logger.info('Ralph loop outcome already determined', {
         sessionId: state.sessionId,
-        status: state.status,
-        iterations: state.iteration
+        status: state.status
       });
       return;
     }
@@ -491,15 +439,13 @@ export class RalphLoopExecutor {
         sessionId: state.sessionId,
         taskStatus: task?.status,
         hasCompletionPromise: hasPromise,
-        iterations: state.iteration,
         outputLength: task?.output?.length ?? 0
       });
 
       if (hasPromise) {
         state.status = RalphLoopStatus.COMPLETED;
         logger.info('Ralph loop completed via promise', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
         return;
       }
@@ -508,8 +454,7 @@ export class RalphLoopExecutor {
       if (task?.status === TaskStatus.COMPLETED) {
         state.status = RalphLoopStatus.COMPLETED;
         logger.info('Ralph loop completed via task status', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
         return;
       }
@@ -519,8 +464,7 @@ export class RalphLoopExecutor {
         state.status = RalphLoopStatus.FAILED;
         logger.warn('Ralph loop failed', {
           sessionId: state.sessionId,
-          taskStatus: task?.status,
-          iterations: state.iteration
+          taskStatus: task?.status
         });
         return;
       }
@@ -529,8 +473,7 @@ export class RalphLoopExecutor {
     // Default to failed if we can't determine
     state.status = RalphLoopStatus.FAILED;
     logger.warn('Ralph loop failed - could not determine outcome', {
-      sessionId: state.sessionId,
-      iterations: state.iteration
+      sessionId: state.sessionId
     });
   }
 
@@ -574,7 +517,6 @@ export class RalphLoopExecutor {
 
     let msg = `${emoji} *Ralph Loop*\n\n`;
     msg += `📋 ${escapedRequest}\n\n`;
-    msg += `🔁 Loops: ${state.iteration}/${state.config.maxIterations}\n`;
     msg += `⏱️ Time: ${formatDuration(elapsed)}\n`;
     msg += `🎯 Promise: ${escapedPromise}\n`;
     if (repository) {
@@ -625,7 +567,7 @@ export class RalphLoopExecutor {
         state.aiProvider?.provider === 'openrouter' ? 'OpenRouter' : 'Claude';
 
       // Ralph header
-      const header = `🔄 *Ralph Loop* · ${state.iteration}/${state.config.maxIterations}`;
+      const header = '🔄 *Ralph Loop*';
 
       // Use shared streaming status builder
       const message = UIHelpers.buildStreamingStatusMessage(task, elapsed, providerLabel, header);
@@ -675,7 +617,6 @@ export class RalphLoopExecutor {
       let report = `${statusEmoji} *Ralph Loop ${statusText}*\n\n`;
       report += `📋 ${escapedReq}\n\n`;
       report += `📊 *Summary:*\n`;
-      report += `- Loops: ${state.iteration}\n`;
       report += `- Duration: ${formatDuration(duration)}\n`;
       report += `- Promise: ${escapedPromise}\n`;
 
@@ -729,7 +670,6 @@ export class RalphLoopExecutor {
     logger.info('Ralph loop attempting commit', {
       sessionId: state.sessionId,
       status: state.status,
-      iterations: state.iteration,
       workingDir: state.workingDir
     });
 
@@ -738,8 +678,7 @@ export class RalphLoopExecutor {
       if (commitHash) {
         logger.info('Ralph loop committed changes', {
           sessionId: state.sessionId,
-          commitHash,
-          iterations: state.iteration
+          commitHash
         });
 
         const pushResult = await this.executor.autoPushChanges(state.workingDir);
@@ -765,8 +704,7 @@ export class RalphLoopExecutor {
         await this.bot.sendMessage(state.chatId, message, { parse_mode: 'Markdown' });
       } else {
         logger.info('Ralph loop no changes to commit', {
-          sessionId: state.sessionId,
-          iterations: state.iteration
+          sessionId: state.sessionId
         });
       }
     } catch (error) {

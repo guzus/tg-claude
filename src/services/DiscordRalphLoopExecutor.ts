@@ -296,17 +296,6 @@ export class DiscordRalphLoopExecutor {
       const handleStreamEvent = (eventTaskId: string, event: StreamEvent) => {
         if (eventTaskId !== taskId) return;
 
-        if (event.type === 'action' && event.action?.kind === 'note') {
-          const text = String(event.action.detail?.text || event.message || '');
-          if (text.includes('[RALPH_LOOP_ITERATION]')) {
-            state.iteration++;
-            logger.info('Discord Ralph loop iteration (stream)', {
-              sessionId: state.sessionId,
-              iteration: state.iteration
-            });
-          }
-        }
-
         if (event.type === 'action' && Date.now() - lastUpdateTime > 2000) {
           lastUpdateTime = Date.now();
           this.updateStreamingStatusMessage(state, taskId).catch(() => {});
@@ -317,8 +306,7 @@ export class DiscordRalphLoopExecutor {
           state.endTime = new Date();
           logger.info('Discord Ralph loop task finished (stream)', {
             sessionId: state.sessionId,
-            ok: event.ok,
-            iterations: state.iteration
+            ok: event.ok
           });
           resolve();
         }
@@ -336,7 +324,7 @@ export class DiscordRalphLoopExecutor {
           cleanup();
           state.status = DiscordRalphLoopStatus.TIMEOUT;
           state.endTime = new Date();
-          logger.warn('Discord Ralph loop timeout', { sessionId: state.sessionId, iterations: state.iteration });
+          logger.warn('Discord Ralph loop timeout', { sessionId: state.sessionId });
           resolve();
           return;
         }
@@ -359,12 +347,9 @@ export class DiscordRalphLoopExecutor {
         if (task.status !== TaskStatus.RUNNING && task.status !== TaskStatus.PENDING) {
           cleanup();
           state.endTime = new Date();
-          const finalCount = this.countIterationsFromOutput(taskId);
-          if (finalCount > state.iteration) state.iteration = finalCount;
           logger.info('Discord Ralph loop task finished (fallback)', {
             sessionId: state.sessionId,
-            taskStatus: task.status,
-            iterations: state.iteration
+            taskStatus: task.status
           });
           resolve();
         }
@@ -396,34 +381,6 @@ export class DiscordRalphLoopExecutor {
     }
 
     state.status = DiscordRalphLoopStatus.FAILED;
-  }
-
-  private countIterationsFromOutput(taskId: string): number {
-    const task = this.executor.getTask(taskId);
-    if (!task?.output) return 1;
-
-    const markerMatches = task.output.match(/\[RALPH_LOOP_ITERATION\]/g);
-    if (markerMatches && markerMatches.length > 0) {
-      return markerMatches.length;
-    }
-
-    const iterationPatterns = [
-      /iteration\s*#?\d+/gi,
-      /loop\s*#?\d+/gi,
-      /cycle\s*#?\d+/gi,
-      /round\s*#?\d+/gi,
-      /attempt\s*#?\d+/gi
-    ];
-
-    let maxCount = 0;
-    for (const pattern of iterationPatterns) {
-      const matches = task.output.match(pattern);
-      if (matches) {
-        maxCount = Math.max(maxCount, matches.length);
-      }
-    }
-
-    return Math.max(1, maxCount);
   }
 
   private async sendStatusMessage(
@@ -494,7 +451,6 @@ export class DiscordRalphLoopExecutor {
       .setTitle(`${statusEmoji} Ralph Loop ${statusText}`)
       .addFields(
         { name: 'Request', value: this.truncate(state.originalRequest, 800) },
-        { name: 'Loops', value: `${state.iteration}`, inline: true },
         { name: 'Duration', value: formatDuration(duration), inline: true },
         { name: 'Promise', value: state.config.completionPromise, inline: true }
       );
@@ -511,7 +467,6 @@ export class DiscordRalphLoopExecutor {
     logger.info('Discord Ralph loop attempting commit', {
       sessionId: state.sessionId,
       status: state.status,
-      iterations: state.iteration,
       workingDir: state.workingDir
     });
 
@@ -620,7 +575,6 @@ export class DiscordRalphLoopExecutor {
       .setTitle(`${this.getStatusEmoji(state.status)} Ralph Loop`)
       .addFields(
         { name: 'Request', value: this.truncate(state.originalRequest, 800) },
-        { name: 'Loops', value: `${state.iteration}/${state.config.maxIterations}`, inline: true },
         { name: 'Duration', value: formatDuration(elapsed), inline: true },
         { name: 'Provider', value: providerLabel, inline: true },
         { name: 'Promise', value: this.truncate(state.config.completionPromise, 200), inline: true }
@@ -734,8 +688,7 @@ export class DiscordRalphLoopExecutor {
 
     logger.info('Discord Ralph loop session cleaned up', {
       sessionId: state.sessionId,
-      status: state.status,
-      iterations: state.iteration
+      status: state.status
     });
   }
 
