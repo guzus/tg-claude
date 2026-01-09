@@ -6,15 +6,9 @@ export function buildRalphLoopPrompt(params: {
   maxIterations: number;
   repository?: Repository | null;
 }): string {
-  const { request, completionPromise, maxIterations, repository } = params;
+  const { request, completionPromise, maxIterations } = params;
 
-  const repoContext = repository
-    ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-    : '';
-
-  const taskPrompt = `${repoContext}${request}`;
-
-  const escapedPrompt = taskPrompt.replace(/"/g, '\\"').replace(/\n/g, '\\n');
+  const escapedPrompt = request.replace(/"/g, '\\"').replace(/\n/g, '\\n');
 
   return `/ralph-loop:ralph-loop "${escapedPrompt}" --max-iterations ${maxIterations} --completion-promise "${completionPromise}"`;
 }
