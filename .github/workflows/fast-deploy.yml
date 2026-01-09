@@ -45,10 +45,15 @@ jobs:
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
+      - name: Sync docker-compose.yml to deploy path
+        run: |
+          cp docker-compose.yml "${{ secrets.DEPLOY_PATH }}/"
+
       - name: Deploy on runner host
         run: |
+          cd "${{ secrets.DEPLOY_PATH }}"
           export DOCKER_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
           docker compose down --remove-orphans || true
-          docker compose up -d
+          docker compose up -d --no-build
           docker compose ps
           docker compose logs --tail=20
