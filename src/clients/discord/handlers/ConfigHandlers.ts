@@ -392,13 +392,15 @@ export class ConfigHandlers extends BaseHandler {
     ensureDefaultPluginMarketplaces(context.workingDir);
 
     try {
+      if (!interaction.deferred && !interaction.replied) {
+        await interaction.deferReply({ flags: this.ephemeralFlags() });
+      }
       switch (action) {
         case 'list':
         case 'show': {
           const output = await this.execClaudePlugin(['plugin', 'list'], context.workingDir);
-          await interaction.reply({
-            content: output.trim() ? `\`\`\`\n${output.trim()}\n\`\`\`` : 'No plugins installed.',
-            flags: this.ephemeralFlags()
+          await interaction.editReply({
+            content: output.trim() ? `\`\`\`\n${output.trim()}\n\`\`\`` : 'No plugins installed.'
           });
           return;
         }
@@ -407,48 +409,42 @@ export class ConfigHandlers extends BaseHandler {
             const defaultTag = preset.isDefault ? ' (default)' : '';
             return `• ${name} - ${preset.description}${defaultTag}`;
           });
-          await interaction.reply({
-            content: `**Plugin Presets**\n${lines.join('\n')}`,
-            flags: this.ephemeralFlags()
+          await interaction.editReply({
+            content: `**Plugin Presets**\n${lines.join('\n')}`
           });
           return;
         }
         case 'preset': {
           if (!spec) {
-            await interaction.reply({
-              content: 'Usage: /plugin action:preset spec:<name>',
-              flags: this.ephemeralFlags()
+            await interaction.editReply({
+              content: 'Usage: /plugin action:preset spec:<name>'
             });
             return;
           }
           const preset = PLUGIN_PRESETS[spec.toLowerCase()];
           if (!preset) {
-            await interaction.reply({
-              content: `Unknown preset: \`${spec}\`. Use /plugin action:presets.`,
-              flags: this.ephemeralFlags()
+            await interaction.editReply({
+              content: `Unknown preset: \`${spec}\`. Use /plugin action:presets.`
             });
             return;
           }
           const pluginSpec = `${preset.name}@${preset.registry}`;
           await this.execClaudePlugin(['plugin', 'install', pluginSpec], context.workingDir);
-          await interaction.reply({
-            content: `Installed preset \`${spec}\` (${pluginSpec}).`,
-            flags: this.ephemeralFlags()
+          await interaction.editReply({
+            content: `Installed preset \`${spec}\` (${pluginSpec}).`
           });
           return;
         }
         case 'install': {
           if (!spec || !spec.includes('@')) {
-            await interaction.reply({
-              content: 'Usage: /plugin action:install spec:<name@registry>',
-              flags: this.ephemeralFlags()
+            await interaction.editReply({
+              content: 'Usage: /plugin action:install spec:<name@registry>'
             });
             return;
           }
           await this.execClaudePlugin(['plugin', 'install', spec], context.workingDir);
-          await interaction.reply({
-            content: `Installed plugin \`${spec}\`.`,
-            flags: this.ephemeralFlags()
+          await interaction.editReply({
+            content: `Installed plugin \`${spec}\`.`
           });
           return;
         }
@@ -456,27 +452,31 @@ export class ConfigHandlers extends BaseHandler {
         case 'rm':
         case 'uninstall': {
           if (!spec) {
-            await interaction.reply({
-              content: 'Usage: /plugin action:remove spec:<name>',
-              flags: this.ephemeralFlags()
+            await interaction.editReply({
+              content: 'Usage: /plugin action:remove spec:<name>'
             });
             return;
           }
           await this.execClaudePlugin(['plugin', 'uninstall', spec], context.workingDir);
-          await interaction.reply({
-            content: `Removed plugin \`${spec}\`.`,
-            flags: this.ephemeralFlags()
+          await interaction.editReply({
+            content: `Removed plugin \`${spec}\`.`
           });
           return;
         }
         default:
-          await interaction.reply({ content: 'Unknown plugin action.', flags: this.ephemeralFlags() });
+          await interaction.editReply({ content: 'Unknown plugin action.' });
       }
     } catch (error) {
-      await interaction.reply({
-        content: `Plugin command failed: ${getErrorMessage(error)}`,
-        flags: this.ephemeralFlags()
-      });
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({
+          content: `Plugin command failed: ${getErrorMessage(error)}`
+        });
+      } else {
+        await interaction.reply({
+          content: `Plugin command failed: ${getErrorMessage(error)}`,
+          flags: this.ephemeralFlags()
+        });
+      }
     }
   }
 
