@@ -290,8 +290,8 @@ export class RalphLoopExecutor {
       const statusMsg = await this.sendStatusMessage(state, repository);
       state.messageId = statusMsg?.message_id;
 
-      // Build the prompt (just the request with repo context)
-      const prompt = this.buildRalphPrompt(state, repository);
+      // Build the prompt
+      const prompt = this.buildRalphPrompt(state);
 
       // Execute Claude task with ralph loop mode enabled
       // The executor handles iterations via Stop hooks (SDK) or plugin (CLI)
@@ -333,14 +333,11 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Build the Ralph loop prompt (just request with repo context)
+   * Build the Ralph loop prompt
    * Ralph loop instructions are added by the executor
    */
-  private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    const repoContext = repository
-      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-      : '';
-    return `${repoContext}${state.originalRequest}`;
+  private buildRalphPrompt(state: RalphLoopState): string {
+    return state.originalRequest;
   }
 
   /**

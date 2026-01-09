@@ -215,7 +215,7 @@ export class DiscordRalphLoopExecutor {
       const statusMessage = await this.sendStatusMessage(state, repository);
       if (statusMessage) state.message = statusMessage;
 
-      const prompt = this.buildRalphPrompt(state, repository);
+      const prompt = this.buildRalphPrompt(state);
       const task = await this.executor.executeTask(
         state.userId,
         state.chatKey,
@@ -260,11 +260,8 @@ export class DiscordRalphLoopExecutor {
     ].join('\n');
   }
 
-  private buildRalphPrompt(state: DiscordRalphLoopState, repository: Repository | null): string {
-    const repoContext = repository
-      ? `Repository: ${repository.name} (branch: ${repository.branch || 'main'})\n\n`
-      : '';
-    return `${repoContext}${state.originalRequest}`;
+  private buildRalphPrompt(state: DiscordRalphLoopState): string {
+    return state.originalRequest;
   }
 
   private async monitorTask(state: DiscordRalphLoopState, taskId: string): Promise<void> {

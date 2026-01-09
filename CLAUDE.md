@@ -33,3 +33,7 @@
     - Add label `claude-review` to PR to trigger Claude review
     - Claude has write permissions to make changes
 
+11. Claude Agent SDK:
+    - Reference: https://github.com/anthropics/claude-agent-sdk-demos
+    - Use this as good practice when working with the Agent SDK
+
