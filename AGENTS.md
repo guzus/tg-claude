@@ -18,6 +18,13 @@ Use this file to capture reproducible debugging steps, observations, and fixes f
 - Redact tokens, secrets, and user data.
 - Prefer paths over long log dumps.
 
+## Debugging Process
+1. Think hard.
+2. Fix the code.
+3. Commit.
+4. Push.
+5. Trigger deploy using: `gh workflow run deploy.yml --ref "$(git rev-parse --abbrev-ref HEAD)" && gh run watch`
+
 ## Template
 ```
 Title:
