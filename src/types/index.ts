@@ -144,6 +144,7 @@ export interface McpConfig {
 export interface UserConfig {
   userId: number;
   currentRepositoryId?: string;
+  currentRepositoryPath?: string;
   deletedRepositories?: DeletedRepository[];
   git?: {
     userName?: string;

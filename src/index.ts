@@ -58,10 +58,8 @@ const mothershipService = new MothershipService();
 
 // Initialize repository manager and user config manager (discover existing repos and configs)
 (async () => {
-  await Promise.all([
-    repositoryManager.initialize(),
-    userConfigManager.initialize()
-  ]);
+  await userConfigManager.initialize();
+  await repositoryManager.initialize();
 
   const stats = repositoryManager.getStats();
   if (stats.totalRepositories > 0) {
