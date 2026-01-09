@@ -15,7 +15,7 @@ jobs:
   build:
     strategy:
       matrix:
-        include: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && fromJSON('[{"platform":"linux/amd64","runner":"ubuntu-latest"},{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]') || fromJSON('[{"platform":"linux/arm64","runner":"ubuntu-24.04-arm"}]') }}
+        include: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && fromJSON('[{"platform":"linux/amd64","runner":"ubuntu-latest-4-cores"},{"platform":"linux/arm64","runner":"ubuntu-24.04-arm-4-cores"}]') || fromJSON('[{"platform":"linux/arm64","runner":"ubuntu-24.04-arm-4-cores"}]') }}
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout repository
