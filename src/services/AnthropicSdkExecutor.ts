@@ -262,8 +262,20 @@ export class AnthropicSdkExecutor extends EventEmitter {
       try {
         // Build ralph loop Stop hook if enabled
         let ralphIterations = 0;
-        const stopHook: HookCallback | undefined = ralphLoop ? async () => {
+        const stopHook: HookCallback | undefined = ralphLoop ? async (input, _toolUseID, options) => {
+          // Check if aborted
+          if (options.signal.aborted) {
+            logger.info('Ralph loop aborted', { taskId: task.id });
+            return { continue: false, stopReason: 'Aborted' };
+          }
+
           ralphIterations++;
+          logger.info('Ralph loop Stop hook called', {
+            taskId: task.id,
+            iteration: ralphIterations,
+            hookEvent: input.hook_event_name,
+            outputLength: task.output.length,
+          });
 
           // Check if we've reached max iterations
           if (ralphIterations >= ralphLoop.maxIterations) {
@@ -278,7 +290,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
           }
 
           // Continue the loop
-          logger.debug('Ralph loop continuing', { taskId: task.id, iteration: ralphIterations });
+          logger.info('Ralph loop continuing', { taskId: task.id, iteration: ralphIterations });
           return { continue: true };
         } : undefined;
 

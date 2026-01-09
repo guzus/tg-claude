@@ -1,4 +1,4 @@
-1. The codebase should be focused, clean, and easy to understand.
+1. The codebase should be focused, clean, and easy to understand. DRY (Don't Repeat Yourself).
 
 2. DO NOT create a new document. Purge unnecessary code and files.
 
