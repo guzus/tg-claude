@@ -58,6 +58,7 @@ export class ClaudeExecutor extends EventEmitter {
     try {
       await execAsync('which gh');
       await execAsync(`echo "${githubToken}" | gh auth login --with-token`, { timeout: 10000 });
+      await execAsync('gh auth setup-git', { timeout: 10000 });
       logger.info('Authenticated with GitHub CLI');
     } catch {
       // GitHub auth is optional
