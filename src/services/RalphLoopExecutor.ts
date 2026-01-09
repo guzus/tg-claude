@@ -3,16 +3,16 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { ClaudeExecutor } from './ClaudeExecutor';
+import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
+import { gitService } from './GitService';
 import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
 import { PLUGIN_PRESETS } from '../presets';
 import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 // Ralph Loop status enum
 export enum RalphLoopStatus {
@@ -68,14 +68,14 @@ const TASK_POLL_INTERVAL_MS = 5000;
  */
 export class RalphLoopExecutor {
   private bot: TelegramBot;
-  private executor: ClaudeExecutor;
+  private executor: ClaudeExecutorInstance;
   private repositoryManager: RepositoryManager;
   private activeSessions: Map<string, RalphLoopState> = new Map();
   private userSessions: Map<number, string> = new Map();
 
   constructor(
     bot: TelegramBot,
-    executor: ClaudeExecutor,
+    executor: ClaudeExecutorInstance,
     repositoryManager: RepositoryManager
   ) {
     this.bot = bot;
@@ -291,19 +291,23 @@ export class RalphLoopExecutor {
       const statusMsg = await this.sendStatusMessage(state, repository);
       state.messageId = statusMsg?.message_id;
 
-      // Build the prompt with Ralph loop instructions
-      const prompt = this.buildRalphPrompt(state, repository);
+      // Build the prompt
+      const prompt = this.buildRalphPrompt(state);
 
-      // Execute Claude task with the Ralph plugin active
-      // The plugin handles iterations via stop hooks
-      const task = await this.executor.executeTask(
+      // Execute Claude task with ralph loop mode enabled
+      // The executor handles iterations via Stop hooks (SDK) or plugin (CLI)
+      const task = this.executor.startTask(
         state.userId,
         state.chatId,
         prompt,
         {
           workingDir: state.workingDir,
           timeout: state.config.maxDurationMs,
-          aiProvider: state.aiProvider
+          aiProvider: state.aiProvider,
+          ralphLoop: {
+            completionPromise: state.config.completionPromise,
+            maxIterations: state.config.maxIterations,
+          },
         }
       );
 
@@ -330,15 +334,11 @@ export class RalphLoopExecutor {
   }
 
   /**
-   * Build the Ralph loop command using the plugin's /ralph-loop format
+   * Build the Ralph loop prompt
+   * Ralph loop instructions are added by the executor
    */
-  private buildRalphPrompt(state: RalphLoopState, repository: Repository | null): string {
-    return buildRalphLoopPrompt({
-      request: state.originalRequest,
-      completionPromise: state.config.completionPromise,
-      maxIterations: state.config.maxIterations,
-      repository
-    });
+  private buildRalphPrompt(state: RalphLoopState): string {
+    return state.originalRequest;
   }
 
   /**
@@ -674,14 +674,14 @@ export class RalphLoopExecutor {
     });
 
     try {
-      const commitHash = await this.executor.autoCommitChanges(state.workingDir);
+      const commitHash = await gitService.autoCommit(state.workingDir);
       if (commitHash) {
         logger.info('Ralph loop committed changes', {
           sessionId: state.sessionId,
           commitHash
         });
 
-        const pushResult = await this.executor.autoPushChanges(state.workingDir);
+        const pushResult = (await gitService.push(state.workingDir)).status;
 
         logger.info('Ralph loop push result', {
           sessionId: state.sessionId,

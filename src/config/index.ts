@@ -1,5 +1,9 @@
 import { BotConfig } from '../types';
 
+// Executor type: 'sdk' uses Anthropic SDK directly, 'cli' uses Claude Code CLI
+export type ExecutorType = 'sdk' | 'cli';
+export const EXECUTOR_TYPE: ExecutorType = (process.env.EXECUTOR_TYPE as ExecutorType) || 'sdk';
+
 // Paths - configurable via env vars for Railway single-volume setup
 // Railway: Set DATA_PATH=/persistent to use single volume
 const DATA_PATH = process.env.DATA_PATH || '';

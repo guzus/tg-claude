@@ -1,5 +1,5 @@
 import TelegramBot, { Message } from 'node-telegram-bot-api';
-import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { ClaudeExecutorInstance } from '../../../services/IClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
@@ -14,7 +14,7 @@ import { getErrorMessage } from '../../../utils/errors';
 export abstract class BaseHandler {
   constructor(
     protected bot: TelegramBot,
-    protected executor: ClaudeExecutor,
+    protected executor: ClaudeExecutorInstance,
     protected rateLimiter: RateLimiter,
     protected auditLogger: AuditLogger,
     protected repositoryManager: RepositoryManager,

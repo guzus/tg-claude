@@ -1,5 +1,5 @@
 import { spawn, ChildProcess } from 'child_process';
-import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
+import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming, McpServer } from '../types';
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
@@ -16,6 +16,10 @@ import { EventEmitter } from 'events';
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 
+/**
+ * @deprecated CLI mode is not maintained. Use AnthropicSdkExecutor (SDK mode) instead.
+ * Set EXECUTOR_TYPE=sdk in your environment to use the SDK executor.
+ */
 export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
@@ -65,20 +69,12 @@ export class ClaudeExecutor extends EventEmitter {
     }
   }
 
-  async executeTask(
+  private createTask(
     userId: number,
     chatId: number,
     prompt: string,
-    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig } = {}
-  ): Promise<ClaudeTaskWithStreaming> {
-    const {
-      workingDir = WORKSPACE_PATH,
-      dangerMode = true,
-      additionalFlags = [],
-      timeout = config.taskTimeoutMs,
-      aiProvider
-    } = options;
-
+    workingDir: string
+  ): ClaudeTaskWithStreaming {
     const task: ClaudeTaskWithStreaming = {
       id: uuidv4(),
       userId,
@@ -93,7 +89,51 @@ export class ClaudeExecutor extends EventEmitter {
       events: []
     };
 
-    logger.info('Starting task', { taskId: task.id, userId, prompt: prompt.substring(0, 100) });
+    this.taskHistory.set(task.id, task);
+    return task;
+  }
+
+  startTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
+  ): ClaudeTaskWithStreaming {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+
+    void this.runTask(task, options).catch((error) => {
+      logger.error('Task execution failed', { taskId: task.id, error: getErrorMessage(error) });
+    });
+
+    return task;
+  }
+
+  async executeTask(
+    userId: number,
+    chatId: number,
+    prompt: string,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> } = {}
+  ): Promise<ClaudeTaskWithStreaming> {
+    const workingDir = options.workingDir || WORKSPACE_PATH;
+    const task = this.createTask(userId, chatId, prompt, workingDir);
+    await this.runTask(task, options);
+    return task;
+  }
+
+  private async runTask(
+    task: ClaudeTaskWithStreaming,
+    options: { workingDir?: string; dangerMode?: boolean; additionalFlags?: string[]; timeout?: number; aiProvider?: AIProviderConfig; mcpServers?: Record<string, McpServer> }
+  ): Promise<void> {
+    const {
+      workingDir = task.workingDir,
+      dangerMode = true,
+      additionalFlags = [],
+      timeout = config.taskTimeoutMs,
+      aiProvider
+    } = options;
+
+    logger.info('Starting task', { taskId: task.id, userId: task.userId, prompt: task.prompt.substring(0, 100) });
 
     try {
       await this.authenticateGitHub();
@@ -122,7 +162,7 @@ export class ClaudeExecutor extends EventEmitter {
         ...(dangerMode ? ['--dangerously-skip-permissions'] : []),
         ...additionalFlags,
         '--',  // Separator before prompt
-        prompt
+        task.prompt
       ];
 
       logger.info('Using AI provider', { provider });
@@ -143,7 +183,6 @@ export class ClaudeExecutor extends EventEmitter {
 
       this.activeTasks.set(task.id, claudeProcess);
       task.status = TaskStatus.RUNNING;
-      this.taskHistory.set(task.id, task);
 
       // Create streaming parser for this task
       const parser = new StreamingOutputParser();
@@ -151,7 +190,7 @@ export class ClaudeExecutor extends EventEmitter {
 
       const logStream = this.createTaskLogFile(task.id);
       logStream.write(`=== Task: ${task.id} | ${task.startTime.toISOString()} ===\n`);
-      logStream.write(`Prompt: ${prompt}\nWorkingDir: ${workingDir}\n\n`);
+      logStream.write(`Prompt: ${task.prompt}\nWorkingDir: ${workingDir}\n\n`);
 
       let timeoutHandle: NodeJS.Timeout | null = null;
 
@@ -265,7 +304,6 @@ export class ClaudeExecutor extends EventEmitter {
         this.emit('taskError', task.id, error);
       });
 
-      return task;
     } catch (error) {
       task.status = TaskStatus.FAILED;
       task.errorOutput = getErrorMessage(error);
@@ -351,239 +389,15 @@ export class ClaudeExecutor extends EventEmitter {
     return (task.output || task.errorOutput || '').slice(-config.maxOutputSize);
   }
 
-  // Git operations delegated to GitService
-  async hasUncommittedChanges(workingDir: string): Promise<boolean> {
-    return gitService.hasUncommittedChanges(workingDir);
-  }
-
-  async hasUnpushedCommits(workingDir: string): Promise<boolean> {
-    return gitService.hasUnpushedCommits(workingDir);
-  }
-
-  async hasRemoteRepository(workingDir: string): Promise<boolean> {
-    return gitService.hasRemote(workingDir);
-  }
-
-  async autoCommitChanges(workingDir: string): Promise<string | null> {
-    try {
-      const hasChanges = await gitService.hasUncommittedChanges(workingDir);
-      if (!hasChanges) {
-        logger.debug('No uncommitted changes to auto-commit', { workingDir });
-        return null;
-      }
-
-      const message = await this.generateCommitMessage(workingDir);
-      logger.debug('Generated commit message', { workingDir, message });
-
-      const result = await gitService.commit(workingDir, message);
-
-      if (result.success) {
-        logger.info('Auto-committed changes', { workingDir, hash: result.hash, message });
-        return result.hash;
-      } else {
-        logger.warn('Auto-commit failed', { workingDir, reason: result.message });
-        return null;
-      }
-    } catch (error) {
-      logger.error('Auto-commit error', {
-        workingDir,
-        error: getErrorMessage(error)
-      });
-      return null;
-    }
-  }
-
-  /**
-   * Get commits made during task execution
-   */
+  // Task-specific git tracking
   async getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>> {
     const initialHead = this.taskInitialHeads.get(taskId);
     if (!initialHead) return [];
-
-    try {
-      // Get all commits since initial HEAD (excluding the initial HEAD itself)
-      const { stdout } = await execAsync(
-        `git log ${initialHead}..HEAD --format="%H|%s" --reverse`,
-        { cwd: workingDir, timeout: 10000 }
-      );
-
-      if (!stdout.trim()) return [];
-
-      return stdout.trim().split('\n').map(line => {
-        const [hash, ...messageParts] = line.split('|');
-        return { hash, message: messageParts.join('|') };
-      });
-    } catch {
-      return [];
-    }
+    return gitService.getCommitsSince(workingDir, initialHead);
   }
 
-  /**
-   * Clean up task initial HEAD tracking
-   */
   cleanupTaskHead(taskId: string): void {
     this.taskInitialHeads.delete(taskId);
-  }
-
-  private async generateCommitMessage(workingDir: string): Promise<string> {
-    try {
-      const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
-
-      if (!gitStatus.trim()) {
-        return 'chore: update code';
-      }
-
-      // Get detailed diff for context (limit to prevent overly long prompts)
-      let diffContent = '';
-      try {
-        // Get diff for staged and unstaged changes
-        const { stdout: stagedDiff } = await execAsync('git diff --cached', { cwd: workingDir, timeout: 10000 });
-        const { stdout: unstagedDiff } = await execAsync('git diff', { cwd: workingDir, timeout: 10000 });
-        diffContent = (stagedDiff + unstagedDiff).substring(0, 3000); // Limit diff size
-      } catch {
-        // Fallback to stat if full diff fails
-        const { stdout: statDiff } = await execAsync('git diff HEAD --stat', { cwd: workingDir, timeout: 10000 });
-        diffContent = statDiff;
-      }
-
-      // Parse file changes from git status properly
-      // Format: "XY filename" or "XY old -> new" for renames
-      const fileChanges = gitStatus.trim().split('\n').map(line => {
-        const match = line.match(/^(.{1,2})\s+(.+)$/);
-        if (!match) return line.trim();
-        const [, status, filePath] = match;
-        // Handle rename format "old -> new"
-        const file = filePath.includes(' -> ') ? filePath.split(' -> ')[1] : filePath;
-        const statusDesc = status.includes('A') ? 'added' :
-                          status.includes('M') ? 'modified' :
-                          status.includes('D') ? 'deleted' :
-                          status.includes('R') ? 'renamed' :
-                          status.includes('?') ? 'new' : 'changed';
-        return `${file} (${statusDesc})`;
-      }).join(', ');
-
-      // Create a detailed prompt with actual diff content
-      const prompt = `Analyze these git changes and generate a conventional commit message.
-
-FILES CHANGED:
-${fileChanges}
-
-DIFF CONTENT:
-${diffContent || 'No diff available'}
-
-Generate ONE commit message following this format:
-type(scope): brief description
-
-Rules:
-- Types: feat (new feature), fix (bug fix), refactor, docs, style, test, chore
-- Scope is optional but helpful (e.g., api, ui, auth)
-- Description should explain WHAT changed and WHY
-- Keep under 72 characters total
-- Be specific about the actual changes, not generic
-
-Reply with ONLY the commit message, nothing else.`;
-
-      // Use Claude Haiku with proper escaping
-      const escapedPrompt = prompt.replace(/\\/g, '\\\\').replace(/'/g, "'\\''");
-      const { stdout } = await execAsync(
-        `claude -p --model haiku $'${escapedPrompt}'`,
-        {
-          cwd: workingDir,
-          timeout: 30000,
-          env: { ...process.env },
-          shell: '/bin/bash'
-        }
-      );
-
-      // Parse output - handle JSON stream format if present
-      let message = '';
-      const lines = stdout.trim().split('\n');
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-
-        // Try to parse as JSON (stream format)
-        try {
-          const json = JSON.parse(trimmed);
-          if (json.type === 'result' && json.result) {
-            message = json.result.trim();
-            break;
-          }
-        } catch {
-          // Not JSON, might be plain text output
-          // Look for conventional commit pattern
-          if (/^(feat|fix|refactor|docs|style|test|chore|build|ci|perf)(\(.+?\))?:/.test(trimmed)) {
-            message = trimmed;
-            break;
-          }
-        }
-      }
-
-      // If no valid message found, try last non-empty line
-      if (!message) {
-        message = lines.filter(l => l.trim()).pop() || '';
-      }
-
-      // Clean up the message
-      message = message
-        .replace(/^["'`]|["'`]$/g, '')  // Remove quotes
-        .replace(/^\*\*|\*\*$/g, '')     // Remove markdown bold
-        .trim();
-
-      // Validate it looks like a commit message
-      if (message.length < 5 || message.length > 100 || message.includes('\n')) {
-        // Fallback: generate basic message from file names
-        const firstLine = gitStatus.trim().split('\n')[0] || '';
-        const fileMatch = firstLine.match(/^.{1,2}\s+(.+)$/);
-        const firstFile = fileMatch ? fileMatch[1] : 'files';
-        return `chore: update ${path.basename(firstFile)}`;
-      }
-
-      logger.debug('Generated commit message', { message });
-      return message;
-    } catch (error) {
-      logger.debug('Commit message generation failed', { error: getErrorMessage(error) });
-      // Fallback with file context
-      try {
-        const { stdout: status } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
-        const firstLine = status.trim().split('\n')[0] || '';
-        const fileMatch = firstLine.match(/^.{1,2}\s+(.+)$/);
-        const firstFile = fileMatch ? fileMatch[1] : 'files';
-        return `chore: update ${path.basename(firstFile)}`;
-      } catch {
-        return 'chore: update code';
-      }
-    }
-  }
-
-  async autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed' | 'no_changes'> {
-    const result = await gitService.push(workingDir);
-    return result.status;
-  }
-
-  async createGitHubRepository(
-    workingDir: string,
-    isPrivate: boolean = false,
-    customRepoName?: string
-  ): Promise<'success' | 'already_exists' | 'error'> {
-    try {
-      const repoName = customRepoName || path.basename(workingDir);
-      const visibility = isPrivate ? '--private' : '--public';
-
-      await execAsync(`gh repo create ${repoName} ${visibility} --source=. --remote=origin --push`, {
-        cwd: workingDir,
-        timeout: 30000
-      });
-
-      logger.info('Created GitHub repository', { repoName, visibility });
-      return 'success';
-    } catch (error) {
-      const errMsg = getErrorMessage(error);
-      if (errMsg.includes('Name already exists')) return 'already_exists';
-      logger.error('Failed to create GitHub repository', { error: errMsg });
-      return 'error';
-    }
   }
 
   cleanupOldTasks(maxAge: number = 3600000): number {

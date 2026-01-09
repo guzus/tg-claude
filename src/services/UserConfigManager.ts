@@ -9,7 +9,7 @@ const DEFAULT_CLAUDE_MD = `# Guidelines for Claude
 
 1. The codebase should be focused, clean, and easy to understand.
 
-2. DO NOT create a new document. Purge unnecessary code and files.
+2. Purge unnecessary code and files.
 
 3. Only use UV to install dependencies and run the python application.
 

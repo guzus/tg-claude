@@ -3,13 +3,13 @@ import { BaseHandler } from './BaseHandler';
 import { TaskStatus, ClaudeTaskWithStreaming } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
-import { PromptBuilder } from '../../../utils/PromptBuilder';
 import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
+import { gitService } from '../../../services/GitService';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
@@ -57,7 +57,12 @@ export class TaskHandlers extends BaseHandler {
         `⏳ Starting...`,
         {
           parse_mode: 'Markdown',
-          reply_to_message_id: msg.message_id
+          reply_to_message_id: msg.message_id,
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🛑 Cancel', callback_data: 'cancel_pending' }
+            ]]
+          }
         }
       );
 
@@ -69,7 +74,7 @@ export class TaskHandlers extends BaseHandler {
       const aiProvider = userConfig?.aiProvider;
 
       // Execute task
-      const task = await this.executor.executeTask(userId, chatId, prompt, {
+      const task = this.executor.startTask(userId, chatId, prompt, {
         workingDir: actualWorkingDir,
         timeout: userTimeout,
         aiProvider
@@ -144,14 +149,14 @@ export class TaskHandlers extends BaseHandler {
           let needsRemoteSetup = false;
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
-              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir);
+              const commitHash = await gitService.autoCommit(actualWorkingDir);
               let shouldPush = false;
 
               if (commitHash) {
                 shouldPush = true;
               } else {
                 // Check if there are unpushed commits
-                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(actualWorkingDir);
+                const hasUnpushedCommits = await gitService.hasUnpushedCommits(actualWorkingDir);
                 if (hasUnpushedCommits) {
                   shouldPush = true;
                 }
@@ -159,7 +164,7 @@ export class TaskHandlers extends BaseHandler {
 
               // Attempt push if there are commits to push
               if (shouldPush) {
-                const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+                const pushResult = (await gitService.push(actualWorkingDir)).status;
 
                 if (pushResult === 'success') {
                   commitInfo = ' · Pushed ✓';
@@ -432,18 +437,8 @@ Always commit and push your changes after completing the task unless explicitly 
     // Add user message to conversation history
     this.conversationManager?.addUserMessage(userId, userMessage, currentRepo.id);
 
-    // Get conversation context
-    const context = this.conversationManager?.getContext(userId);
-
-    // Build enhanced prompt with context
-    const enhancedPrompt = PromptBuilder.buildEnhancedPrompt(
-      userMessage,
-      currentRepo,
-      context
-    );
-
-    // Execute with enhanced prompt, passing original user message for commit messages
-    await this.executeAndStream(msg, enhancedPrompt, undefined, userMessage);
+    // Execute task with user's prompt
+    await this.executeAndStream(msg, userMessage);
   }
 
   /**

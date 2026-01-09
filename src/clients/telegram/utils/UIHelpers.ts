@@ -275,26 +275,31 @@ export class UIHelpers {
     }
     lines.push(`⏳ *${formatDuration(elapsed)}* · ${provider}`);
 
-    // Recent completed actions (last 3, more compact)
-    const recentEvents = task.events
-      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'completed'; ok?: boolean; message?: string } =>
-        e.type === 'action' && e.phase === 'completed'
+    // Get all action events (both started and completed)
+    const actionEvents = task.events
+      .filter((e): e is { type: 'action'; action: StreamAction; phase: 'started' | 'completed'; ok?: boolean; message?: string } =>
+        e.type === 'action'
       )
-      .slice(-3);
+      .slice(-5);
 
-    if (recentEvents.length > 0 || task.currentAction) {
+    if (actionEvents.length > 0 || task.currentAction) {
       lines.push('');
 
       // Show recent actions
-      for (const event of recentEvents) {
-        const icon = event.ok === false ? '✗' : '›';
+      for (const event of actionEvents) {
+        const icon = event.phase === 'completed'
+          ? (event.ok === false ? '✗' : '✓')
+          : '›';
         const actionTitle = this.formatAction(event.action);
         lines.push(`${icon} ${actionTitle}`);
       }
 
-      // Current action (if any)
+      // Current action (if different from last event)
       if (task.currentAction) {
-        lines.push(`› ${this.formatAction(task.currentAction)}...`);
+        const lastEvent = actionEvents[actionEvents.length - 1];
+        if (!lastEvent || lastEvent.action.id !== task.currentAction.id) {
+          lines.push(`› ${this.formatAction(task.currentAction)}...`);
+        }
       }
     } else {
       lines.push('');

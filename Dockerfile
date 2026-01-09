@@ -47,14 +47,15 @@ RUN mkdir -p $BUN_INSTALL && \
     chmod -R 755 $BUN_INSTALL /usr/local/bin && \
     chown -R appuser:appgroup /home/appuser
 
-RUN mkdir -p /workspace /app/data /app/logs /app/config /app/bots
+# Create Claude config to bypass onboarding prompts (for CLI mode)
+RUN echo '{"hasCompletedOnboarding": true}' > /home/appuser/.claude.json && \
+    chown appuser:appgroup /home/appuser/.claude.json
+
+RUN install -d -o appuser -g appgroup /workspace /app/data /app/logs /app/config /app/bots
 
 # For Railway single-volume setup: mount /persistent
 # Then set DATA_PATH=/persistent in Railway env vars
-RUN mkdir -p /persistent/workspace /persistent/app/data /persistent/app/logs /persistent/app/config
-
-# Set ownership for non-root user
-RUN chown -R appuser:appgroup /app /workspace /persistent
+RUN install -d -o appuser -g appgroup /persistent/workspace /persistent/app/data /persistent/app/logs /persistent/app/config
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/

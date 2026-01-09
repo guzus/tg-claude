@@ -9,7 +9,7 @@ import {
 } from 'discord.js';
 import { config } from '../../config';
 import { logger } from '../../utils/logger';
-import { ClaudeExecutor } from '../../services/ClaudeExecutor';
+import { ClaudeExecutorInstance } from '../../services/IClaudeExecutor';
 import { RateLimiter } from '../../services/RateLimiter';
 import { AuditLogger } from '../../services/AuditLogger';
 import { ConversationManager } from '../../services/ConversationManager';
@@ -29,7 +29,7 @@ export class DiscordClient {
   private isReady: boolean = false;
 
   constructor(
-    private executor: ClaudeExecutor,
+    private executor: ClaudeExecutorInstance,
     private rateLimiter: RateLimiter,
     private auditLogger: AuditLogger,
     private conversationManager?: ConversationManager,

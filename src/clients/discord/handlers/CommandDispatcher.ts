@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, ButtonInteraction, Message, MessageFlags } from 'discord.js';
-import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { ClaudeExecutorInstance } from '../../../services/IClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { ConversationManager } from '../../../services/ConversationManager';
@@ -23,7 +23,7 @@ export class CommandDispatcher {
   private ralphHandlers: RalphHandlers;
 
   constructor(
-    executor: ClaudeExecutor,
+    executor: ClaudeExecutorInstance,
     rateLimiter: RateLimiter,
     auditLogger: AuditLogger,
     conversationManager?: ConversationManager,

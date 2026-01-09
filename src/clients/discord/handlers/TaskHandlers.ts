@@ -10,9 +10,6 @@ import { logger } from '../../../utils/logger';
 import { toSafeDiscordId } from '../utils/ids';
 import { getErrorMessage } from '../../../utils/errors';
 import { gitService } from '../../../services/GitService';
-import { PromptBuilder } from '../../../utils/PromptBuilder';
-import { Repository, RepositoryType } from '../../../types';
-import * as path from 'path';
 
 /**
  * Handlers for task execution in Discord.
@@ -81,9 +78,6 @@ export class TaskHandlers extends BaseHandler {
       // Add to conversation context
       this.conversationManager?.addUserMessage(safeChannelId, prompt);
 
-      // Build enhanced prompt to align with Telegram workflow and include git instructions.
-      const enhancedPrompt = await this.buildEnhancedPrompt(prompt, workingDir, safeChannelId);
-
       // Send initial status message
       const statusMsg = await msg.reply({
         embeds: [{
@@ -94,10 +88,10 @@ export class TaskHandlers extends BaseHandler {
       });
 
       // Execute task
-      const task = await this.executor.executeTask(
+      const task = this.executor.startTask(
         safeUserId,
         safeChannelId,
-        enhancedPrompt,
+        prompt,
         { workingDir }
       );
 
@@ -139,21 +133,21 @@ export class TaskHandlers extends BaseHandler {
           if (success) {
             try {
               const summaryParts: string[] = [];
-              const commitHash = await this.executor.autoCommitChanges(workingDir);
+              const commitHash = await gitService.autoCommit(workingDir);
               let shouldPush = false;
 
               if (commitHash) {
                 summaryParts.push(`Committed \`${commitHash.substring(0, 7)}\``);
                 shouldPush = true;
               } else {
-                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(workingDir);
+                const hasUnpushedCommits = await gitService.hasUnpushedCommits(workingDir);
                 if (hasUnpushedCommits) {
                   shouldPush = true;
                 }
               }
 
               if (shouldPush) {
-                const pushResult = await this.executor.autoPushChanges(workingDir);
+                const pushResult = (await gitService.push(workingDir)).status;
                 if (pushResult === 'success') {
                   summaryParts.push('Pushed ✓');
                 } else if (pushResult === 'no_remote') {
@@ -243,38 +237,5 @@ export class TaskHandlers extends BaseHandler {
 
   private async ensureGitAuth(workingDir: string): Promise<void> {
     await gitService.ensureAuthRemote(workingDir);
-  }
-
-  private async buildEnhancedPrompt(
-    prompt: string,
-    workingDir: string,
-    channelKey: number
-  ): Promise<string> {
-    try {
-      const [remoteUrl, branch] = await Promise.all([
-        gitService.getRemoteUrl(workingDir),
-        gitService.getCurrentBranch(workingDir)
-      ]);
-
-      const repo: Repository = {
-        id: `discord_${channelKey}`,
-        name: path.basename(workingDir),
-        path: workingDir,
-        type: RepositoryType.EXISTING,
-        gitUrl: remoteUrl || undefined,
-        branch: branch || undefined,
-        createdAt: new Date(),
-        lastUsed: new Date()
-      };
-
-      const context = this.conversationManager?.getContext(channelKey) || '';
-      return PromptBuilder.buildEnhancedPrompt(prompt, repo, context);
-    } catch (error) {
-      logger.debug('Failed to build enhanced prompt for Discord task', {
-        workingDir,
-        error: getErrorMessage(error)
-      });
-      return prompt;
-    }
   }
 }

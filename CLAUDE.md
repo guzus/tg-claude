@@ -1,4 +1,4 @@
-1. The codebase should be focused, clean, and easy to understand.
+1. The codebase should be focused, clean, and easy to understand. DRY (Don't Repeat Yourself).
 
 2. DO NOT create a new document. Purge unnecessary code and files.
 
@@ -27,9 +27,12 @@
 
 9. Manual Deploy Workflow For Testing:
    - `gh workflow run deploy.yml --ref "$(git rev-parse --abbrev-ref HEAD)` triggers deployment
-   - `gh run watch` monitors the running workflow
 
 10. Claude Review Workflow:
     - Add label `claude-review` to PR to trigger Claude review
     - Claude has write permissions to make changes
 
+11. Claude Agent SDK:
+    - Reference: https://github.com/anthropics/claude-agent-sdk-demos
+    - Use this as good practice when working with the Agent SDK
+    - TypeScript docs: https://platform.claude.com/docs/en/agent-sdk/typescript

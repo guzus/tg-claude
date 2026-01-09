@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
 import * as path from 'path';
 import { execSync } from 'child_process';
-import { ClaudeExecutor } from './ClaudeExecutor';
+import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
 import { TaskStatus, Repository, RepositoryType, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { PLUGIN_PRESETS } from '../presets';
@@ -12,7 +12,6 @@ import { getErrorMessage } from '../utils/errors';
 import { formatDuration } from '../utils/time';
 import { gitService } from './GitService';
 import { getProviderLabel } from '../utils/providers';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 
 export enum DiscordRalphLoopStatus {
   RUNNING = 'running',
@@ -60,11 +59,11 @@ const SESSION_CLEANUP_DELAY_MS = 60 * 60 * 1000;
 const TASK_POLL_INTERVAL_MS = 5000;
 
 export class DiscordRalphLoopExecutor {
-  private executor: ClaudeExecutor;
+  private executor: ClaudeExecutorInstance;
   private activeSessions: Map<string, DiscordRalphLoopState> = new Map();
   private userSessions: Map<number, string> = new Map();
 
-  constructor(executor: ClaudeExecutor) {
+  constructor(executor: ClaudeExecutorInstance) {
     this.executor = executor;
   }
 
@@ -216,15 +215,19 @@ export class DiscordRalphLoopExecutor {
       const statusMessage = await this.sendStatusMessage(state, repository);
       if (statusMessage) state.message = statusMessage;
 
-      const prompt = this.buildRalphPrompt(state, repository);
-      const task = await this.executor.executeTask(
+      const prompt = this.buildRalphPrompt(state);
+      const task = this.executor.startTask(
         state.userId,
         state.chatKey,
         prompt,
         {
           workingDir: state.workingDir,
           timeout: state.config.maxDurationMs,
-          aiProvider: state.aiProvider
+          aiProvider: state.aiProvider,
+          ralphLoop: {
+            completionPromise: state.config.completionPromise,
+            maxIterations: state.config.maxIterations,
+          },
         }
       );
 
@@ -257,13 +260,8 @@ export class DiscordRalphLoopExecutor {
     ].join('\n');
   }
 
-  private buildRalphPrompt(state: DiscordRalphLoopState, repository: Repository | null): string {
-    return buildRalphLoopPrompt({
-      request: state.originalRequest,
-      completionPromise: state.config.completionPromise,
-      maxIterations: state.config.maxIterations,
-      repository
-    });
+  private buildRalphPrompt(state: DiscordRalphLoopState): string {
+    return state.originalRequest;
   }
 
   private async monitorTask(state: DiscordRalphLoopState, taskId: string): Promise<void> {
@@ -449,10 +447,10 @@ export class DiscordRalphLoopExecutor {
     });
 
     try {
-      const commitHash = await this.executor.autoCommitChanges(state.workingDir);
+      const commitHash = await gitService.autoCommit(state.workingDir);
       if (!commitHash) return;
 
-      const pushResult = await this.executor.autoPushChanges(state.workingDir);
+      const pushResult = (await gitService.push(state.workingDir)).status;
       const shortHash = commitHash.substring(0, 8);
       const commitUrl = await this.getCommitUrl(state.workingDir, commitHash);
 

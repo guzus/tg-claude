@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import { promisify } from 'util';
 import { exec } from 'child_process';
+import * as path from 'path';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 
@@ -340,6 +341,103 @@ class GitService {
 
       logger.error('Failed to push', { workingDir, error: errMsg });
       return { status: 'failed', error: errMsg };
+    }
+  }
+
+  /**
+   * Create GitHub repository using gh CLI
+   */
+  async createGitHubRepository(
+    workingDir: string,
+    isPrivate = false,
+    customRepoName?: string
+  ): Promise<'success' | 'already_exists' | 'error'> {
+    try {
+      const repoName = customRepoName || path.basename(workingDir);
+      const visibility = isPrivate ? '--private' : '--public';
+      await execAsync(`gh repo create ${repoName} ${visibility} --source=. --remote=origin --push`, {
+        cwd: workingDir,
+        timeout: 30000,
+      });
+      logger.info('Created GitHub repository', { repoName, visibility });
+      return 'success';
+    } catch (error) {
+      const errMsg = getErrorMessage(error);
+      if (errMsg.includes('Name already exists')) return 'already_exists';
+      logger.error('Failed to create GitHub repository', { error: errMsg });
+      return 'error';
+    }
+  }
+
+  /**
+   * Auto-commit changes with generated message
+   */
+  async autoCommit(workingDir: string): Promise<string | null> {
+    try {
+      const hasChanges = await this.hasUncommittedChanges(workingDir);
+      if (!hasChanges) return null;
+
+      const message = await this.generateCommitMessage(workingDir);
+      const result = await this.commit(workingDir, message);
+
+      if (result.success) {
+        logger.info('Auto-committed changes', { workingDir, hash: result.hash, message });
+        return result.hash;
+      }
+      return null;
+    } catch (error) {
+      logger.error('Auto-commit error', { workingDir, error: getErrorMessage(error) });
+      return null;
+    }
+  }
+
+  /**
+   * Generate a simple commit message based on changed files
+   */
+  private async generateCommitMessage(workingDir: string): Promise<string> {
+    try {
+      const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
+      if (!gitStatus.trim()) return 'chore: update code';
+
+      const fileChanges = gitStatus.trim().split('\n').map(line => {
+        const match = line.match(/^(.{1,2})\s+(.+)$/);
+        if (!match) return line.trim();
+        const [, status, filePath] = match;
+        const file = filePath.includes(' -> ') ? filePath.split(' -> ')[1] : filePath;
+        const statusDesc = status.includes('A') ? 'added' :
+                          status.includes('M') ? 'modified' :
+                          status.includes('D') ? 'deleted' :
+                          status.includes('R') ? 'renamed' :
+                          status.includes('?') ? 'new' : 'changed';
+        return `${path.basename(file)} (${statusDesc})`;
+      });
+
+      const firstFile = fileChanges[0] || 'files';
+      const fileCount = fileChanges.length;
+
+      if (fileCount === 1) return `chore: update ${firstFile}`;
+      return `chore: update ${fileCount} files`;
+    } catch {
+      return 'chore: update code';
+    }
+  }
+
+  /**
+   * Get commits since a specific hash
+   */
+  async getCommitsSince(workingDir: string, sinceHash: string): Promise<Array<{ hash: string; message: string }>> {
+    try {
+      const { stdout } = await execAsync(`git log ${sinceHash}..HEAD --format="%H|%s" --reverse`, {
+        cwd: workingDir,
+        timeout: 10000,
+      });
+      if (!stdout.trim()) return [];
+      return stdout.trim().split('\n').map(line => {
+        const [hash, ...messageParts] = line.split('|');
+        return { hash, message: messageParts.join('|') };
+      });
+    } catch {
+      return [];
     }
   }
 

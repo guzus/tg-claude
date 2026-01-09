@@ -1,5 +1,5 @@
 import { ChatInputCommandInteraction, Message, ButtonInteraction, MessageFlags } from 'discord.js';
-import { ClaudeExecutor } from '../../../services/ClaudeExecutor';
+import { ClaudeExecutorInstance } from '../../../services/IClaudeExecutor';
 import { RateLimiter } from '../../../services/RateLimiter';
 import { AuditLogger } from '../../../services/AuditLogger';
 import { ConversationManager } from '../../../services/ConversationManager';
@@ -17,7 +17,7 @@ import { toSafeDiscordId } from '../utils/ids';
  */
 export abstract class BaseHandler {
   constructor(
-    protected executor: ClaudeExecutor,
+    protected executor: ClaudeExecutorInstance,
     protected rateLimiter: RateLimiter,
     protected auditLogger: AuditLogger,
     protected conversationManager?: ConversationManager
