@@ -12,6 +12,7 @@ import { ensureDefaultPluginMarketplaces } from '../../../services/ClaudePluginM
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { toSafeDiscordId } from '../utils/ids';
+import { gitService } from '../../../services/GitService';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 
@@ -496,22 +497,10 @@ export class ConfigHandlers extends BaseHandler {
       const parts = line.trim().split(/\s+/);
       if (parts.length < 2) continue;
       const url = parts[1];
-      const https = this.normalizeGitUrl(url);
+      const https = gitService.toWebUrl(url);
       if (https) links.add(`- ${https}`);
     }
     return Array.from(links);
-  }
-
-  private normalizeGitUrl(url: string): string | null {
-    if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url.replace(/\.git$/, '');
-    }
-    const match = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
-    if (match) {
-      return `https://${match[1]}/${match[2]}`;
-    }
-    return null;
   }
 
   private async getGitIdentity(userId: number): Promise<{ name: string; email: string }> {

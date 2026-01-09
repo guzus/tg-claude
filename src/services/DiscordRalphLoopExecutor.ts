@@ -685,22 +685,8 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
     const remoteUrl = await gitService.getRemoteUrl(workingDir);
     if (!remoteUrl) return null;
 
-    const webUrl = this.normalizeGitUrl(remoteUrl);
+    const webUrl = gitService.toWebUrl(remoteUrl);
     return webUrl ? `${webUrl}/commit/${commitHash}` : null;
-  }
-
-  private normalizeGitUrl(url: string): string | null {
-    if (!url) return null;
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return url
-        .replace(/https?:\/\/[^@]+@/i, 'https://')
-        .replace(/\.git$/, '');
-    }
-    const match = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
-    if (match) {
-      return `https://${match[1]}/${match[2]}`;
-    }
-    return null;
   }
 
   private cleanupSession(state: DiscordRalphLoopState): void {

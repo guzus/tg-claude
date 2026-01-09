@@ -64,6 +64,26 @@ class GitService {
   }
 
   /**
+   * Convert a git remote URL to a web URL
+   */
+  toWebUrl(gitUrl: string): string | null {
+    if (!gitUrl) return null;
+
+    let url = gitUrl.trim();
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      url = url.replace(/https?:\/\/[^@]+@/i, 'https://');
+      return url.replace(/\.git$/, '');
+    }
+
+    const match = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+    if (match) {
+      return `https://${match[1]}/${match[2]}`;
+    }
+
+    return null;
+  }
+
+  /**
    * Normalize git URL for comparison
    */
   normalizeUrl(gitUrl: string): string {
@@ -177,6 +197,34 @@ class GitService {
       return stdout.trim() || null;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Ensure GitHub remote uses token auth for non-interactive pushes
+   */
+  async ensureAuthRemote(workingDir: string): Promise<boolean> {
+    if (!this.githubToken) return false;
+
+    try {
+      const remoteUrl = await this.getRemoteUrl(workingDir);
+      if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
+      if (remoteUrl.includes('x-access-token:') || remoteUrl.includes('oauth2:')) return false;
+
+      const authUrl = this.injectTokenIntoUrl(remoteUrl);
+      if (authUrl === remoteUrl) return false;
+
+      await execAsync(`git remote set-url origin "${authUrl}"`, {
+        cwd: workingDir,
+        timeout: 5000
+      });
+
+      logger.info('Updated GitHub remote with token auth', { workingDir });
+      return true;
+    } catch (error) {
+      const errMsg = getErrorMessage(error);
+      logger.debug('Failed to update GitHub remote auth', { workingDir, error: errMsg });
+      return false;
     }
   }
 

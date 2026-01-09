@@ -9,13 +9,10 @@ import { DiscordRalphLoopExecutor, DiscordRalphLoopStatus, DiscordRalphLoopConfi
 import { getErrorMessage } from '../../../utils/errors';
 import { gitService } from '../../../services/GitService';
 import { logger } from '../../../utils/logger';
-import { promisify } from 'util';
-import { exec } from 'child_process';
 
 export class RalphHandlers extends BaseHandler {
   private ralphExecutor: DiscordRalphLoopExecutor;
   private userConfigManager?: UserConfigManager;
-  private execAsync = promisify(exec);
 
   constructor(
     executor: ClaudeExecutor,
@@ -125,30 +122,6 @@ export class RalphHandlers extends BaseHandler {
   }
 
   private async ensureGitAuth(workingDir: string): Promise<void> {
-    const githubToken = process.env.GITHUB_TOKEN;
-    if (!githubToken) return;
-
-    try {
-      const remoteUrl = await gitService.getRemoteUrl(workingDir);
-      if (!remoteUrl || !remoteUrl.includes('github.com')) return;
-      if (remoteUrl.includes('x-access-token:') || remoteUrl.includes('oauth2:')) return;
-
-      const authUrl = gitService.injectTokenIntoUrl(remoteUrl);
-      if (authUrl === remoteUrl) return;
-
-      await this.execAsync(`git remote set-url origin "${authUrl}"`, {
-        cwd: workingDir,
-        timeout: 5000
-      });
-
-      logger.info('Updated GitHub remote with token auth for Discord Ralph loop', { workingDir });
-    } catch (error) {
-      const errorMessage = getErrorMessage(error);
-      const safeMessage = githubToken ? errorMessage.replaceAll(githubToken, '***') : errorMessage;
-      logger.debug('Failed to update GitHub remote auth for Discord Ralph loop', {
-        workingDir,
-        error: safeMessage
-      });
-    }
+    await gitService.ensureAuthRemote(workingDir);
   }
 }
