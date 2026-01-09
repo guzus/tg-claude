@@ -133,10 +133,53 @@ export class TaskHandlers extends BaseHandler {
             : Math.round((Date.now() - startTime) / 1000);
 
           const success = currentTask.status === TaskStatus.COMPLETED;
+          let gitSummary: string | undefined;
+          if (success) {
+            try {
+              const summaryParts: string[] = [];
+              const commitHash = await this.executor.autoCommitChanges(workingDir);
+              let shouldPush = false;
+
+              if (commitHash) {
+                summaryParts.push(`Committed \`${commitHash.substring(0, 7)}\``);
+                shouldPush = true;
+              } else {
+                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(workingDir);
+                if (hasUnpushedCommits) {
+                  shouldPush = true;
+                }
+              }
+
+              if (shouldPush) {
+                const pushResult = await this.executor.autoPushChanges(workingDir);
+                if (pushResult === 'success') {
+                  summaryParts.push('Pushed ✓');
+                } else if (pushResult === 'no_remote') {
+                  summaryParts.push('No remote');
+                } else if (pushResult === 'no_changes') {
+                  summaryParts.push('Nothing to push');
+                } else {
+                  summaryParts.push('Push failed');
+                }
+              }
+
+              if (summaryParts.length > 0) {
+                gitSummary = summaryParts.join(' · ');
+              }
+            } catch (error) {
+              logger.error('Discord auto-commit/push failed', {
+                taskId: task.id,
+                error: getErrorMessage(error)
+              });
+            }
+          }
+
           const embed = DiscordUIHelpers.createCompletionEmbed(
             currentTask as ClaudeTaskWithStreaming,
             success,
-            executionTime
+            executionTime,
+            'Claude',
+            gitSummary
           );
           const buttons = DiscordUIHelpers.createViewLogButton(task.id);
 

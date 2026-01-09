@@ -72,7 +72,8 @@ export class DiscordUIHelpers {
     task: ClaudeTaskWithStreaming,
     success: boolean,
     executionTime: number,
-    provider: string = 'Claude'
+    provider: string = 'Claude',
+    gitSummary?: string
   ): EmbedBuilder {
     const embed = new EmbedBuilder()
       .setColor(success ? 0x00FF00 : 0xFF0000)
@@ -84,6 +85,10 @@ export class DiscordUIHelpers {
 
     if (task.costUsd && task.costUsd > 0) {
       embed.addFields({ name: 'Cost', value: `$${task.costUsd.toFixed(2)}`, inline: true });
+    }
+
+    if (gitSummary) {
+      embed.addFields({ name: 'Git', value: gitSummary, inline: false });
     }
 
     // Add answer preview if available
