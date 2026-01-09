@@ -106,6 +106,8 @@ Set via `EXECUTOR_TYPE` environment variable:
 - `EXECUTOR_TYPE=sdk` - Anthropic SDK (default)
 - `EXECUTOR_TYPE=cli` - Claude Code CLI
 
+> **Note for CLI mode in Docker**: If using `EXECUTOR_TYPE=cli` with OAuth token, you may need to create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
+
 ### SDK Executor Tools
 
 The SDK executor includes built-in tools:

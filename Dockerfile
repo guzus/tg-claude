@@ -47,6 +47,10 @@ RUN mkdir -p $BUN_INSTALL && \
     chmod -R 755 $BUN_INSTALL /usr/local/bin && \
     chown -R appuser:appgroup /home/appuser
 
+# Create Claude config to bypass onboarding prompts (for CLI mode)
+RUN echo '{"hasCompletedOnboarding": true}' > /home/appuser/.claude.json && \
+    chown appuser:appgroup /home/appuser/.claude.json
+
 RUN mkdir -p /workspace /app/data /app/logs /app/config /app/bots
 
 # For Railway single-volume setup: mount /persistent
