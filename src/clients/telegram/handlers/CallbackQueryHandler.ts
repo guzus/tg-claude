@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { BaseHandler } from './BaseHandler';
 import { UIHelpers } from '../utils/UIHelpers';
 import { logger } from '../../../utils/logger';
-import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider } from '../../../types';
+import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider, StreamAction } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
 import { gitService } from '../../../services/GitService';
@@ -696,7 +696,12 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     // Parse the log to extract full content as markdown
-    const markdownLog = this.parseLogToMarkdown(rawLog, actualTaskId);
+    const markdownLog = this.parseLogToMarkdown(rawLog, actualTaskId, {
+      output: task.output,
+      actions: task.actions,
+      costUsd: task.costUsd,
+      result: task.output,
+    });
 
     // Telegram message limit is 4096 chars
     const MAX_LENGTH = 4000;
@@ -719,7 +724,11 @@ export class CallbackQueryHandler extends BaseHandler {
     }
   }
 
-  private parseLogToMarkdown(rawLog: string, taskId: string): string {
+  private parseLogToMarkdown(
+    rawLog: string,
+    taskId: string,
+    fallback?: { output?: string; actions?: StreamAction[]; costUsd?: number; result?: string }
+  ): string {
     const sections: string[] = [];
     const shortId = taskId.substring(0, 8);
 
@@ -730,6 +739,7 @@ export class CallbackQueryHandler extends BaseHandler {
     let toolCount = 0;
     let costUsd: number | undefined;
     let result: string | undefined;
+    let parsedAnyEvent = false;
 
     for (const line of jsonLines) {
       const trimmed = line.trim();
@@ -737,41 +747,47 @@ export class CallbackQueryHandler extends BaseHandler {
 
       try {
         const event = JSON.parse(trimmed);
+        parsedAnyEvent = true;
 
         if (event.type === 'assistant' && event.message?.content) {
-          for (const block of event.message.content) {
-            if (block.type === 'text' && block.text) {
-              // Add Claude's text response
-              currentSection.push(block.text);
-            } else if (block.type === 'tool_use') {
-              toolCount++;
-              const toolName = block.name || 'tool';
-              const toolInput = block.input;
+          const content = event.message.content;
+          if (typeof content === 'string') {
+            currentSection.push(content);
+          } else if (Array.isArray(content)) {
+            for (const block of content) {
+              if (block.type === 'text' && block.text) {
+                // Add Claude's text response
+                currentSection.push(block.text);
+              } else if (block.type === 'tool_use') {
+                toolCount++;
+                const toolName = block.name || 'tool';
+                const toolInput = block.input;
 
-              // Format tool use
-              currentSection.push(`\n### Tool: ${toolName}\n`);
-              if (toolInput) {
-                if (toolName === 'Bash' && toolInput.command) {
-                  currentSection.push('```bash');
-                  currentSection.push(toolInput.command);
-                  currentSection.push('```');
-                } else if (toolName === 'Read' && toolInput.file_path) {
-                  currentSection.push(`Reading: \`${toolInput.file_path}\``);
-                } else if (toolName === 'Edit' && toolInput.file_path) {
-                  currentSection.push(`Editing: \`${toolInput.file_path}\``);
-                } else if (toolName === 'Write' && toolInput.file_path) {
-                  currentSection.push(`Writing: \`${toolInput.file_path}\``);
-                } else if (toolName === 'Grep' && toolInput.pattern) {
-                  currentSection.push(`Pattern: \`${toolInput.pattern}\``);
-                } else if (toolName === 'Glob' && toolInput.pattern) {
-                  currentSection.push(`Pattern: \`${toolInput.pattern}\``);
-                } else {
-                  // Generic tool input display
-                  const inputStr = JSON.stringify(toolInput, null, 2);
-                  if (inputStr.length < 500) {
-                    currentSection.push('```json');
-                    currentSection.push(inputStr);
+                // Format tool use
+                currentSection.push(`\n### Tool: ${toolName}\n`);
+                if (toolInput) {
+                  if (toolName === 'Bash' && toolInput.command) {
+                    currentSection.push('```bash');
+                    currentSection.push(toolInput.command);
                     currentSection.push('```');
+                  } else if (toolName === 'Read' && toolInput.file_path) {
+                    currentSection.push(`Reading: \`${toolInput.file_path}\``);
+                  } else if (toolName === 'Edit' && toolInput.file_path) {
+                    currentSection.push(`Editing: \`${toolInput.file_path}\``);
+                  } else if (toolName === 'Write' && toolInput.file_path) {
+                    currentSection.push(`Writing: \`${toolInput.file_path}\``);
+                  } else if (toolName === 'Grep' && toolInput.pattern) {
+                    currentSection.push(`Pattern: \`${toolInput.pattern}\``);
+                  } else if (toolName === 'Glob' && toolInput.pattern) {
+                    currentSection.push(`Pattern: \`${toolInput.pattern}\``);
+                  } else {
+                    // Generic tool input display
+                    const inputStr = JSON.stringify(toolInput, null, 2);
+                    if (inputStr.length < 500) {
+                      currentSection.push('```json');
+                      currentSection.push(inputStr);
+                      currentSection.push('```');
+                    }
                   }
                 }
               }
@@ -783,6 +799,8 @@ export class CallbackQueryHandler extends BaseHandler {
           }
           if (event.total_cost_usd) {
             costUsd = event.total_cost_usd;
+          } else if (event.cost_usd) {
+            costUsd = event.cost_usd;
           }
         }
       } catch {
@@ -791,15 +809,37 @@ export class CallbackQueryHandler extends BaseHandler {
     }
 
     // Add main content
-    if (currentSection.length > 0) {
+    const fallbackOutput = fallback?.output?.trim();
+    if (currentSection.length > 0 || (!parsedAnyEvent && fallbackOutput) || (currentSection.length === 0 && fallbackOutput && !result)) {
       sections.push('## Claude Response\n');
-      sections.push(currentSection.join('\n'));
+      if (currentSection.length > 0) {
+        sections.push(currentSection.join('\n'));
+      } else {
+        sections.push(fallbackOutput || 'No output.');
+      }
+    } else if (!parsedAnyEvent) {
+      const trimmedRaw = rawLog.trim();
+      if (trimmedRaw) {
+        sections.push('## Claude Response\n');
+        sections.push(trimmedRaw);
+      }
     }
 
     // Add summary section
+    const fallbackToolCount = fallback?.actions
+      ? fallback.actions.filter(action => !['note', 'turn', 'warning', 'telemetry'].includes(action.kind)).length
+      : 0;
+    const effectiveToolCount = toolCount > 0 ? toolCount : fallbackToolCount;
+    if (!costUsd && fallback?.costUsd) {
+      costUsd = fallback.costUsd;
+    }
+    if (!result && fallback?.result) {
+      result = fallback.result;
+    }
+
     sections.push('\n---\n');
     sections.push('## Summary\n');
-    sections.push(`- Tools used: ${toolCount}`);
+    sections.push(`- Tools used: ${effectiveToolCount}`);
     if (costUsd) {
       sections.push(`- Cost: $${costUsd.toFixed(4)}`);
     }
