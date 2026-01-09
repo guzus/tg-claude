@@ -34,6 +34,10 @@ flowchart TB
 
         subgraph Executors
             SDK[Anthropic SDK Executor]
+            SDKMCP[MCP Servers]
+            SDKSkills[Skills]
+            SDKPlugins[Plugins]
+            SDKSubagents[Subagents]
         end
 
         subgraph Services
@@ -62,6 +66,10 @@ flowchart TB
     Bot -->|Parse & Route| Factory
     Factory -->|EXECUTOR_TYPE=sdk| SDK
     Bot -->|Autonomous Tasks| Ralph
+    SDK --> SDKMCP
+    SDK --> SDKSkills
+    SDK --> SDKPlugins
+    SDK --> SDKSubagents
     SDK -->|API Key| ClaudeAPI
     SDK -->|API Key| ZaiAPI
     SDK -->|API Key| OpenRouter
