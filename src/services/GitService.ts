@@ -222,10 +222,16 @@ class GitService {
       logger.info('Updated GitHub remote with token auth', { workingDir });
       return true;
     } catch (error) {
-      const errMsg = getErrorMessage(error);
+      const errMsg = this.maskGitHubToken(getErrorMessage(error));
       logger.debug('Failed to update GitHub remote auth', { workingDir, error: errMsg });
       return false;
     }
+  }
+
+  private maskGitHubToken(value: string): string {
+    return value
+      .replace(/x-access-token:[^@]+@/gi, 'x-access-token:***@')
+      .replace(/oauth2:[^@]+@/gi, 'oauth2:***@');
   }
 
   /**
