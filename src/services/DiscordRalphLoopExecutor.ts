@@ -45,6 +45,8 @@ export interface DiscordRalphLoopState {
   taskId?: string;
   cleanedUp: boolean;
   aiProvider?: AIProviderConfig;
+  pluginReady?: boolean;
+  pluginError?: string;
 }
 
 const DEFAULT_RALPH_CONFIG: DiscordRalphLoopConfig = {
@@ -170,8 +172,12 @@ export class DiscordRalphLoopExecutor {
         timeout: 60000,
         stdio: ['pipe', 'pipe', 'pipe']
       });
-      logger.info('Ralph Wiggum plugin ready', { workingDir, pluginSpec });
-      return { ok: true };
+      if (this.isPluginInstalled(workingDir, preset.name)) {
+        logger.info('Ralph Wiggum plugin ready', { workingDir, pluginSpec });
+        return { ok: true };
+      }
+      const error = 'Ralph plugin install reported success but plugin not listed';
+      return { ok: false, error, pluginSpec };
     } catch (error) {
       const errMsg = getErrorMessage(error);
       logger.warn('Plugin install returned non-zero', {
@@ -188,8 +194,12 @@ export class DiscordRalphLoopExecutor {
             timeout: 60000,
             stdio: ['pipe', 'pipe', 'pipe']
           });
-          logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
-          return { ok: true };
+          if (this.isPluginInstalled(workingDir, preset.name)) {
+            logger.info('Ralph Wiggum plugin ready after marketplace ensure', { workingDir, pluginSpec });
+            return { ok: true };
+          }
+          const error = 'Ralph plugin install reported success but plugin not listed';
+          return { ok: false, error, pluginSpec };
         } catch (retryError) {
           const retryMsg = getErrorMessage(retryError);
           return { ok: false, error: retryMsg, pluginSpec };
@@ -199,10 +209,26 @@ export class DiscordRalphLoopExecutor {
     }
   }
 
+  private isPluginInstalled(workingDir: string, pluginName: string): boolean {
+    try {
+      const output = execSync('claude plugin list', {
+        cwd: workingDir,
+        encoding: 'utf-8',
+        timeout: 10000,
+        stdio: ['pipe', 'pipe', 'pipe']
+      });
+      return output.includes(pluginName);
+    } catch {
+      return false;
+    }
+  }
+
   private async runRalphLoop(state: DiscordRalphLoopState): Promise<void> {
     try {
       const pluginResult = await this.ensureRalphPluginInstalled(state.workingDir);
+      state.pluginReady = pluginResult.ok;
       if (!pluginResult.ok) {
+        state.pluginError = pluginResult.error;
         const warning = this.buildPluginWarning(pluginResult.error, pluginResult.pluginSpec);
         await this.safeSendMessage(state.channel, warning);
       }
@@ -608,6 +634,14 @@ When COMPLETELY done and verified, output: <promise>${state.config.completionPro
 
     if (repository) {
       embed.addFields({ name: 'Repo', value: repository.name, inline: true });
+    }
+
+    if (state.pluginReady !== undefined) {
+      embed.addFields({
+        name: 'Plugin',
+        value: state.pluginReady ? 'ralph-loop ✓' : 'ralph-loop missing',
+        inline: true
+      });
     }
 
     if (task?.currentAction) {
