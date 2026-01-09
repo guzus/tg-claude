@@ -37,6 +37,24 @@ export const PLUGIN_PRESETS: Record<string, PluginPreset> = {
     name: 'ralph-loop',
     registry: 'claude-plugins-official',
     description: 'Autonomous loop that keeps working until task completion',
+    isDefault: false // Only loaded when ralph loop is enabled
+  },
+  'commit-commands': {
+    name: 'commit-commands',
+    registry: 'claude-plugins-official',
+    description: 'Git commit workflow with intelligent commit messages',
+    isDefault: true
+  },
+  'github': {
+    name: 'github',
+    registry: 'claude-plugins-official',
+    description: 'GitHub integration for PR creation and management',
+    isDefault: true
+  },
+  'frontend-design': {
+    name: 'frontend-design',
+    registry: 'claude-plugins-official',
+    description: 'Create distinctive, production-grade frontend interfaces',
     isDefault: true
   }
 };

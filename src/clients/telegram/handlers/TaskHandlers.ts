@@ -9,7 +9,6 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
-import { gitService } from '../../../services/GitService';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
@@ -275,38 +274,9 @@ export class TaskHandlers extends BaseHandler {
         ? Math.round((currentTask.endTime.getTime() - currentTask.startTime.getTime()) / 1000)
         : 0;
 
-      let commitInfo = '';
-      let needsRemoteSetup = false;
-      if (currentTask.status === TaskStatus.COMPLETED && workingDir) {
-        try {
-          const commitHash = await gitService.autoCommit(workingDir);
-          let shouldPush = false;
-
-          if (commitHash) {
-            shouldPush = true;
-          } else {
-            const hasUnpushedCommits = await gitService.hasUnpushedCommits(workingDir);
-            if (hasUnpushedCommits) {
-              shouldPush = true;
-            }
-          }
-
-          if (shouldPush) {
-            const pushResult = (await gitService.push(workingDir)).status;
-
-            if (pushResult === 'success') {
-              commitInfo = ' · Pushed ✓';
-            } else if (pushResult === 'no_remote') {
-              needsRemoteSetup = true;
-            }
-          }
-        } catch (error) {
-          logger.error('Auto-commit/push failed', {
-            taskId,
-            error: getErrorMessage(error)
-          });
-        }
-      }
+      // Note: Commits are now handled by Claude using the /commit-commands:commit skill
+      const commitInfo = '';
+      const needsRemoteSetup = false;
 
       let fullOutput = '';
       if (output) {
@@ -472,18 +442,10 @@ export class TaskHandlers extends BaseHandler {
 
     const taskDescription = match[1].trim();
 
-    // Augment prompt to instruct AI to commit and push changes
+    // Augment prompt to instruct AI to use commit skill
     const augmentedPrompt = `${taskDescription}
 
-IMPORTANT: After completing the coding task:
-1. Use git commands to stage all changes (git add .)
-2. Create a commit with a descriptive message using: git commit -m "your message"
-3. Push changes to the remote repository using: git push
-4. If there's no remote repository set up, initialize one and push using gh CLI:
-   - gh repo create (if needed)
-   - git push -u origin main (or appropriate branch)
-
-Always commit and push your changes after completing the task unless explicitly told not to.`;
+IMPORTANT: After completing the coding task, use /commit to commit and push your changes.`;
 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
