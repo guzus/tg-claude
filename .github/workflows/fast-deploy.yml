@@ -38,7 +38,7 @@ jobs:
             -t "${IMAGE_NAME}:${IMAGE_TAG}" \
             --build-arg COMMIT_HASH="${GITHUB_SHA}" \
             --cache-from type=local,src=/var/lib/buildx-cache \
-            --cache-to type=local,dest=/var/lib/buildx-cache-new,mode=max \
+            --cache-to type=local,dest=/var/lib/buildx-cache-new,mode=min \
             .
 
       - name: Move cache
@@ -54,7 +54,6 @@ jobs:
         run: |
           cd "${{ secrets.DEPLOY_PATH }}"
           export DOCKER_IMAGE="${IMAGE_NAME}:${IMAGE_TAG}"
-          docker compose down --remove-orphans || true
           docker compose up -d --no-build
           docker compose ps
           docker compose logs --tail=20
