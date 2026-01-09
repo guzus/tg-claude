@@ -5,7 +5,7 @@
 <h1 align="center">tg-claude</h1>
 
 <p align="center">
-  Control Claude remotely via Telegram or Discord using the Anthropic SDK or Claude Code CLI.
+  Control Claude Code remotely via Telegram or Discord with your Claude subscription.
 </p>
 
 <p align="center">
