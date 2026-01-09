@@ -139,21 +139,21 @@ export class TaskHandlers extends BaseHandler {
           if (success) {
             try {
               const summaryParts: string[] = [];
-              const commitHash = await this.executor.autoCommitChanges(workingDir);
+              const commitHash = await gitService.autoCommit(workingDir);
               let shouldPush = false;
 
               if (commitHash) {
                 summaryParts.push(`Committed \`${commitHash.substring(0, 7)}\``);
                 shouldPush = true;
               } else {
-                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(workingDir);
+                const hasUnpushedCommits = await gitService.hasUnpushedCommits(workingDir);
                 if (hasUnpushedCommits) {
                   shouldPush = true;
                 }
               }
 
               if (shouldPush) {
-                const pushResult = await this.executor.autoPushChanges(workingDir);
+                const pushResult = (await gitService.push(workingDir)).status;
                 if (pushResult === 'success') {
                   summaryParts.push('Pushed ✓');
                 } else if (pushResult === 'no_remote') {

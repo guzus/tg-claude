@@ -6,6 +6,7 @@ import { logger } from '../../../utils/logger';
 import { RepositoryType, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig, AIProvider } from '../../../types';
 import { stateManager, PendingRepoCreation } from '../../../services/StateManager';
 import { RalphLoopExecutor } from '../../../services/RalphLoopExecutor';
+import { gitService } from '../../../services/GitService';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import path from 'path';
@@ -429,7 +430,7 @@ export class CallbackQueryHandler extends BaseHandler {
 
     try {
       const originalName = path.basename(workingDir);
-      const result = await this.executor.createGitHubRepository(workingDir, isPrivate);
+      const result = await gitService.createGitHubRepository(workingDir, isPrivate);
 
       if (result === 'success') {
         const currentRepo = this.repositoryManager.getCurrentRepository(userId);
@@ -491,7 +492,7 @@ export class CallbackQueryHandler extends BaseHandler {
           await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
         }
 
-        const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+        const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
         if (result === 'success') {
           await this.repositoryManager.refreshRepository(userId, repo.id);
@@ -522,7 +523,7 @@ export class CallbackQueryHandler extends BaseHandler {
     const statusMsg = await this.bot.sendMessage(chatId, `Creating: \`${newRepoName}\`...`, { parse_mode: 'Markdown' });
 
     try {
-      const result = await this.executor.createGitHubRepository(pending.workingDir, pending.isPrivate, newRepoName);
+      const result = await gitService.createGitHubRepository(pending.workingDir, pending.isPrivate, newRepoName);
 
       if (result === 'success') {
         const currentRepo = this.repositoryManager.getCurrentRepository(userId);
@@ -879,7 +880,7 @@ export class CallbackQueryHandler extends BaseHandler {
       await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
 
       // Create GitHub repository
-      const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+      const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
       if (result === 'success') {
         await this.repositoryManager.refreshRepository(userId, repo.id);

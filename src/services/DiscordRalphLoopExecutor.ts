@@ -447,10 +447,10 @@ export class DiscordRalphLoopExecutor {
     });
 
     try {
-      const commitHash = await this.executor.autoCommitChanges(state.workingDir);
+      const commitHash = await gitService.autoCommit(state.workingDir);
       if (!commitHash) return;
 
-      const pushResult = await this.executor.autoPushChanges(state.workingDir);
+      const pushResult = (await gitService.push(state.workingDir)).status;
       const shortHash = commitHash.substring(0, 8);
       const commitUrl = await this.getCommitUrl(state.workingDir, commitHash);
 

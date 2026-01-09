@@ -6,6 +6,7 @@ import { execSync } from 'child_process';
 import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { RepositoryManager } from './RepositoryManager';
 import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
+import { gitService } from './GitService';
 import { TaskStatus, Repository, AIProviderConfig, StreamEvent, ClaudeTaskWithStreaming } from '../types';
 import { logger } from '../utils/logger';
 import { UIHelpers } from '../clients/telegram/utils/UIHelpers';
@@ -673,14 +674,14 @@ export class RalphLoopExecutor {
     });
 
     try {
-      const commitHash = await this.executor.autoCommitChanges(state.workingDir);
+      const commitHash = await gitService.autoCommit(state.workingDir);
       if (commitHash) {
         logger.info('Ralph loop committed changes', {
           sessionId: state.sessionId,
           commitHash
         });
 
-        const pushResult = await this.executor.autoPushChanges(state.workingDir);
+        const pushResult = (await gitService.push(state.workingDir)).status;
 
         logger.info('Ralph loop push result', {
           sessionId: state.sessionId,

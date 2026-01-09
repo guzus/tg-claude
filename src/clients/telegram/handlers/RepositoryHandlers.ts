@@ -4,6 +4,7 @@ import { RepositoryType, Repository } from '../../../types';
 import { logger } from '../../../utils/logger';
 import { UIHelpers } from '../utils/UIHelpers';
 import { stateManager } from '../../../services/StateManager';
+import { gitService } from '../../../services/GitService';
 import { promisify } from 'util';
 import { exec } from 'child_process';
 import { getErrorMessage } from '../../../utils/errors';
@@ -850,7 +851,7 @@ export class RepositoryHandlers extends BaseHandler {
       await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
 
       // Create GitHub repository
-      const result = await this.executor.createGitHubRepository(repo.path, isPrivate);
+      const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
       if (result === 'success') {
         await this.repositoryManager.refreshRepository(userId, repo.id);

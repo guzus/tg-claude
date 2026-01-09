@@ -10,6 +10,7 @@ import { AuditLogger } from '../../../services/AuditLogger';
 import { RepositoryManager } from '../../../services/RepositoryManager';
 import { ConversationManager } from '../../../services/ConversationManager';
 import { UserConfigManager } from '../../../services/UserConfigManager';
+import { gitService } from '../../../services/GitService';
 import { getErrorMessage } from '../../../utils/errors';
 import { getProviderLabel } from '../../../utils/providers';
 import { formatDuration } from '../../../utils/time';
@@ -144,14 +145,14 @@ export class TaskHandlers extends BaseHandler {
           let needsRemoteSetup = false;
           if (currentTask.status === TaskStatus.COMPLETED && actualWorkingDir) {
             try {
-              const commitHash = await this.executor.autoCommitChanges(actualWorkingDir);
+              const commitHash = await gitService.autoCommit(actualWorkingDir);
               let shouldPush = false;
 
               if (commitHash) {
                 shouldPush = true;
               } else {
                 // Check if there are unpushed commits
-                const hasUnpushedCommits = await this.executor.hasUnpushedCommits(actualWorkingDir);
+                const hasUnpushedCommits = await gitService.hasUnpushedCommits(actualWorkingDir);
                 if (hasUnpushedCommits) {
                   shouldPush = true;
                 }
@@ -159,7 +160,7 @@ export class TaskHandlers extends BaseHandler {
 
               // Attempt push if there are commits to push
               if (shouldPush) {
-                const pushResult = await this.executor.autoPushChanges(actualWorkingDir);
+                const pushResult = (await gitService.push(actualWorkingDir)).status;
 
                 if (pushResult === 'success') {
                   commitInfo = ' · Pushed ✓';

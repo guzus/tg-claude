@@ -515,104 +515,15 @@ ${prompt}`;
     return (task.output || task.errorOutput || '').slice(-config.maxOutputSize);
   }
 
-  // Git operations delegated to GitService
-  async hasUncommittedChanges(workingDir: string): Promise<boolean> {
-    return gitService.hasUncommittedChanges(workingDir);
-  }
-
-  async hasUnpushedCommits(workingDir: string): Promise<boolean> {
-    return gitService.hasUnpushedCommits(workingDir);
-  }
-
-  async hasRemoteRepository(workingDir: string): Promise<boolean> {
-    return gitService.hasRemote(workingDir);
-  }
-
-  async autoCommitChanges(workingDir: string): Promise<string | null> {
-    try {
-      const hasChanges = await gitService.hasUncommittedChanges(workingDir);
-      if (!hasChanges) {
-        return null;
-      }
-      const message = await this.generateCommitMessage(workingDir);
-      const result = await gitService.commit(workingDir, message);
-      if (result.success) {
-        logger.info('Auto-committed changes', { workingDir, hash: result.hash, message });
-        return result.hash;
-      }
-      return null;
-    } catch (error) {
-      logger.error('Auto-commit error', { workingDir, error: getErrorMessage(error) });
-      return null;
-    }
-  }
-
+  // Task-specific git tracking
   async getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>> {
     const initialHead = this.taskInitialHeads.get(taskId);
     if (!initialHead) return [];
-    try {
-      const { stdout } = await execAsync(`git log ${initialHead}..HEAD --format="%H|%s" --reverse`, {
-        cwd: workingDir,
-        timeout: 10000,
-      });
-      if (!stdout.trim()) return [];
-      return stdout.trim().split('\n').map(line => {
-        const [hash, ...messageParts] = line.split('|');
-        return { hash, message: messageParts.join('|') };
-      });
-    } catch {
-      return [];
-    }
+    return gitService.getCommitsSince(workingDir, initialHead);
   }
 
   cleanupTaskHead(taskId: string): void {
     this.taskInitialHeads.delete(taskId);
-  }
-
-  private async generateCommitMessage(workingDir: string): Promise<string> {
-    try {
-      const { stdout: gitStatus } = await execAsync('git status --short', { cwd: workingDir, timeout: 5000 });
-      if (!gitStatus.trim()) return 'chore: update code';
-
-      // Generate a simple commit message based on changed files
-      const fileChanges = gitStatus.trim().split('\n').map(line => {
-        const match = line.match(/^(.{1,2})\s+(.+)$/);
-        if (!match) return line.trim();
-        const [, status, filePath] = match;
-        const file = filePath.includes(' -> ') ? filePath.split(' -> ')[1] : filePath;
-        const statusDesc = status.includes('A') ? 'added' :
-                          status.includes('M') ? 'modified' :
-                          status.includes('D') ? 'deleted' :
-                          status.includes('R') ? 'renamed' :
-                          status.includes('?') ? 'new' : 'changed';
-        return `${path.basename(file)} (${statusDesc})`;
-      });
-
-      // Simple heuristic-based commit message
-      const firstFile = fileChanges[0] || 'files';
-      const fileCount = fileChanges.length;
-
-      if (fileCount === 1) {
-        return `chore: update ${firstFile}`;
-      }
-      return `chore: update ${fileCount} files`;
-    } catch (error) {
-      logger.debug('Commit message generation failed', { error: getErrorMessage(error) });
-      return 'chore: update code';
-    }
-  }
-
-  async autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed' | 'no_changes'> {
-    const result = await gitService.push(workingDir);
-    return result.status;
-  }
-
-  async createGitHubRepository(
-    workingDir: string,
-    isPrivate = false,
-    customRepoName?: string
-  ): Promise<'success' | 'already_exists' | 'error'> {
-    return gitService.createGitHubRepository(workingDir, isPrivate, customRepoName);
   }
 
   cleanupOldTasks(maxAge = 3600000): number {

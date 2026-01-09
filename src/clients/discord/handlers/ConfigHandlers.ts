@@ -135,7 +135,7 @@ export class ConfigHandlers extends BaseHandler {
         await this.execGit(['commit', '-m', 'Initial commit', '--allow-empty'], context.workingDir);
       }
 
-      const result = await this.executor.createGitHubRepository(
+      const result = await gitService.createGitHubRepository(
         context.workingDir,
         isPrivate,
         name

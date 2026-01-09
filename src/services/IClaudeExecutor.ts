@@ -39,20 +39,10 @@ export interface IClaudeExecutor {
   cancelAllTasksForUser(userId: number): number;
   hasReachedConcurrentLimit(userId: number): boolean;
   cleanupOldTasks(maxAge?: number): number;
-  cleanupTaskHead(taskId: string): void;
 
-  // Git operations
-  hasUncommittedChanges(workingDir: string): Promise<boolean>;
-  hasUnpushedCommits(workingDir: string): Promise<boolean>;
-  hasRemoteRepository(workingDir: string): Promise<boolean>;
-  autoCommitChanges(workingDir: string): Promise<string | null>;
-  autoPushChanges(workingDir: string): Promise<'success' | 'no_remote' | 'failed' | 'no_changes'>;
+  // Task-specific git tracking (uses internal taskInitialHeads)
+  cleanupTaskHead(taskId: string): void;
   getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>>;
-  createGitHubRepository(
-    workingDir: string,
-    isPrivate?: boolean,
-    customRepoName?: string
-  ): Promise<'success' | 'already_exists' | 'error'>;
 }
 
 /**
