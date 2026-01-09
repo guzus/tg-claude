@@ -370,7 +370,7 @@ export class TaskHandlers extends BaseHandler {
               parse_mode: 'Markdown',
               reply_markup: completionButtons
             }
-          ).catch(() => {});
+          ).catch(() => { });
         }
       }
 
@@ -445,7 +445,7 @@ export class TaskHandlers extends BaseHandler {
     // Augment prompt to instruct AI to use commit skill
     const augmentedPrompt = `${taskDescription}
 
-IMPORTANT: After completing the coding task, use /commit to commit and push your changes.`;
+IMPORTANT: After completing the coding task, use /commit-commands:commit to commit and push your changes.`;
 
     await this.executeAndStream(msg, augmentedPrompt, undefined, taskDescription);
   }
@@ -547,7 +547,7 @@ IMPORTANT: After completing the coding task, use /commit to commit and push your
       const imageContent = await this.convertPhotoToImageContent(bestPhoto);
 
       // Delete processing message
-      await this.bot.deleteMessage(chatId, processingMsg.message_id).catch(() => {});
+      await this.bot.deleteMessage(chatId, processingMsg.message_id).catch(() => { });
 
       // Add user message to conversation history (caption only, not image)
       this.conversationManager?.addUserMessage(userId, `[Image] ${caption}`, currentRepo.id);

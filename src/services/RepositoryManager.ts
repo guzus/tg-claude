@@ -35,6 +35,9 @@ export class RepositoryManager {
         await this.restoreCurrentRepositories();
       }
 
+      // Install default plugins for all discovered repositories
+      await this.installDefaultPluginsForAllRepos();
+
       logger.info('RepositoryManager initialized', {
         totalUsers: this.userSessions.size,
         totalRepos: this.getTotalRepositoryCount()
@@ -43,6 +46,34 @@ export class RepositoryManager {
       logger.error('Failed to initialize RepositoryManager', {
         error: getErrorMessage(error)
       });
+    }
+  }
+
+  /**
+   * Install default plugins for all existing repositories at startup
+   */
+  private async installDefaultPluginsForAllRepos(): Promise<void> {
+    const allRepoPaths = new Set<string>();
+
+    for (const session of this.userSessions.values()) {
+      for (const repo of session.repositories.values()) {
+        allRepoPaths.add(repo.path);
+      }
+    }
+
+    if (allRepoPaths.size === 0) return;
+
+    logger.info('Installing default plugins for repositories', { count: allRepoPaths.size });
+
+    for (const repoPath of allRepoPaths) {
+      try {
+        await this.installDefaultPlugins(repoPath);
+      } catch (error) {
+        logger.warn('Failed to install default plugins for repository', {
+          repoPath,
+          error: getErrorMessage(error)
+        });
+      }
     }
   }
 
