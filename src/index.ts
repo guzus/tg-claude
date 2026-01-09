@@ -3,9 +3,9 @@ process.env.NTBA_FIX_350 = '1';
 
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
-import { config, validateConfig } from './config';
+import { config, validateConfig, EXECUTOR_TYPE } from './config';
 import { logger } from './utils/logger';
-import { ClaudeExecutor } from './services/ClaudeExecutor';
+import { createExecutor } from './services/ExecutorFactory';
 import { RateLimiter } from './services/RateLimiter';
 import { AuditLogger } from './services/AuditLogger';
 import { RepositoryManager } from './services/RepositoryManager';
@@ -46,7 +46,8 @@ try {
 }
 
 // Initialize services
-const executor = new ClaudeExecutor();
+const executor = createExecutor();
+logger.info('Executor initialized', { type: EXECUTOR_TYPE });
 const rateLimiter = new RateLimiter();
 const auditLogger = new AuditLogger();
 const userConfigManager = new UserConfigManager();
