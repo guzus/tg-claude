@@ -15,50 +15,22 @@ import {
 import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
+import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { gitService } from './GitService';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 
 // Type guards for SDK message types
-interface SDKAssistantMessage {
-  type: 'assistant';
-  uuid: string;
-  session_id: string;
-  message: {
-    content: Array<{ type: string; text?: string; name?: string; input?: unknown }>;
-  };
-}
-
-interface SDKResultMessage {
-  type: 'result';
-  subtype: string;
-  session_id: string;
-  duration_ms: number;
-  is_error: boolean;
-  num_turns: number;
-  result?: string;
-  total_cost_usd?: number;
-  errors?: string[];
-}
-
-interface SDKSystemMessage {
-  type: 'system';
-  subtype: string;
-  session_id: string;
-  tools?: string[];
-  model?: string;
-}
-
-function isAssistantMessage(msg: SDKMessage): msg is SDKAssistantMessage {
+function isAssistantMessage(msg: SDKMessage): msg is Extract<SDKMessage, { type: 'assistant' }> {
   return msg.type === 'assistant';
 }
 
-function isResultMessage(msg: SDKMessage): msg is SDKResultMessage {
+function isResultMessage(msg: SDKMessage): msg is Extract<SDKMessage, { type: 'result' }> {
   return msg.type === 'result';
 }
 
-function isSystemMessage(msg: SDKMessage): msg is SDKSystemMessage {
+function isSystemMessage(msg: SDKMessage): msg is Extract<SDKMessage, { type: 'system' }> {
   return msg.type === 'system';
 }
 
@@ -348,7 +320,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
         // Build the final prompt - add ralph loop instructions if enabled
         let finalPrompt = task.prompt;
         if (ralphLoop) {
-          finalPrompt = `/ralph-loop:ralph-loop "${task.prompt}" --max-iterations ${ralphLoop.maxIterations} --completion-promise "${ralphLoop.completionPromise}"`;
+          finalPrompt = buildRalphLoopPrompt({
+            request: task.prompt,
+            maxIterations: ralphLoop.maxIterations,
+            completionPromise: ralphLoop.completionPromise,
+          });
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
