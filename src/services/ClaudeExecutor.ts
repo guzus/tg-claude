@@ -1,6 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { TaskStatus, AIProviderConfig, StreamEvent, StreamAction, ClaudeTaskWithStreaming } from '../types';
-import { config, WORKSPACE_PATH } from '../config';
+import { config, WORKSPACE_PATH, LOGS_PATH } from '../config';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
@@ -14,7 +14,7 @@ import { StreamingOutputParser } from './StreamingOutputParser';
 import { EventEmitter } from 'events';
 
 const execAsync = promisify(exec);
-const TASK_LOGS_DIR = path.join(process.cwd(), 'logs', 'tasks');
+const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 
 export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
