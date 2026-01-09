@@ -63,12 +63,8 @@ export class ConfigHandlers extends BaseHandler {
         case 'status':
         default: {
           const statusOutput = await this.execGit(['status', '-sb'], context.workingDir);
-          let remoteOutput = '';
-          try {
-            remoteOutput = await this.execGit(['remote', '-v'], context.workingDir);
-          } catch {
-            remoteOutput = '';
-          }
+          const remoteOutput = await this.safeGitRemoteOutput(context.workingDir);
+          const remoteLinks = this.extractRemoteLinks(remoteOutput);
 
           const parts: string[] = [];
           if (statusOutput.trim()) {
@@ -76,6 +72,9 @@ export class ConfigHandlers extends BaseHandler {
           }
           if (remoteOutput.trim()) {
             parts.push(`**Remotes**\n\`\`\`\n${remoteOutput.trim()}\n\`\`\``);
+          }
+          if (remoteLinks.length > 0) {
+            parts.push(`**Links**\n${remoteLinks.join('\n')}`);
           }
 
           await interaction.reply({
@@ -479,6 +478,40 @@ export class ConfigHandlers extends BaseHandler {
   private async execGit(args: string[], cwd: string): Promise<string> {
     const result = await execFileAsync('git', args, { cwd });
     return result.stdout?.toString() || '';
+  }
+
+  private async safeGitRemoteOutput(cwd: string): Promise<string> {
+    try {
+      return await this.execGit(['remote', '-v'], cwd);
+    } catch {
+      return '';
+    }
+  }
+
+  private extractRemoteLinks(remoteOutput: string): string[] {
+    if (!remoteOutput) return [];
+    const links = new Set<string>();
+    const lines = remoteOutput.split('\n');
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length < 2) continue;
+      const url = parts[1];
+      const https = this.normalizeGitUrl(url);
+      if (https) links.add(`- ${https}`);
+    }
+    return Array.from(links);
+  }
+
+  private normalizeGitUrl(url: string): string | null {
+    if (!url) return null;
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url.replace(/\.git$/, '');
+    }
+    const match = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+    if (match) {
+      return `https://${match[1]}/${match[2]}`;
+    }
+    return null;
   }
 
   private async getGitIdentity(userId: number): Promise<{ name: string; email: string }> {
