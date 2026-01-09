@@ -37,10 +37,18 @@ export class TaskHandlers extends BaseHandler {
     const botUser = msg.client.user;
     if (!botUser) return;
 
-    // Only respond when explicitly mentioned
+    const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const mentionPattern = new RegExp(`<@!?${botUser.id}>`, 'g');
+    const usernamePattern = new RegExp(`@${escapeRegex(botUser.username)}\\b`, 'gi');
+    const globalNamePattern = botUser.globalName
+      ? new RegExp(`@${escapeRegex(botUser.globalName)}\\b`, 'gi')
+      : null;
+
+    // Only respond when explicitly mentioned (or literal @username)
     const hasMention = msg.mentions.has(botUser, { ignoreRoles: true, ignoreEveryone: true })
-      || mentionPattern.test(msg.content);
+      || mentionPattern.test(msg.content)
+      || usernamePattern.test(msg.content)
+      || (globalNamePattern ? globalNamePattern.test(msg.content) : false);
     if (!hasMention) return;
 
     if (!(await this.checkAccess(msg))) return;
@@ -49,7 +57,12 @@ export class TaskHandlers extends BaseHandler {
     const channelId = msg.channelId;
     const channel = msg.channel as TextChannel;
     const channelName = channel.name || 'unknown';
-    const prompt = msg.content.replace(mentionPattern, '').trim();
+    let prompt = msg.content.replace(mentionPattern, '');
+    prompt = prompt.replace(usernamePattern, '');
+    if (globalNamePattern) {
+      prompt = prompt.replace(globalNamePattern, '');
+    }
+    prompt = prompt.trim();
     if (!prompt) return;
     const startTime = Date.now();
     const safeUserId = toSafeDiscordId(userId);
