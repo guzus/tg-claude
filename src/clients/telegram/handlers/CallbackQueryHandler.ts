@@ -645,6 +645,12 @@ export class CallbackQueryHandler extends BaseHandler {
   }
 
   private async handleCancelTask(chatId: number, messageId: number, userId: number, taskId: string): Promise<void> {
+    // Handle pending state (task still starting)
+    if (taskId === 'pending') {
+      await this.bot.sendMessage(chatId, 'Task is still starting. Wait a moment and try again.');
+      return;
+    }
+
     const actualTaskId = taskId.replace('task:', '');
     const task = this.executor.getTask(actualTaskId);
 
