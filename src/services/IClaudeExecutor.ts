@@ -52,6 +52,10 @@ export interface IClaudeExecutor {
   // Task-specific git tracking (uses internal taskInitialHeads)
   cleanupTaskHead(taskId: string): void;
   getTaskCommits(taskId: string, workingDir: string): Promise<Array<{ hash: string; message: string }>>;
+
+  // Session management (for conversation continuity)
+  clearChatSession(chatId: number): boolean;
+  getChatSessionId(chatId: number): string | undefined;
 }
 
 /**

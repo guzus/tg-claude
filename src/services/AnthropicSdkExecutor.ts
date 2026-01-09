@@ -28,6 +28,7 @@ import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 const MAX_RESUME_ATTEMPTS = 3;
+const RESUME_LOCK_TTL_MS = 2 * 60 * 1000;
 
 type TaskRunOptions = {
   workingDir?: string;
@@ -77,9 +78,12 @@ export class AnthropicSdkExecutor extends EventEmitter {
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
   private taskInitialHeads: Map<string, string> = new Map();
+  private chatSessions: Map<number, string> = new Map(); // chatId -> last sessionId
   private actionCounter = 0;
   private claudeCodePath: string | undefined;
   private taskStateStore: TaskStateStore;
+  private resumeLockId: string;
+  private resumedTasks: Set<string> = new Set();
 
   constructor(_apiKey?: string) {
     super();
@@ -94,6 +98,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
       fs.mkdirSync(TASK_LOGS_DIR, { recursive: true });
     }
 
+    this.resumeLockId = uuidv4();
     this.taskStateStore = new TaskStateStore();
     setTimeout(() => {
       void this.resumeActiveTasks();
@@ -282,6 +287,13 @@ export class AnthropicSdkExecutor extends EventEmitter {
   }
 
   private async resumeTask(persisted: PersistedTaskState): Promise<void> {
+    if (this.resumedTasks.has(persisted.id)) return;
+    if (!this.taskStateStore.tryLockResume(persisted.id, this.resumeLockId, RESUME_LOCK_TTL_MS)) {
+      logger.info('Skip resume, lock held', { taskId: persisted.id });
+      return;
+    }
+
+    this.resumedTasks.add(persisted.id);
     this.taskStateStore.incrementResumeAttempts(persisted.id);
 
     const task = this.createTask(
@@ -324,7 +336,13 @@ export class AnthropicSdkExecutor extends EventEmitter {
     const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
-    void this.runTask(task, options).catch((error) => {
+    // Auto-resume previous session for this chat if not explicitly provided
+    const effectiveOptions = {
+      ...options,
+      resumeSessionId: options.resumeSessionId ?? this.chatSessions.get(chatId),
+    };
+
+    void this.runTask(task, effectiveOptions).catch((error) => {
       logger.error('Agent SDK task failed', { taskId: task.id, error: getErrorMessage(error) });
     });
 
@@ -340,7 +358,14 @@ export class AnthropicSdkExecutor extends EventEmitter {
     const workingDir = options.workingDir || WORKSPACE_PATH;
     const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
-    await this.runTask(task, options);
+
+    // Auto-resume previous session for this chat if not explicitly provided
+    const effectiveOptions = {
+      ...options,
+      resumeSessionId: options.resumeSessionId ?? this.chatSessions.get(chatId),
+    };
+
+    await this.runTask(task, effectiveOptions);
     return task;
   }
 
@@ -625,6 +650,12 @@ export class AnthropicSdkExecutor extends EventEmitter {
         task.status = TaskStatus.COMPLETED;
       }
 
+      // Store session for future resumption (both success and failure - session context is valuable)
+      if (task.sessionId) {
+        this.chatSessions.set(task.chatId, task.sessionId);
+        logger.debug('Stored session for chat', { chatId: task.chatId, sessionId: task.sessionId });
+      }
+
       // Emit completion event
       const completedEvent: StreamEvent = {
         type: 'completed',
@@ -656,6 +687,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
       task.status = TaskStatus.FAILED;
       task.errorOutput = getErrorMessage(error);
       task.endTime = new Date();
+
+      // Store session even on failure - context is valuable for follow-up
+      if (task.sessionId) {
+        this.chatSessions.set(task.chatId, task.sessionId);
+      }
 
       this.emit('taskError', task.id, error);
       this.activeTasks.delete(task.id);
@@ -745,6 +781,25 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
   cleanupTaskHead(taskId: string): void {
     this.taskInitialHeads.delete(taskId);
+  }
+
+  /**
+   * Clear the stored session for a chat, forcing the next task to start fresh
+   */
+  clearChatSession(chatId: number): boolean {
+    const had = this.chatSessions.has(chatId);
+    this.chatSessions.delete(chatId);
+    if (had) {
+      logger.info('Cleared chat session', { chatId });
+    }
+    return had;
+  }
+
+  /**
+   * Get the stored session ID for a chat (if any)
+   */
+  getChatSessionId(chatId: number): string | undefined {
+    return this.chatSessions.get(chatId);
   }
 
   cleanupOldTasks(maxAge = 3600000): number {
