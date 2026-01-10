@@ -19,6 +19,7 @@ import { DiscordClient } from './clients/discord';
 import { getVersionHash } from './utils/version';
 import { getErrorMessage } from './utils/errors';
 import { AIProviderConfig, ClaudeTaskWithStreaming } from './types';
+import { createApiRoutes } from './api/routes';
 
 // Initialize GitHub service and authenticate
 const githubService = new GitHubService(config.githubToken);
@@ -420,8 +421,14 @@ app.get('/metrics', (_req, res) => {
   });
 });
 
+// API routes for frontend
+app.use(express.json());
+const apiRoutes = createApiRoutes(executor, repositoryManager, userConfigManager, auditLogger);
+app.use('/api', apiRoutes);
+
 app.listen(healthPort, () => {
   logger.info(`Health check endpoint listening on port ${healthPort}`);
+  logger.info(`API endpoints available at http://localhost:${healthPort}/api`);
 });
 
 // Cleanup old tasks periodically (every hour)
@@ -469,3 +476,4 @@ console.log(`📱 Telegram: ${config.telegramToken ? 'enabled' : 'disabled'}`);
 console.log(`💬 Discord: ${config.discordToken ? 'enabled' : 'disabled'}`);
 console.log(`📊 Health check: http://localhost:${healthPort}/health`);
 console.log(`📈 Metrics: http://localhost:${healthPort}/metrics`);
+console.log(`🌐 Frontend API: http://localhost:${healthPort}/api`);

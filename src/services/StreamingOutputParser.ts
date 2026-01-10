@@ -38,7 +38,7 @@ export class StreamingOutputParser {
         const rawEvent = JSON.parse(trimmed) as ClaudeStreamEvent;
         const parsedEvents = this.translateEvent(rawEvent);
         events.push(...parsedEvents);
-      } catch (error) {
+      } catch {
         // Not JSON - could be regular text output, ignore
         logger.debug('Non-JSON line in stream', { line: trimmed.substring(0, 100) });
       }
