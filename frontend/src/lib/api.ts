@@ -25,6 +25,18 @@ export interface StreamAction {
   detail?: Record<string, unknown>;
 }
 
+export interface StreamEvent {
+  type: "init" | "started" | "action" | "completed" | "stream_end";
+  task?: Partial<Task>;
+  sessionId?: string;
+  action?: StreamAction;
+  phase?: "started" | "completed";
+  ok?: boolean;
+  answer?: string;
+  costUsd?: number;
+  message?: string;
+}
+
 export interface Repository {
   id: string;
   name: string;
@@ -124,15 +136,57 @@ class ApiClient {
     return this.request<Task>(`/api/tasks/${taskId}`);
   }
 
-  async createTask(prompt: string, workingDir: string, userId: number): Promise<Task> {
-    return this.request<Task>("/api/tasks", {
+  async createTask(
+    prompt: string,
+    workingDir: string,
+    userId: number,
+    resumeSessionId?: string
+  ): Promise<Task & { sessionId?: string }> {
+    return this.request<Task & { sessionId?: string }>("/api/tasks", {
       method: "POST",
-      body: JSON.stringify({ prompt, workingDir, userId }),
+      body: JSON.stringify({ prompt, workingDir, userId, resumeSessionId }),
     });
   }
 
   async cancelTask(taskId: string): Promise<void> {
     await this.request<void>(`/api/tasks/${taskId}`, { method: "DELETE" });
+  }
+
+  // Subscribe to task streaming events via SSE
+  subscribeToTaskStream(
+    taskId: string,
+    onEvent: (event: StreamEvent) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const url = `${this.baseUrl}/api/tasks/${taskId}/stream`;
+    const eventSource = new EventSource(url);
+
+    eventSource.onmessage = (e) => {
+      try {
+        const event = JSON.parse(e.data) as StreamEvent;
+        onEvent(event);
+
+        // Close connection when stream ends
+        if (event.type === "stream_end") {
+          eventSource.close();
+        }
+      } catch (err) {
+        console.error("Failed to parse SSE event:", err);
+      }
+    };
+
+    eventSource.onerror = (e) => {
+      console.error("SSE error:", e);
+      eventSource.close();
+      if (onError) {
+        onError(new Error("SSE connection failed"));
+      }
+    };
+
+    // Return cleanup function
+    return () => {
+      eventSource.close();
+    };
   }
 
   // Repositories

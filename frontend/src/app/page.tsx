@@ -11,6 +11,7 @@ import { WelcomeSection } from "@/components/chat/welcome-section";
 import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatInput } from "@/components/chat/chat-input";
+import { StreamingActions } from "@/components/chat/streaming-actions";
 import { type Message, isDraftSessionId, isGeneralSession } from "@/lib/types";
 
 export default function HomePage() {
@@ -93,24 +94,34 @@ export default function HomePage() {
       // Show messages for specific session/task
       const task = tasks.find((t) => t.id === activeSession);
       if (task) {
-        const sessionMessages: Message[] = [
-          {
-            id: `${task.id}-prompt`,
-            author: { name: "You", isBot: false },
-            content: task.prompt,
-            timestamp: task.startTime,
-            type: "text",
-          },
-        ];
+        // Find all tasks that share the same sessionId (conversation)
+        const sessionTasks = task.sessionId
+          ? tasks.filter((t) => t.sessionId === task.sessionId).sort(
+              (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+            )
+          : [task];
 
-        if (task.output) {
+        const sessionMessages: Message[] = [];
+
+        // Add messages from all tasks in the session
+        for (const t of sessionTasks) {
           sessionMessages.push({
-            id: `${task.id}-output`,
-            author: { name: "Claude", isBot: true },
-            content: task.output,
-            timestamp: task.endTime || task.startTime,
+            id: `${t.id}-prompt`,
+            author: { name: "You", isBot: false },
+            content: t.prompt,
+            timestamp: t.startTime,
             type: "text",
           });
+
+          if (t.output) {
+            sessionMessages.push({
+              id: `${t.id}-output`,
+              author: { name: "Claude", isBot: true },
+              content: t.output,
+              timestamp: t.endTime || t.startTime,
+              type: "text",
+            });
+          }
         }
 
         // Add pending message if exists for this session
@@ -146,6 +157,14 @@ export default function HomePage() {
     };
 
     const wasDraftSession = isDraftSessionId(activeSession);
+    const isTaskSession = !wasDraftSession && !isGeneralSession(activeSession);
+
+    // Get the sessionId if we're continuing a conversation in an existing task session
+    let resumeSessionId: string | undefined;
+    if (isTaskSession) {
+      const currentTask = tasks.find((t) => t.id === activeSession);
+      resumeSessionId = currentTask?.sessionId;
+    }
 
     setPendingMessage(userMessage);
     setInput("");
@@ -153,7 +172,7 @@ export default function HomePage() {
 
     try {
       const workingDir = currentRepository?.path || "/workspace";
-      const newTask = await api.createTask(input, workingDir, 1);
+      const newTask = await api.createTask(input, workingDir, 1, resumeSessionId);
 
       // If this was a draft session, remove it and switch to the new task
       if (wasDraftSession) {
@@ -162,7 +181,11 @@ export default function HomePage() {
         if (newTask?.id) {
           setActiveSession(newTask.id);
         }
+      } else if (isGeneralSession(activeSession) && newTask?.id) {
+        // In general view, switch to the new task
+        setActiveSession(newTask.id);
       }
+      // For existing task sessions, stay on the same session (the new task will appear there)
 
       // Immediately fetch tasks to get the new task
       await fetchTasks();
@@ -182,7 +205,20 @@ export default function HomePage() {
     }
   };
 
-  const runningTask = tasks.find((t) => t.status === "running");
+  // Find running task - for session view, check if any task in the session is running
+  const runningTask = (() => {
+    if (isDraftSessionId(activeSession) || isGeneralSession(activeSession)) {
+      return tasks.find((t) => t.status === "running");
+    }
+    const currentTask = tasks.find((t) => t.id === activeSession);
+    if (!currentTask?.sessionId) {
+      return currentTask?.status === "running" ? currentTask : undefined;
+    }
+    // Find any running task in the same session
+    return tasks.find(
+      (t) => t.sessionId === currentTask.sessionId && t.status === "running"
+    );
+  })();
 
   // Get current session name
   const currentSessionName = isDraftSessionId(activeSession)
@@ -239,14 +275,15 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Running Indicator - show when task is running */}
+          {/* Streaming Actions - show real-time progress when task is running */}
           {runningTask && (
-            <div className="px-6 py-2 mx-4">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
-                <span>Claude is working...</span>
-              </div>
-            </div>
+            <StreamingActions
+              taskId={runningTask.id}
+              onComplete={() => {
+                // Refresh tasks when streaming completes
+                fetchTasks();
+              }}
+            />
           )}
 
           {/* Typing Indicator */}

@@ -10,6 +10,7 @@ export interface ExecutorOptions {
   ralphLoop?: { completionPromise: string; maxIterations: number };
   mcpServers?: Record<string, McpServer>;
   images?: ImageContent[];
+  resumeSessionId?: string;
 }
 
 /**

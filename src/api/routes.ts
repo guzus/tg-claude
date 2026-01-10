@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { IClaudeExecutor, Repository, UserConfig } from '../types';
+import { Repository, UserConfig, TaskStatus, StreamEvent } from '../types';
+import { ClaudeExecutorInstance } from '../services/IClaudeExecutor';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { AuditLogger } from '../services/AuditLogger';
@@ -66,7 +67,7 @@ async function buildFileTree(dirPath: string, relativePath: string = ''): Promis
 }
 
 export function createApiRoutes(
-  executor: IClaudeExecutor,
+  executor: ClaudeExecutorInstance,
   repositoryManager: RepositoryManager,
   userConfigManager: UserConfigManager,
   auditLogger: AuditLogger
@@ -133,7 +134,7 @@ export function createApiRoutes(
   // Create new task
   router.post('/tasks', async (req: Request, res: Response) => {
     try {
-      const { prompt, workingDir, userId } = req.body;
+      const { prompt, workingDir, userId, resumeSessionId } = req.body;
 
       if (!prompt || !workingDir || !userId) {
         return res.status(400).json({ error: 'Missing required fields: prompt, workingDir, userId' });
@@ -142,10 +143,11 @@ export function createApiRoutes(
       const userConfig = userConfigManager.getConfig(userId);
       const task = executor.startTask(userId, userId, prompt, {
         workingDir,
-        aiProvider: userConfig?.aiProvider
+        aiProvider: userConfig?.aiProvider,
+        resumeSessionId
       });
 
-      res.json({ id: task.id, status: 'started' });
+      res.json({ id: task.id, status: 'started', sessionId: task.sessionId });
     } catch (error) {
       logger.error('API: Failed to create task', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to create task' });
@@ -167,6 +169,99 @@ export function createApiRoutes(
       logger.error('API: Failed to cancel task', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to cancel task' });
     }
+  });
+
+  // Stream task events via SSE
+  router.get('/tasks/:taskId/stream', (req: Request, res: Response) => {
+    const { taskId } = req.params;
+    const task = executor.getTask(taskId);
+
+    if (!task) {
+      return res.status(404).json({ error: 'Task not found' });
+    }
+
+    // Set up SSE headers
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*'
+    });
+
+    // Send events to client
+    const sendEvent = (event: StreamEvent | Record<string, unknown>) => {
+      res.write(`data: ${JSON.stringify(event)}\n\n`);
+    };
+
+    // Send current task state
+    sendEvent({
+      type: 'init',
+      task: {
+        id: task.id,
+        status: task.status,
+        prompt: task.prompt,
+        startTime: task.startTime,
+        endTime: task.endTime,
+        actions: task.actions || [],
+        events: task.events || [],
+        currentAction: task.currentAction,
+        costUsd: task.costUsd
+      }
+    });
+
+    // If task is already completed, send complete event and close
+    if (task.status === TaskStatus.COMPLETED || task.status === TaskStatus.FAILED ||
+        task.status === TaskStatus.CANCELLED || task.status === TaskStatus.TIMEOUT) {
+      const completedEvent = task.events?.find(e => e.type === 'completed');
+      if (completedEvent) {
+        sendEvent(completedEvent);
+      }
+      sendEvent({ type: 'stream_end' });
+      res.end();
+      return;
+    }
+
+    // Listen for stream events
+    const handleStreamEvent = (eventTaskId: string, event: StreamEvent) => {
+      if (eventTaskId === taskId) {
+        sendEvent(event);
+
+        // End stream when task completes
+        if (event.type === 'completed') {
+          sendEvent({ type: 'stream_end' });
+          cleanup();
+        }
+      }
+    };
+
+    // Listen for task completion/error
+    const handleTaskComplete = (completedTaskId: string) => {
+      if (completedTaskId === taskId) {
+        sendEvent({ type: 'stream_end' });
+        cleanup();
+      }
+    };
+
+    const handleTaskError = (errorTaskId: string) => {
+      if (errorTaskId === taskId) {
+        sendEvent({ type: 'stream_end' });
+        cleanup();
+      }
+    };
+
+    const cleanup = () => {
+      executor.off('streamEvent', handleStreamEvent);
+      executor.off('taskComplete', handleTaskComplete);
+      executor.off('taskError', handleTaskError);
+      res.end();
+    };
+
+    executor.on('streamEvent', handleStreamEvent);
+    executor.on('taskComplete', handleTaskComplete);
+    executor.on('taskError', handleTaskError);
+
+    // Clean up on client disconnect
+    req.on('close', cleanup);
   });
 
   // ============ REPOSITORIES ============
