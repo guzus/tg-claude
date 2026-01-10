@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext, useCallback } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServerBar } from "./server-bar";
 import { ChatSidebar } from "./chat-sidebar";
 import { api, type Repository } from "@/lib/api";
+
+export interface DraftSession {
+  id: string;
+  name: string;
+  createdAt: string;
+}
 
 interface ChatContextType {
   activeWorkspace: string;
@@ -16,6 +22,9 @@ interface ChatContextType {
   currentRepository: Repository | null;
   showSettings: boolean;
   setShowSettings: (show: boolean) => void;
+  draftSessions: DraftSession[];
+  createNewSession: () => string;
+  removeDraftSession: (id: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -34,10 +43,31 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ children }: ChatLayoutProps) {
   const [activeWorkspace, setActiveWorkspace] = useState<string>("");
-  const [activeSession, setActiveSession] = useState<string>("");
+  const [activeSession, setActiveSession] = useState<string>("general");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [draftSessions, setDraftSessions] = useState<DraftSession[]>([]);
+
+  // Create a new draft session
+  const createNewSession = useCallback(() => {
+    const id = `draft-${Date.now()}`;
+    const newSession: DraftSession = {
+      id,
+      name: "New Session",
+      createdAt: new Date().toISOString(),
+    };
+    setDraftSessions((prev) => [newSession, ...prev]);
+    setActiveSession(id);
+    setSelectedFile(null);
+    setShowSettings(false);
+    return id;
+  }, []);
+
+  // Remove a draft session (when it becomes a real task)
+  const removeDraftSession = useCallback((id: string) => {
+    setDraftSessions((prev) => prev.filter((s) => s.id !== id));
+  }, []);
 
   // Fetch repository details when workspace changes
   useEffect(() => {
@@ -71,6 +101,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         currentRepository,
         showSettings,
         setShowSettings,
+        draftSessions,
+        createNewSession,
+        removeDraftSession,
       }}
     >
       <TooltipProvider>
@@ -87,6 +120,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             repositoryId={activeWorkspace || undefined}
             gitUrl={currentRepository?.gitUrl}
             activeSession={activeSession}
+            draftSessions={draftSessions}
             onSessionSelect={(sessionId) => {
               setActiveSession(sessionId);
               setSelectedFile(null);
@@ -94,9 +128,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             }}
             onFileSelect={setSelectedFile}
             onNewSession={() => {
-              setActiveSession("general");
-              setSelectedFile(null);
-              setShowSettings(false);
+              createNewSession();
             }}
             onShowSettings={() => {
               setShowSettings(true);
