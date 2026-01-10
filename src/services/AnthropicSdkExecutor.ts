@@ -736,6 +736,14 @@ export class AnthropicSdkExecutor extends EventEmitter {
     return this.getActiveTasks().filter(task => task.userId === userId);
   }
 
+  getAllTasks(): ClaudeTaskWithStreaming[] {
+    return Array.from(this.taskHistory.values());
+  }
+
+  getAllTasksForUser(userId: number): ClaudeTaskWithStreaming[] {
+    return this.getAllTasks().filter(task => task.userId === userId);
+  }
+
   getCurrentAction(taskId: string): StreamAction | undefined {
     return this.taskHistory.get(taskId)?.currentAction;
   }

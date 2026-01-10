@@ -337,6 +337,14 @@ export class ClaudeExecutor extends EventEmitter {
     return this.getActiveTasks().filter(task => task.userId === userId);
   }
 
+  getAllTasks(): ClaudeTaskWithStreaming[] {
+    return Array.from(this.taskHistory.values());
+  }
+
+  getAllTasksForUser(userId: number): ClaudeTaskWithStreaming[] {
+    return this.getAllTasks().filter(task => task.userId === userId);
+  }
+
   /**
    * Get current action being executed for a task
    */

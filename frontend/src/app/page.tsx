@@ -8,9 +8,10 @@ import { FileViewer } from "@/components/chat/file-viewer";
 import { SettingsView } from "@/components/chat/settings-view";
 import { ChatHeader } from "@/components/chat/chat-header";
 import { WelcomeSection } from "@/components/chat/welcome-section";
-import { MessageItem, type Message } from "@/components/chat/message-item";
+import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatInput } from "@/components/chat/chat-input";
+import { type Message, isDraftSessionId, isGeneralSession } from "@/lib/types";
 
 export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -26,10 +27,13 @@ export default function HomePage() {
     try {
       const data = await api.getTasks();
       setTasks(data);
-      // Clear pending message if it now exists in tasks
+      // Clear pending message only if task exists AND has output (response received)
       setPendingMessage((prev) => {
-        if (prev && data.some((t) => t.prompt === prev.content)) {
-          return null;
+        if (prev) {
+          const matchingTask = data.find((t) => t.prompt === prev.content);
+          if (matchingTask && matchingTask.output) {
+            return null;
+          }
         }
         return prev;
       });
@@ -46,17 +50,14 @@ export default function HomePage() {
 
   // Update messages based on active session
   useEffect(() => {
-    // Check if this is a draft session
-    const isDraftSession = typeof activeSession === "string" && activeSession.startsWith("draft-");
-
-    if (isDraftSession) {
+    if (isDraftSessionId(activeSession)) {
       // Draft session - only show pending message if exists
       if (pendingMessage) {
         setMessages([pendingMessage]);
       } else {
         setMessages([]);
       }
-    } else if (activeSession === "general" || !activeSession) {
+    } else if (isGeneralSession(activeSession)) {
       // Show all messages for general session
       const taskMessages: Message[] = tasks.flatMap((task) => {
         const msgs: Message[] = [
@@ -118,9 +119,11 @@ export default function HomePage() {
         }
 
         setMessages(sessionMessages);
-      } else {
-        setMessages([]);
+      } else if (pendingMessage) {
+        // Task not found yet but we have a pending message - show it
+        setMessages([pendingMessage]);
       }
+      // If no task and no pending message, keep previous messages (don't clear)
     }
   }, [activeSession, tasks, pendingMessage]);
 
@@ -142,8 +145,7 @@ export default function HomePage() {
       type: "text",
     };
 
-    // Check if we're in a draft session
-    const isDraftSession = typeof activeSession === "string" && activeSession.startsWith("draft-");
+    const wasDraftSession = isDraftSessionId(activeSession);
 
     setPendingMessage(userMessage);
     setInput("");
@@ -154,8 +156,8 @@ export default function HomePage() {
       const newTask = await api.createTask(input, workingDir, 1);
 
       // If this was a draft session, remove it and switch to the new task
-      if (isDraftSession) {
-        removeDraftSession(activeSession);
+      if (wasDraftSession) {
+        removeDraftSession(activeSession as `draft-${string}`);
         // Switch to the new task's session
         if (newTask?.id) {
           setActiveSession(newTask.id);
@@ -183,10 +185,9 @@ export default function HomePage() {
   const runningTask = tasks.find((t) => t.status === "running");
 
   // Get current session name
-  const isDraftSession = typeof activeSession === "string" && activeSession.startsWith("draft-");
-  const currentSessionName = isDraftSession
+  const currentSessionName = isDraftSessionId(activeSession)
     ? "New Session"
-    : activeSession === "general" || !activeSession
+    : isGeneralSession(activeSession)
     ? "General"
     : tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
 
@@ -238,8 +239,18 @@ export default function HomePage() {
             ))}
           </div>
 
+          {/* Running Indicator - show when task is running */}
+          {runningTask && (
+            <div className="px-6 py-2 mx-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse" />
+                <span>Claude is working...</span>
+              </div>
+            </div>
+          )}
+
           {/* Typing Indicator */}
-          {isTyping && <TypingIndicator />}
+          {isTyping && !runningTask && <TypingIndicator />}
         </div>
       </ScrollArea>
 

@@ -16,6 +16,7 @@ interface ChatSidebarProps {
   activeSession?: string;
   draftSessions?: DraftSession[];
   onSessionSelect?: (sessionId: string) => void;
+  onSessionRename?: (sessionId: string, name: string) => void;
   onFileSelect?: (filePath: string) => void;
   onNewSession?: () => void;
   onShowSettings?: () => void;
@@ -34,6 +35,7 @@ export function ChatSidebar({
   activeSession,
   draftSessions = [],
   onSessionSelect,
+  onSessionRename,
   onFileSelect,
   onNewSession,
   onShowSettings,
@@ -187,6 +189,7 @@ export function ChatSidebar({
             sessions={sessions}
             activeSession={activeSession}
             onSessionSelect={onSessionSelect}
+            onSessionRename={onSessionRename}
             onNewSession={onNewSession}
           />
         ) : (

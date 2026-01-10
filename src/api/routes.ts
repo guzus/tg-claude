@@ -91,15 +91,20 @@ export function createApiRoutes(
 
   // ============ TASKS ============
 
-  // Get all tasks
+  // Get all tasks (including completed)
   router.get('/tasks', (req: Request, res: Response) => {
     try {
       const userId = req.query.userId ? parseInt(req.query.userId as string, 10) : undefined;
-      const tasks = executor.getActiveTasks();
+      const tasks = executor.getAllTasks();
 
       const filteredTasks = userId
         ? tasks.filter(t => t.userId === userId)
         : tasks;
+
+      // Sort by start time descending (newest first)
+      filteredTasks.sort((a: { startTime: Date }, b: { startTime: Date }) =>
+        new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+      );
 
       res.json(filteredTasks);
     } catch (error) {
@@ -135,11 +140,12 @@ export function createApiRoutes(
       }
 
       const userConfig = userConfigManager.getConfig(userId);
-      const taskId = await executor.startTask(prompt, workingDir, userId, userId, {
+      const task = executor.startTask(userId, userId, prompt, {
+        workingDir,
         aiProvider: userConfig?.aiProvider
       });
 
-      res.json({ id: taskId, status: 'started' });
+      res.json({ id: task.id, status: 'started' });
     } catch (error) {
       logger.error('API: Failed to create task', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to create task' });

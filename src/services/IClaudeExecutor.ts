@@ -36,6 +36,8 @@ export interface IClaudeExecutor {
   setTaskMessageId(taskId: string, messageId: number): void;
   getActiveTasks(): ClaudeTaskWithStreaming[];
   getActiveTasksForUser(userId: number): ClaudeTaskWithStreaming[];
+  getAllTasks(): ClaudeTaskWithStreaming[];
+  getAllTasksForUser(userId: number): ClaudeTaskWithStreaming[];
   getCurrentAction(taskId: string): StreamAction | undefined;
   getTaskActions(taskId: string): StreamAction[];
   getRecentEvents(taskId: string, limit?: number): StreamEvent[];

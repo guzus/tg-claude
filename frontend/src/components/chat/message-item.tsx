@@ -1,21 +1,10 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { formatDate } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
 import { Bot, User, Terminal, FileCode, CheckCircle2 } from "lucide-react";
+import { type Message } from "@/lib/types";
 
-export interface Message {
-  id: string;
-  author: {
-    name: string;
-    avatar?: string;
-    isBot?: boolean;
-  };
-  content: string;
-  timestamp: string;
-  type?: "text" | "code" | "action";
-  actionType?: "command" | "file_change" | "tool";
-}
+export type { Message };
 
 interface MessageItemProps {
   message: Message;
