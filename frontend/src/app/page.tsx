@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
@@ -43,24 +43,32 @@ export default function HomePage() {
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const { selectedFile, setSelectedFile, activeWorkspace, activeSession, showSettings, setShowSettings } = useChatContext();
+  const { selectedFile, setSelectedFile, activeWorkspace, activeSession, showSettings, setShowSettings, currentRepository } = useChatContext();
 
   // Fetch all tasks
-  useEffect(() => {
-    const fetchTasks = async () => {
-      try {
-        const data = await api.getTasks();
-        setTasks(data);
-      } catch (error) {
-        console.error("Failed to fetch tasks:", error);
-      }
-    };
-
-    fetchTasks();
-    const interval = setInterval(fetchTasks, 5000);
-    return () => clearInterval(interval);
+  const fetchTasks = useCallback(async () => {
+    try {
+      const data = await api.getTasks();
+      setTasks(data);
+      // Clear pending message if it now exists in tasks
+      setPendingMessage((prev) => {
+        if (prev && data.some((t) => t.prompt === prev.content)) {
+          return null;
+        }
+        return prev;
+      });
+    } catch (error) {
+      console.error("Failed to fetch tasks:", error);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTasks();
+    const interval = setInterval(fetchTasks, 3000);
+    return () => clearInterval(interval);
+  }, [fetchTasks]);
 
   // Update messages based on active session
   useEffect(() => {
@@ -89,6 +97,12 @@ export default function HomePage() {
 
         return msgs;
       });
+
+      // Add pending message if exists
+      if (pendingMessage) {
+        taskMessages.push(pendingMessage);
+      }
+
       setMessages(taskMessages);
     } else {
       // Show messages for specific session/task
@@ -119,7 +133,7 @@ export default function HomePage() {
         setMessages([]);
       }
     }
-  }, [activeSession, tasks]);
+  }, [activeSession, tasks, pendingMessage]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -139,16 +153,21 @@ export default function HomePage() {
       type: "text",
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setPendingMessage(userMessage);
     setInput("");
     setIsTyping(true);
 
     try {
-      await api.createTask(input, "/workspace", 1);
+      const workingDir = currentRepository?.path || "/workspace";
+      await api.createTask(input, workingDir, 1);
+      // Immediately fetch tasks to get the new task
+      await fetchTasks();
     } catch (error) {
       console.error("Failed to create task:", error);
+      // Clear pending message on error
+      setPendingMessage(null);
     } finally {
-      setTimeout(() => setIsTyping(false), 2000);
+      setIsTyping(false);
     }
   };
 
