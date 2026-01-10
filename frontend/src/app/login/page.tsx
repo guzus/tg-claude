@@ -1,9 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Github, Mail, Sparkles } from "lucide-react";
+import { Github, Sparkles } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -29,14 +30,6 @@ export default function LoginPage() {
             <Github className="w-4 h-4 mr-2" />
             Continue with GitHub
           </Button>
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => signIn("google", { callbackUrl: "/" })}
-          >
-            <Mail className="w-4 h-4 mr-2" />
-            Continue with Google
-          </Button>
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
@@ -46,7 +39,7 @@ export default function LoginPage() {
             </div>
           </div>
           <Button variant="ghost" className="w-full" asChild>
-            <a href="/">Continue without signing in</a>
+            <Link href="/">Continue without signing in</Link>
           </Button>
         </CardContent>
       </Card>

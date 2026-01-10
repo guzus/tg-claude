@@ -3,8 +3,67 @@ import { IClaudeExecutor, Repository, UserConfig } from '../types';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { AuditLogger } from '../services/AuditLogger';
+import { gitService } from '../services/GitService';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+interface FileNode {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  children?: FileNode[];
+}
+
+async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<FileNode[]> {
+  const entries = await fs.readdir(dirPath, { withFileTypes: true });
+  const nodes: FileNode[] = [];
+
+  // Sort: directories first, then files, both alphabetically
+  const sorted = entries.sort((a, b) => {
+    if (a.isDirectory() && !b.isDirectory()) return -1;
+    if (!a.isDirectory() && b.isDirectory()) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  for (const entry of sorted) {
+    // Skip hidden files and common ignored directories
+    if (entry.name.startsWith('.') ||
+        entry.name === 'node_modules' ||
+        entry.name === '__pycache__' ||
+        entry.name === 'dist' ||
+        entry.name === 'build' ||
+        entry.name === '.git') {
+      continue;
+    }
+
+    const fullPath = path.join(dirPath, entry.name);
+    const nodeRelativePath = path.join(relativePath, entry.name);
+
+    if (entry.isDirectory()) {
+      const children = await buildFileTree(fullPath, nodeRelativePath);
+      nodes.push({
+        name: entry.name,
+        path: nodeRelativePath,
+        type: 'directory',
+        children
+      });
+    } else {
+      nodes.push({
+        name: entry.name,
+        path: nodeRelativePath,
+        type: 'file'
+      });
+    }
+  }
+
+  return nodes;
+}
 
 export function createApiRoutes(
   executor: IClaudeExecutor,
@@ -126,7 +185,7 @@ export function createApiRoutes(
   // Create/clone repository
   router.post('/repositories', async (req: Request, res: Response) => {
     try {
-      const { userId, name, gitUrl, branch, type } = req.body;
+      const { userId, name, gitUrl, branch, type, createGithub, isPrivate } = req.body;
 
       if (!userId) {
         return res.status(400).json({ error: 'Missing userId' });
@@ -138,6 +197,40 @@ export function createApiRoutes(
         repo = await repositoryManager.cloneRepository(userId, gitUrl, name, branch);
       } else if (name) {
         repo = await repositoryManager.createRepository(userId, name);
+
+        // If createGithub flag is set, create a GitHub repository
+        if (createGithub) {
+          try {
+            // Get user config for git settings
+            const userConfig = userConfigManager.getConfig(userId);
+            const gitUserName = userConfig?.git?.userName || 'tg-claude';
+            const gitUserEmail = userConfig?.git?.userEmail || 'claude-code@remote.machine';
+
+            // Configure git user
+            await execAsync(`git config user.name "${gitUserName}"`, { cwd: repo.path, timeout: 5000 });
+            await execAsync(`git config user.email "${gitUserEmail}"`, { cwd: repo.path, timeout: 5000 });
+
+            // Create initial commit if needed
+            await execAsync('git add . || true', { cwd: repo.path, timeout: 5000 });
+            await execAsync('git commit -m "Initial commit" --allow-empty', { cwd: repo.path, timeout: 5000 });
+
+            // Create GitHub repository
+            const result = await gitService.createGitHubRepository(repo.path, isPrivate === true);
+
+            if (result === 'success') {
+              // Refresh repository info to get the new gitUrl
+              repo = await repositoryManager.refreshRepository(userId, repo.id);
+              logger.info('Created GitHub repository', { repoId: repo.id, name: repo.name });
+            } else if (result === 'already_exists') {
+              logger.warn('GitHub repository already exists', { name: repo.name });
+            } else {
+              logger.error('Failed to create GitHub repository', { name: repo.name });
+            }
+          } catch (ghError) {
+            // Don't fail the whole operation if GitHub creation fails
+            logger.error('GitHub repository creation error', { error: getErrorMessage(ghError) });
+          }
+        }
       } else {
         return res.status(400).json({ error: 'Missing name or gitUrl' });
       }
@@ -164,6 +257,116 @@ export function createApiRoutes(
     } catch (error) {
       logger.error('API: Failed to switch repository', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to switch repository' });
+    }
+  });
+
+  // Get file content
+  router.get('/repositories/:repoId/file', async (req: Request, res: Response) => {
+    try {
+      const { repoId } = req.params;
+      const userId = parseInt(req.query.userId as string, 10);
+      const filePath = req.query.path as string;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      if (!filePath) {
+        return res.status(400).json({ error: 'Missing path query parameter' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      const fullPath = path.join(repo.path, filePath);
+
+      // Security check: ensure path is within repo
+      if (!fullPath.startsWith(repo.path)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      const content = await fs.readFile(fullPath, 'utf-8');
+      res.json({ content, path: filePath });
+    } catch (error) {
+      logger.error('API: Failed to get file content', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get file content' });
+    }
+  });
+
+  // Save file content
+  router.put('/repositories/:repoId/file', async (req: Request, res: Response) => {
+    try {
+      const { repoId } = req.params;
+      const { userId, path: filePath, content } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId' });
+      }
+
+      if (!filePath) {
+        return res.status(400).json({ error: 'Missing path' });
+      }
+
+      if (content === undefined) {
+        return res.status(400).json({ error: 'Missing content' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      const fullPath = path.join(repo.path, filePath);
+
+      // Security check: ensure path is within repo
+      const normalizedRepoPath = path.normalize(repo.path);
+      const normalizedFullPath = path.normalize(fullPath);
+      if (!normalizedFullPath.startsWith(normalizedRepoPath)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Ensure directory exists
+      await fs.mkdir(path.dirname(fullPath), { recursive: true });
+
+      // Write file
+      await fs.writeFile(fullPath, content, 'utf-8');
+
+      logger.info('API: File saved', { repoId, filePath, userId });
+      res.json({ success: true, path: filePath });
+    } catch (error) {
+      logger.error('API: Failed to save file content', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to save file content' });
+    }
+  });
+
+  // Get file tree for repository
+  router.get('/repositories/:repoId/files', async (req: Request, res: Response) => {
+    try {
+      const { repoId } = req.params;
+      const userId = parseInt(req.query.userId as string, 10);
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      const tree = await buildFileTree(repo.path);
+      res.json(tree);
+    } catch (error) {
+      logger.error('API: Failed to get file tree', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get file tree' });
     }
   });
 

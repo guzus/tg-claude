@@ -4,7 +4,7 @@ process.env.NTBA_FIX_350 = '1';
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
 import { config, validateConfig, EXECUTOR_TYPE } from './config';
-import { logger } from './utils/logger';
+import { logger, log } from './utils/logger';
 import { createExecutor } from './services/ExecutorFactory';
 import { RateLimiter } from './services/RateLimiter';
 import { AuditLogger } from './services/AuditLogger';
@@ -30,9 +30,9 @@ const githubService = new GitHubService(config.githubToken);
 // Validate configuration
 try {
   validateConfig();
-  logger.info('Configuration validated successfully');
+  log.success('Configuration validated');
 } catch (error) {
-  logger.error('Configuration validation failed', {
+  log.error('Configuration validation failed', {
     error: getErrorMessage(error)
   });
   process.exit(1);
@@ -427,8 +427,7 @@ const apiRoutes = createApiRoutes(executor, repositoryManager, userConfigManager
 app.use('/api', apiRoutes);
 
 app.listen(healthPort, () => {
-  logger.info(`Health check endpoint listening on port ${healthPort}`);
-  logger.info(`API endpoints available at http://localhost:${healthPort}/api`);
+  log.success(`Server listening on port ${healthPort}`);
 });
 
 // Cleanup old tasks periodically (every hour)
@@ -464,16 +463,22 @@ process.on('SIGINT', () => {
   void shutdown('SIGINT');
 });
 
-logger.info('🤖 Claude Code Bot started successfully', {
-  telegramUsers: config.allowedUserIds.length,
-  discordUsers: config.discordAllowedUserIds?.length || 0,
-  discordEnabled: !!config.discordToken,
-  maxConcurrentTasks: config.maxConcurrentTasks
-});
+// Startup banner
+log.startup(`Claude Code Bot v${getVersionHash().slice(0, 7)}`);
 
-console.log('🤖 Bot is running...');
-console.log(`📱 Telegram: ${config.telegramToken ? 'enabled' : 'disabled'}`);
-console.log(`💬 Discord: ${config.discordToken ? 'enabled' : 'disabled'}`);
-console.log(`📊 Health check: http://localhost:${healthPort}/health`);
-console.log(`📈 Metrics: http://localhost:${healthPort}/metrics`);
-console.log(`🌐 Frontend API: http://localhost:${healthPort}/api`);
+log.section('Configuration');
+log.success(`Executor: ${EXECUTOR_TYPE}`);
+log.info(`Telegram users: ${config.allowedUserIds.length}`);
+log.info(`Discord users: ${config.discordAllowedUserIds?.length || 0}`);
+log.info(`Max concurrent tasks: ${config.maxConcurrentTasks}`);
+
+log.section('Services');
+log.success(`Telegram: ${config.telegramToken ? 'enabled' : 'disabled'}`);
+log.success(`Discord: ${config.discordToken ? 'enabled' : 'disabled'}`);
+
+log.section('Endpoints');
+log.info(`Health:   http://localhost:${healthPort}/health`);
+log.info(`Metrics:  http://localhost:${healthPort}/metrics`);
+log.info(`API:      http://localhost:${healthPort}/api`);
+
+logger.info('Bot started successfully');

@@ -73,6 +73,18 @@ export interface HealthResponse {
   timestamp: string;
 }
 
+export interface FileNode {
+  name: string;
+  path: string;
+  type: "file" | "directory";
+  children?: FileNode[];
+}
+
+export interface FileContent {
+  content: string;
+  path: string;
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -128,10 +140,20 @@ class ApiClient {
     return this.request<Repository[]>(`/api/repositories?userId=${userId}`);
   }
 
-  async createRepository(userId: number, name: string): Promise<Repository> {
+  async createRepository(
+    userId: number,
+    name: string,
+    options?: { createGithub?: boolean; isPrivate?: boolean }
+  ): Promise<Repository> {
     return this.request<Repository>("/api/repositories", {
       method: "POST",
-      body: JSON.stringify({ userId, name, type: "new" }),
+      body: JSON.stringify({
+        userId,
+        name,
+        type: "new",
+        createGithub: options?.createGithub ?? true,
+        isPrivate: options?.isPrivate ?? false,
+      }),
     });
   }
 
@@ -146,6 +168,21 @@ class ApiClient {
     await this.request<void>(`/api/repositories/${repositoryId}/switch`, {
       method: "POST",
       body: JSON.stringify({ userId }),
+    });
+  }
+
+  async getFileTree(userId: number, repositoryId: string): Promise<FileNode[]> {
+    return this.request<FileNode[]>(`/api/repositories/${repositoryId}/files?userId=${userId}`);
+  }
+
+  async getFileContent(userId: number, repositoryId: string, filePath: string): Promise<FileContent> {
+    return this.request<FileContent>(`/api/repositories/${repositoryId}/file?userId=${userId}&path=${encodeURIComponent(filePath)}`);
+  }
+
+  async saveFileContent(userId: number, repositoryId: string, filePath: string, content: string): Promise<{ success: boolean; path: string }> {
+    return this.request<{ success: boolean; path: string }>(`/api/repositories/${repositoryId}/file`, {
+      method: "PUT",
+      body: JSON.stringify({ userId, path: filePath, content }),
     });
   }
 
