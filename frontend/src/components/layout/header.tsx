@@ -3,7 +3,7 @@
 import { Bell, Search, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserMenu } from "@/components/auth/user-menu";
 
 interface HeaderProps {
   title?: string;
@@ -44,12 +44,8 @@ export function Header({ title, description, actions }: HeaderProps) {
           <span className="absolute top-1 right-1 w-2 h-2 bg-orange-500 rounded-full" />
         </Button>
 
-        {/* User */}
-        <Avatar className="h-8 w-8">
-          <AvatarFallback className="text-xs bg-gradient-to-br from-orange-500 to-amber-600 text-white">
-            U
-          </AvatarFallback>
-        </Avatar>
+        {/* User Menu */}
+        <UserMenu />
       </div>
     </header>
   );
