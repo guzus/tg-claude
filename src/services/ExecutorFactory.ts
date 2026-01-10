@@ -1,6 +1,7 @@
 import { ClaudeExecutorInstance } from './IClaudeExecutor';
 import { ClaudeExecutor } from './ClaudeExecutor';
 import { AnthropicSdkExecutor } from './AnthropicSdkExecutor';
+import { CodexSdkExecutor } from './CodexSdkExecutor';
 import { EXECUTOR_TYPE, ExecutorType } from '../config';
 import { logger } from '../utils/logger';
 
@@ -19,6 +20,10 @@ export function createExecutor(
 
   if (type === 'sdk') {
     return new AnthropicSdkExecutor(apiKey);
+  }
+
+  if (type === 'codex') {
+    return new CodexSdkExecutor(apiKey);
   }
 
   // CLI mode is deprecated - warn but still allow
