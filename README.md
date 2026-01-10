@@ -103,10 +103,12 @@ tg-claude supports two execution modes:
 | Mode | Description | Best For |
 |------|-------------|----------|
 | **SDK** (default) | Uses [@anthropic-ai/claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-demos) directly | Direct API access, simpler setup |
+| **Codex** | Uses [OpenAI Codex SDK](https://developers.openai.com/codex/sdk/) | OpenAI Codex workflows |
 | **CLI** (deprecated) | Uses Claude Code CLI with full tool support | Not maintained |
 
 Set via `EXECUTOR_TYPE` environment variable:
 - `EXECUTOR_TYPE=sdk` - Anthropic SDK (default, recommended)
+- `EXECUTOR_TYPE=codex` - OpenAI Codex SDK
 - `EXECUTOR_TYPE=cli` - Claude Code CLI (deprecated, not maintained)
 
 ### Authentication
@@ -116,6 +118,10 @@ Set via `EXECUTOR_TYPE` environment variable:
 - `ANTHROPIC_API_KEY` - Uses API key billing from [Anthropic Console](https://console.anthropic.com/)
 
 > **Important**: Do NOT set both. If `ANTHROPIC_API_KEY` is set alongside OAuth token, it may cause billing conflicts.
+
+**For Codex mode**, set ONE of:
+- `CODEX_API_KEY` - OpenAI API key for Codex
+- `OPENAI_API_KEY` - OpenAI API key (fallback)
 
 **For CLI mode in Docker** (deprecated): Create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
 
