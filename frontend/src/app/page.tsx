@@ -28,11 +28,11 @@ export default function HomePage() {
     try {
       const data = await api.getTasks();
       setTasks(data);
-      // Clear pending message only if task exists AND has output (response received)
+      // Clear pending message as soon as task exists (to avoid duplicate display)
       setPendingMessage((prev) => {
         if (prev) {
           const matchingTask = data.find((t) => t.prompt === prev.content);
-          if (matchingTask && matchingTask.output) {
+          if (matchingTask) {
             return null;
           }
         }
