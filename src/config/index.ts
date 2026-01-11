@@ -4,13 +4,24 @@ import { BotConfig } from '../types';
 export type ExecutorType = 'sdk' | 'cli';
 export const EXECUTOR_TYPE: ExecutorType = (process.env.EXECUTOR_TYPE as ExecutorType) || 'sdk';
 
+// Service enable flags - set to 'false' to disable
+const parseBool = (value: string | undefined, defaultValue: boolean): boolean => {
+  if (value === undefined) return defaultValue;
+  return value.toLowerCase() !== 'false' && value !== '0';
+};
+
+export const ENABLE_TELEGRAM = parseBool(process.env.ENABLE_TELEGRAM, true);
+export const ENABLE_DISCORD = parseBool(process.env.ENABLE_DISCORD, true);
+export const ENABLE_API = parseBool(process.env.ENABLE_API, true);
+
 // Paths - configurable via env vars for Railway single-volume setup
 // Railway: Set DATA_PATH=/persistent to use single volume
-const DATA_PATH = process.env.DATA_PATH || '';
-export const WORKSPACE_PATH = process.env.WORKSPACE_PATH || `${DATA_PATH}/workspace`.replace(/^\/+/, '/');
-export const CONFIG_PATH = process.env.CONFIG_PATH || `${DATA_PATH}/app/config`.replace(/^\/+/, '/');
-export const LOGS_PATH = process.env.LOGS_PATH || `${DATA_PATH}/app/logs`.replace(/^\/+/, '/');
-export const STATE_PATH = process.env.STATE_PATH || `${DATA_PATH}/app/data`.replace(/^\/+/, '/');
+// Local: Uses ./data directory when DATA_PATH is not set
+const DATA_PATH = process.env.DATA_PATH || './data';
+export const WORKSPACE_PATH = process.env.WORKSPACE_PATH || `${DATA_PATH}/workspace`;
+export const CONFIG_PATH = process.env.CONFIG_PATH || `${DATA_PATH}/config`;
+export const LOGS_PATH = process.env.LOGS_PATH || `${DATA_PATH}/logs`;
+export const STATE_PATH = process.env.STATE_PATH || `${DATA_PATH}/state`;
 
 const parseNumberList = (value?: string): number[] => {
   if (!value) return [];
@@ -49,12 +60,14 @@ export const config: BotConfig = {
 export function validateConfig(): void {
   const errors: string[] = [];
 
-  if (!config.telegramToken) {
-    errors.push('TELEGRAM_BOT_TOKEN is required');
+  // Only require Telegram token if Telegram is enabled
+  if (ENABLE_TELEGRAM && !config.telegramToken) {
+    errors.push('TELEGRAM_BOT_TOKEN is required when ENABLE_TELEGRAM is true');
   }
 
-  if (config.allowedUserIds.length === 0) {
-    errors.push('ALLOWED_USER_IDS must contain at least one user ID');
+  // Only require allowed users if Telegram is enabled
+  if (ENABLE_TELEGRAM && config.allowedUserIds.length === 0) {
+    errors.push('ALLOWED_USER_IDS must contain at least one user ID when ENABLE_TELEGRAM is true');
   }
 
   if (errors.length > 0) {

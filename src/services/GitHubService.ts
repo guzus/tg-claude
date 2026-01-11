@@ -72,7 +72,7 @@ export class GitHubService {
       await execAsync('gh auth status');
       this.isAuthenticated = true;
       return true;
-    } catch (error) {
+    } catch {
       this.isAuthenticated = false;
       return false;
     }

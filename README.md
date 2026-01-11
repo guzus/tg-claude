@@ -23,109 +23,64 @@
 ## How It Works
 
 ```mermaid
-flowchart TB
-    subgraph User
-        TG[Telegram App]
-        DC[Discord App]
+flowchart LR
+    subgraph Clients[" "]
+        TG[Telegram]
+        DC[Discord]
+        Hub[Claude Hub]
     end
 
-    subgraph Docker Container
-        Bot[tg-claude Bot]
-
-        subgraph Executors
-            SDK[Anthropic SDK Executor]
-            SDKMCP[MCP Servers]
-            SDKSkills[Skills]
-            SDKPlugins[Plugins]
-            SDKSubagents[Subagents]
-        end
-
-        subgraph Services
-            Factory[ExecutorFactory]
-            Ralph[RalphLoopExecutor]
-            Git[GitService]
-            Repo[RepositoryManager]
-        end
+    subgraph Core[" "]
+        Bot[tg-claude]
+        SDK[SDK Executor]
     end
 
-    subgraph Storage["Storage (/persistent)"]
-        Workspace["/persistent/workspace"]
-        Data["/persistent/app/data"]
-        Config["/persistent/app/config"]
+    subgraph Harness[" "]
+        MCP[MCP Servers]
+        Skills[Skills]
+        Plugins[Plugins]
     end
 
-    subgraph External
-        GitHub[GitHub]
-        ClaudeAPI[Claude API]
-        ZaiAPI[Z.ai GLM API]
-        OpenRouter[OpenRouter API]
+    subgraph APIs[" "]
+        Claude[Claude API]
+        GLM[GLM API]
+        OR[OpenRouter]
     end
 
-    TG -->|Commands| Bot
-    DC -->|Slash Commands| Bot
-    Bot -->|Parse & Route| Factory
-    Factory -->|EXECUTOR_TYPE=sdk| SDK
-    Bot -->|Autonomous Tasks| Ralph
-    SDK --> SDKMCP
-    SDK --> SDKSkills
-    SDK --> SDKPlugins
-    SDK --> SDKSubagents
-    SDK -->|API Key| ClaudeAPI
-    SDK -->|API Key| ZaiAPI
-    SDK -->|API Key| OpenRouter
-    SDK -->|Read/Write| Workspace
-    Git -->|Clone/Push| GitHub
-    Repo -->|Manage| Workspace
-    Bot -->|State| Data
-    Bot -->|Settings| Config
-    Bot -->|Response| TG
-    Bot -->|Response| DC
+    subgraph Storage[" "]
+        WS[Workspace]
+        GH[GitHub]
+    end
 
-    classDef user fill:#E8F3FF,stroke:#1E78D6,stroke-width:1px,color:#0B2D52;
-    classDef bot fill:#FFF3E0,stroke:#FB8C00,stroke-width:1px,color:#5A2D00;
-    classDef executor fill:#E3F2FD,stroke:#1976D2,stroke-width:1px,color:#0D47A1;
-    classDef services fill:#E8F5E9,stroke:#2E7D32,stroke-width:1px,color:#0F3B17;
-    classDef storage fill:#F3E5F5,stroke:#7B1FA2,stroke-width:1px,color:#3B0C4A;
-    classDef external fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238;
+    TG & DC & Hub --> Bot
+    Bot --> SDK
+    SDK --> MCP & Skills & Plugins
+    SDK --> Claude & GLM & OR
+    SDK <--> WS
+    WS <--> GH
 
-    class TG,DC user;
-    class Bot bot;
-    class SDK executor;
-    class Factory,Ralph,Git,Repo services;
-    class Workspace,Data,Config storage;
-    class GitHub,ClaudeAPI,ZaiAPI,OpenRouter external;
+    style TG fill:#0088cc,color:#fff
+    style DC fill:#5865F2,color:#fff
+    style Hub fill:#D97706,color:#fff
+    style Bot fill:#FB8C00,color:#fff
+    style SDK fill:#1976D2,color:#fff
+    style MCP fill:#7C3AED,color:#fff
+    style Skills fill:#7C3AED,color:#fff
+    style Plugins fill:#7C3AED,color:#fff
+    style Claude fill:#D4A574,color:#000
+    style GLM fill:#10B981,color:#fff
+    style OR fill:#6366F1,color:#fff
+    style WS fill:#059669,color:#fff
+    style GH fill:#333,color:#fff
 ```
 
-## Executor Modes
+## Authentication
 
-tg-claude supports two execution modes:
-
-| Mode | Description | Best For |
-|------|-------------|----------|
-| **SDK** (default) | Uses [@anthropic-ai/claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk-demos) directly | Direct API access, simpler setup |
-| **CLI** (deprecated) | Uses Claude Code CLI with full tool support | Not maintained |
-
-Set via `EXECUTOR_TYPE` environment variable:
-- `EXECUTOR_TYPE=sdk` - Anthropic SDK (default, recommended)
-- `EXECUTOR_TYPE=cli` - Claude Code CLI (deprecated, not maintained)
-
-### Authentication
-
-**For SDK mode**, set ONE of:
+Set ONE of:
 - `CLAUDE_CODE_OAUTH_TOKEN` - Uses your Claude subscription (run `claude setup-token` to get it)
 - `ANTHROPIC_API_KEY` - Uses API key billing from [Anthropic Console](https://console.anthropic.com/)
 
 > **Important**: Do NOT set both. If `ANTHROPIC_API_KEY` is set alongside OAuth token, it may cause billing conflicts.
-
-**For CLI mode in Docker** (deprecated): Create `~/.claude.json` with `{"hasCompletedOnboarding": true}` to bypass interactive prompts.
-
-### SDK Executor Tools
-
-The SDK executor includes built-in tools:
-- `read_file`, `write_file`, `edit_file` - File operations
-- `bash` - Command execution
-- `glob`, `grep` - File search
-- `list_directory` - Directory listing
 
 ## Quick Start
 

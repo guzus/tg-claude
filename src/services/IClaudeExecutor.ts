@@ -10,6 +10,8 @@ export interface ExecutorOptions {
   ralphLoop?: { completionPromise: string; maxIterations: number };
   mcpServers?: Record<string, McpServer>;
   images?: ImageContent[];
+  resumeSessionId?: string;
+  disableAutoResume?: boolean;
 }
 
 /**
@@ -36,6 +38,8 @@ export interface IClaudeExecutor {
   setTaskMessageId(taskId: string, messageId: number): void;
   getActiveTasks(): ClaudeTaskWithStreaming[];
   getActiveTasksForUser(userId: number): ClaudeTaskWithStreaming[];
+  getAllTasks(): ClaudeTaskWithStreaming[];
+  getAllTasksForUser(userId: number): ClaudeTaskWithStreaming[];
   getCurrentAction(taskId: string): StreamAction | undefined;
   getTaskActions(taskId: string): StreamAction[];
   getRecentEvents(taskId: string, limit?: number): StreamEvent[];

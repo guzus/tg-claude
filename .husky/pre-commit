@@ -1,1 +1,5 @@
+# Backend
 bun run lint && bun run build
+
+# Frontend
+cd frontend && bun run lint && bun run build
