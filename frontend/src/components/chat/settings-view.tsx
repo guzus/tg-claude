@@ -44,9 +44,9 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </Button>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex min-h-0">
         {/* Sidebar */}
-        <div className="w-56 border-r border-border bg-secondary/30">
+        <div className="w-56 border-r border-border bg-secondary/30 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-3 space-y-1">
               {sections.map((section) => (
@@ -70,14 +70,16 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </div>
 
         {/* Content */}
-        <ScrollArea className="flex-1">
-          <div className="p-6 max-w-3xl">
-            {activeSection === "ai" && <AIProviderSettings />}
-            {activeSection === "mcp" && <McpServerSettings />}
-            {activeSection === "plugins" && <PluginSettings />}
-            {activeSection === "general" && <GeneralSettings />}
-          </div>
-        </ScrollArea>
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <div className="p-6 max-w-3xl">
+              {activeSection === "ai" && <AIProviderSettings />}
+              {activeSection === "mcp" && <McpServerSettings />}
+              {activeSection === "plugins" && <PluginSettings />}
+              {activeSection === "general" && <GeneralSettings />}
+            </div>
+          </ScrollArea>
+        </div>
       </div>
     </div>
   );

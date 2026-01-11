@@ -26,11 +26,28 @@ const PROVIDERS: AIProvider[] = [
 export function AIProviderSettings() {
   const [activeProvider, setActiveProvider] = useState<ProviderType>("anthropic");
   const [apiKey, setApiKey] = useState("");
+  const [glmApiKey, setGlmApiKey] = useState("");
+  const [openrouterApiKey, setOpenrouterApiKey] = useState("");
   const [haikuModel, setHaikuModel] = useState("");
   const [sonnetModel, setSonnetModel] = useState("");
   const [opusModel, setOpusModel] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savingKey, setSavingKey] = useState(false);
+  const [keySaved, setKeySaved] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Get the current API key based on provider
+  const getCurrentApiKey = () => {
+    if (activeProvider === "glm") return glmApiKey;
+    if (activeProvider === "openrouter") return openrouterApiKey;
+    return apiKey;
+  };
+
+  const setCurrentApiKey = (value: string) => {
+    if (activeProvider === "glm") setGlmApiKey(value);
+    else if (activeProvider === "openrouter") setOpenrouterApiKey(value);
+    else setApiKey(value);
+  };
 
   // Load current config on mount
   useEffect(() => {
@@ -42,6 +59,9 @@ export function AIProviderSettings() {
           setHaikuModel(config.aiProvider.haikuModel || "");
           setSonnetModel(config.aiProvider.sonnetModel || "");
           setOpusModel(config.aiProvider.opusModel || "");
+          // Load saved API keys (masked, but we can detect if one exists)
+          if (config.aiProvider.glmApiKey) setGlmApiKey(config.aiProvider.glmApiKey);
+          if (config.aiProvider.openrouterApiKey) setOpenrouterApiKey(config.aiProvider.openrouterApiKey);
         }
       } catch (error) {
         console.error("Failed to load config:", error);
@@ -86,6 +106,36 @@ export function AIProviderSettings() {
       console.error("Failed to save models:", error);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleSaveApiKey = async () => {
+    const currentKey = getCurrentApiKey();
+    if (!currentKey) return;
+
+    setSavingKey(true);
+    setKeySaved(false);
+    try {
+      const updatePayload: Record<string, unknown> = {
+        provider: activeProvider,
+        haikuModel: haikuModel || undefined,
+        sonnetModel: sonnetModel || undefined,
+        opusModel: opusModel || undefined,
+      };
+
+      if (activeProvider === "glm") {
+        updatePayload.glmApiKey = currentKey;
+      } else if (activeProvider === "openrouter") {
+        updatePayload.openrouterApiKey = currentKey;
+      }
+
+      await api.updateConfig(1, { aiProvider: updatePayload });
+      setKeySaved(true);
+      setTimeout(() => setKeySaved(false), 2000);
+    } catch (error) {
+      console.error("Failed to save API key:", error);
+    } finally {
+      setSavingKey(false);
     }
   };
 
@@ -163,30 +213,45 @@ export function AIProviderSettings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">API Key</CardTitle>
-          <CardDescription>Enter your API key for the selected provider</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
-            <div className="relative flex-1">
-              <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="password"
-                placeholder="sk-..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-                className="pl-10"
-              />
+      {activeProvider !== "anthropic" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">API Key</CardTitle>
+            <CardDescription>
+              Enter your {activeProvider === "glm" ? "GLM (Z.ai)" : "OpenRouter"} API key
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-3">
+              <div className="relative flex-1">
+                <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="password"
+                  placeholder={activeProvider === "glm" ? "your-glm-api-key" : "sk-or-..."}
+                  value={getCurrentApiKey()}
+                  onChange={(e) => setCurrentApiKey(e.target.value)}
+                  className="pl-10"
+                />
+              </div>
+              <Button onClick={handleSaveApiKey} disabled={savingKey || !getCurrentApiKey()}>
+                {savingKey ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : keySaved ? (
+                  <Check className="w-4 h-4 mr-1.5" />
+                ) : (
+                  <Save className="w-4 h-4 mr-1.5" />
+                )}
+                {keySaved ? "Saved" : "Save"}
+              </Button>
             </div>
-            <Button>
-              <Save className="w-4 h-4 mr-1.5" />
-              Save
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            {getCurrentApiKey() && (
+              <p className="text-xs text-muted-foreground mt-2">
+                API key is set. Enter a new key to replace it.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
