@@ -97,6 +97,17 @@ export interface FileContent {
   path: string;
 }
 
+export type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
+export interface ImageContent {
+  type: "image";
+  source: {
+    type: "base64";
+    media_type: ImageMediaType;
+    data: string;
+  };
+}
+
 class ApiClient {
   private baseUrl: string;
 
@@ -140,11 +151,12 @@ class ApiClient {
     prompt: string,
     workingDir: string,
     userId: number,
-    resumeSessionId?: string
+    resumeSessionId?: string,
+    images?: ImageContent[]
   ): Promise<Task & { sessionId?: string }> {
     return this.request<Task & { sessionId?: string }>("/api/tasks", {
       method: "POST",
-      body: JSON.stringify({ prompt, workingDir, userId, resumeSessionId }),
+      body: JSON.stringify({ prompt, workingDir, userId, resumeSessionId, images }),
     });
   }
 

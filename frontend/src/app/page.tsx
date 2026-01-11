@@ -10,7 +10,7 @@ import { ChatHeader } from "@/components/chat/chat-header";
 import { WelcomeSection } from "@/components/chat/welcome-section";
 import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
-import { ChatInput } from "@/components/chat/chat-input";
+import { ChatInput, fileToImageContent, type SelectedImage } from "@/components/chat/chat-input";
 import { StreamingActions } from "@/components/chat/streaming-actions";
 import { type Message, isDraftSessionId, isGeneralSession } from "@/lib/types";
 
@@ -21,6 +21,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession } = useChatContext();
 
@@ -145,12 +146,16 @@ export default function HomePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() && selectedImages.length === 0) return;
+
+    const messageContent = selectedImages.length > 0
+      ? `${input}${input ? "\n" : ""}[${selectedImages.length} image${selectedImages.length > 1 ? "s" : ""} attached]`
+      : input;
 
     const userMessage: Message = {
       id: Date.now().toString(),
       author: { name: "You", isBot: false },
-      content: input,
+      content: messageContent,
       timestamp: new Date().toISOString(),
       type: "text",
     };
@@ -165,13 +170,25 @@ export default function HomePage() {
       resumeSessionId = currentTask?.sessionId;
     }
 
+    // Convert selected images to API format
+    const imageContents = await Promise.all(
+      selectedImages.map((img) => fileToImageContent(img.file))
+    );
+
     setPendingMessage(userMessage);
     setInput("");
+    setSelectedImages([]);
     setIsTyping(true);
 
     try {
       const workingDir = currentRepository?.path || "/workspace";
-      const newTask = await api.createTask(input, workingDir, 1, resumeSessionId);
+      const newTask = await api.createTask(
+        input || "Please analyze this image",
+        workingDir,
+        1,
+        resumeSessionId,
+        imageContents.length > 0 ? imageContents : undefined
+      );
 
       // If this was a draft session, remove it and switch to the new task
       if (wasDraftSession) {
@@ -313,6 +330,8 @@ export default function HomePage() {
         onChange={setInput}
         onSubmit={handleSubmit}
         onKeyDown={handleKeyDown}
+        images={selectedImages}
+        onImagesChange={setSelectedImages}
       />
     </div>
   );

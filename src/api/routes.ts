@@ -134,7 +134,7 @@ export function createApiRoutes(
   // Create new task
   router.post('/tasks', async (req: Request, res: Response) => {
     try {
-      const { prompt, workingDir, userId, resumeSessionId } = req.body;
+      const { prompt, workingDir, userId, resumeSessionId, images } = req.body;
 
       if (!prompt || !workingDir || !userId) {
         return res.status(400).json({ error: 'Missing required fields: prompt, workingDir, userId' });
@@ -144,7 +144,8 @@ export function createApiRoutes(
       const task = executor.startTask(userId, userId, prompt, {
         workingDir,
         aiProvider: userConfig?.aiProvider,
-        resumeSessionId
+        resumeSessionId,
+        images
       });
 
       res.json({ id: task.id, status: 'started', sessionId: task.sessionId });
