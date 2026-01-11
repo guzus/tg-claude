@@ -46,17 +46,42 @@ export function ChatSidebar({
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fileTreeVersion, setFileTreeVersion] = useState(0);
 
-  // Fetch sessions from tasks
+  // Fetch sessions from tasks - group by sessionId
   useEffect(() => {
     const fetchSessions = async () => {
       try {
         const tasks = await api.getTasks(1);
-        const taskSessions: Session[] = tasks.map((task: Task) => ({
-          id: task.id,
-          name: task.prompt.slice(0, 30) + (task.prompt.length > 30 ? "..." : ""),
-          status: task.status === "running" ? "running" : task.status === "completed" ? "completed" : "idle",
-          timestamp: task.startTime,
-        }));
+
+        // Group tasks by sessionId - tasks with same sessionId are one conversation
+        const sessionGroups = new Map<string, Task[]>();
+        for (const task of tasks) {
+          const key = task.sessionId || task.id; // Use sessionId if available, else task id
+          const existing = sessionGroups.get(key) || [];
+          existing.push(task);
+          sessionGroups.set(key, existing);
+        }
+
+        // Create session entries from groups
+        const taskSessions: Session[] = [];
+        for (const [, groupTasks] of sessionGroups) {
+          // Sort tasks in group by time (oldest first) to get the first prompt
+          groupTasks.sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+          const firstTask = groupTasks[0];
+          const latestTask = groupTasks[groupTasks.length - 1];
+
+          // Use the first task's id as the session id (for navigation)
+          // Use the first task's prompt as the session name
+          // Use the latest task's status for the session status
+          taskSessions.push({
+            id: firstTask.id,
+            name: firstTask.prompt.slice(0, 30) + (firstTask.prompt.length > 30 ? "..." : ""),
+            status: latestTask.status === "running" ? "running" : latestTask.status === "completed" ? "completed" : "idle",
+            timestamp: firstTask.startTime,
+          });
+        }
+
+        // Sort sessions by timestamp (newest first)
+        taskSessions.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
 
         // Convert draft sessions to Session format
         const draftSessionsList: Session[] = draftSessions.map((ds) => ({
