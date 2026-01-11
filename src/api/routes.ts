@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Repository, UserConfig, TaskStatus, StreamEvent } from '../types';
+import { Repository, TaskStatus, StreamEvent } from '../types';
 import { ClaudeExecutorInstance } from '../services/IClaudeExecutor';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';

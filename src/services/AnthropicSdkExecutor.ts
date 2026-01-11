@@ -20,7 +20,6 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { gitService } from './GitService';
 import { PLUGIN_PRESETS } from '../presets';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
 import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
@@ -514,8 +513,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
           return { continue: true };
         } : undefined;
 
-        // Build the final prompt - add ralph loop instructions if enabled
-        let finalPrompt = effectivePrompt;
+        // Final prompt - ralph loop plugin handles its own behavior
+        const finalPrompt = effectivePrompt;
         const plugins: Array<{ type: 'local'; path: string }> = [];
 
         // Load default plugins
@@ -532,12 +531,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         }
 
         if (ralphLoop) {
-          finalPrompt = buildRalphLoopPrompt({
-            request: task.prompt,
-            maxIterations: ralphLoop.maxIterations,
-            completionPromise: ralphLoop.completionPromise,
-          });
-
+          // Load ralph-loop plugin - the plugin handles loop behavior via Stop hook
           const preset = PLUGIN_PRESETS['ralph-loop'];
           const pluginSpec = preset ? `${preset.name}@${preset.registry}` : 'ralph-loop@claude-plugins-official';
           const pluginPath = getInstalledPluginPath(pluginSpec);
