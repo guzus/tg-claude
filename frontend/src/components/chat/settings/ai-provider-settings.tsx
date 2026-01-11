@@ -116,20 +116,16 @@ export function AIProviderSettings() {
     setSavingKey(true);
     setKeySaved(false);
     try {
-      const updatePayload: Record<string, unknown> = {
-        provider: activeProvider,
-        haikuModel: haikuModel || undefined,
-        sonnetModel: sonnetModel || undefined,
-        opusModel: opusModel || undefined,
-      };
-
-      if (activeProvider === "glm") {
-        updatePayload.glmApiKey = currentKey;
-      } else if (activeProvider === "openrouter") {
-        updatePayload.openrouterApiKey = currentKey;
-      }
-
-      await api.updateConfig(1, { aiProvider: updatePayload });
+      await api.updateConfig(1, {
+        aiProvider: {
+          provider: activeProvider,
+          haikuModel: haikuModel || undefined,
+          sonnetModel: sonnetModel || undefined,
+          opusModel: opusModel || undefined,
+          glmApiKey: activeProvider === "glm" ? currentKey : undefined,
+          openrouterApiKey: activeProvider === "openrouter" ? currentKey : undefined,
+        },
+      });
       setKeySaved(true);
       setTimeout(() => setKeySaved(false), 2000);
     } catch (error) {
