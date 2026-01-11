@@ -54,6 +54,8 @@ export interface UserConfig {
   currentRepositoryPath?: string;
   aiProvider?: {
     provider: "anthropic" | "glm" | "openrouter";
+    glmApiKey?: string;
+    openrouterApiKey?: string;
     haikuModel?: string;
     sonnetModel?: string;
     opusModel?: string;
