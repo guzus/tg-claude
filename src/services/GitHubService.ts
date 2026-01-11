@@ -21,7 +21,7 @@ export class GitHubService {
    */
   async authenticate(): Promise<boolean> {
     if (!this.token) {
-      logger.warn('GITHUB_TOKEN not configured, skipping GitHub authentication');
+      logger.warn('GITHUB_PAT not configured, skipping GitHub authentication');
       return false;
     }
 

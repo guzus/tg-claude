@@ -30,7 +30,7 @@ class GitService {
   private githubToken: string | undefined;
 
   constructor() {
-    this.githubToken = process.env.GITHUB_TOKEN;
+    this.githubToken = process.env.GITHUB_PAT;
   }
 
   /**

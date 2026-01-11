@@ -402,9 +402,9 @@ if (ENABLE_TELEGRAM && bot && handlers && chamberHandlers) {
   });
 } // End of Telegram commands block
 
-// Health check endpoint
+// API server (health, metrics, API routes)
 const app = express();
-const healthPort = process.env.HEALTH_PORT || 5555;
+const apiServerPort = process.env.API_SERVER_PORT || 5555;
 
 app.get('/health', (_req, res) => {
   const stats = auditLogger.getStats();
@@ -434,8 +434,8 @@ app.use(express.json());
 const apiRoutes = createApiRoutes(executor, repositoryManager, userConfigManager, auditLogger);
 app.use('/api', apiRoutes);
 
-app.listen(healthPort, () => {
-  log.success(`Server listening on port ${healthPort}`);
+app.listen(apiServerPort, () => {
+  log.success(`Server listening on port ${apiServerPort}`);
 });
 
 // Cleanup old tasks periodically (every hour)
@@ -488,8 +488,8 @@ log.success(`Discord: ${ENABLE_DISCORD && config.discordToken ? 'enabled' : 'dis
 log.success(`API: enabled`);
 
 log.section('Endpoints');
-log.info(`Health:   http://localhost:${healthPort}/health`);
-log.info(`Metrics:  http://localhost:${healthPort}/metrics`);
-log.info(`API:      http://localhost:${healthPort}/api`);
+log.info(`Health:   http://localhost:${apiServerPort}/health`);
+log.info(`Metrics:  http://localhost:${apiServerPort}/metrics`);
+log.info(`API:      http://localhost:${apiServerPort}/api`);
 
 logger.info('Bot started successfully');

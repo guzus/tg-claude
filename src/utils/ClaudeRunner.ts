@@ -44,7 +44,7 @@ function configureGitEnv(env: NodeJS.ProcessEnv): void {
   addConfig('user.email', gitAuthorEmail);
 
   // Configure GitHub token auth if available
-  const githubToken = process.env.GITHUB_TOKEN;
+  const githubToken = process.env.GITHUB_PAT;
   if (githubToken) {
     // Rewrite HTTPS URLs to include token
     addConfig('url.https://x-access-token:' + githubToken + '@github.com/.insteadOf', 'https://github.com/');
@@ -80,7 +80,7 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProvi
     delete env.CLAUDE_CODE_OAUTH_TOKEN;
     // Keep request timeouts sane by default; allow override via env if GLM is slow in your region.
     // This timeout is used by Claude Code CLI's HTTP layer.
-    env.API_TIMEOUT_MS = process.env.GLM_API_TIMEOUT_MS || process.env.API_TIMEOUT_MS || '300000'; // 5 minutes
+    env.API_TIMEOUT_MS = process.env.GLM_API_TIMEOUT_MS || process.env.AI_API_TIMEOUT_MS || '300000'; // 5 minutes
     // Allow user overrides via config (same shape as OpenRouter), else use defaults.
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || GLM_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;

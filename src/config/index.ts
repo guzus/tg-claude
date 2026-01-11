@@ -2,7 +2,7 @@ import { BotConfig } from '../types';
 
 // Executor type: 'sdk' uses Anthropic SDK directly, 'cli' uses Claude Code CLI
 export type ExecutorType = 'sdk' | 'cli';
-export const EXECUTOR_TYPE: ExecutorType = (process.env.EXECUTOR_TYPE as ExecutorType) || 'sdk';
+export const EXECUTOR_TYPE: ExecutorType = (process.env.CLAUDE_EXECUTOR_TYPE as ExecutorType) || 'sdk';
 
 // Service enable flags - set to 'false' to disable
 const parseBool = (value: string | undefined, defaultValue: boolean): boolean => {
@@ -41,8 +41,8 @@ const parseStringList = (value?: string): string[] => {
 
 export const config: BotConfig = {
   telegramToken: process.env.TELEGRAM_BOT_TOKEN || '',
-  githubToken: process.env.GITHUB_TOKEN || '',
-  allowedUserIds: parseNumberList(process.env.ALLOWED_USER_IDS),
+  githubToken: process.env.GITHUB_PAT || '',
+  allowedUserIds: parseNumberList(process.env.TELEGRAM_ALLOWED_USER_IDS),
   maxConcurrentTasks: 10,
   taskTimeoutMs: 1800000, // 30 minutes
   maxOutputSize: 4096,
@@ -67,7 +67,7 @@ export function validateConfig(): void {
 
   // Only require allowed users if Telegram is enabled
   if (ENABLE_TELEGRAM && config.allowedUserIds.length === 0) {
-    errors.push('ALLOWED_USER_IDS must contain at least one user ID when ENABLE_TELEGRAM is true');
+    errors.push('TELEGRAM_ALLOWED_USER_IDS must contain at least one user ID when ENABLE_TELEGRAM is true');
   }
 
   if (errors.length > 0) {
