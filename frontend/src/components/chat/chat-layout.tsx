@@ -45,7 +45,7 @@ interface ChatLayoutProps {
 
 export function ChatLayout({ children }: ChatLayoutProps) {
   const [activeWorkspace, setActiveWorkspace] = useState<string>("");
-  const [activeSession, setActiveSession] = useState<SessionId>("general");
+  const [activeSession, setActiveSession] = useState<SessionId>("");
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [showSettings, setShowSettings] = useState(false);

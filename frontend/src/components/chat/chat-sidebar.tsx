@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Settings, Github } from "lucide-react";
 import { api, type FileNode, type Task } from "@/lib/api";
-import { ChatTab, FoldersTab, UserPanel, type Session } from "./sidebar";
+import { ChatTab, FoldersTab, HistoryTab, UserPanel, type Session } from "./sidebar";
 import { type DraftSession } from "./chat-layout";
 
 interface ChatSidebarProps {
@@ -25,11 +25,6 @@ interface ChatSidebarProps {
   onShowSettings?: () => void;
 }
 
-const DEFAULT_SESSION: Session = {
-  id: "general",
-  name: "General",
-  status: "idle",
-};
 
 export function ChatSidebar({
   workspaceName = "tg-claude",
@@ -46,7 +41,7 @@ export function ChatSidebar({
   onNewSession,
   onShowSettings,
 }: ChatSidebarProps) {
-  const [activeTab, setActiveTab] = useState<"chat" | "folders">("chat");
+  const [activeTab, setActiveTab] = useState<"chat" | "folders" | "history">("chat");
   const [sessions, setSessions] = useState<Session[]>([]);
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -117,8 +112,7 @@ export function ChatSidebar({
           allSessions.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
         }
 
-        // Always include default session first
-        setSessions([DEFAULT_SESSION, ...allSessions]);
+        setSessions(allSessions);
       } catch {
         // Convert draft sessions to Session format even on error
         const draftSessionsList: Session[] = draftSessions.map((ds) => ({
@@ -127,7 +121,7 @@ export function ChatSidebar({
           status: "idle" as const,
           timestamp: ds.createdAt,
         }));
-        setSessions([DEFAULT_SESSION, ...draftSessionsList]);
+        setSessions(draftSessionsList);
       }
     };
 
@@ -231,6 +225,17 @@ export function ChatSidebar({
         >
           Folders
         </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={cn(
+            "flex-1 py-2.5 text-sm font-medium transition-colors",
+            activeTab === "history"
+              ? "text-primary border-b-2 border-primary"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          History
+        </button>
       </div>
 
       {/* Content */}
@@ -244,7 +249,7 @@ export function ChatSidebar({
             onSessionReorder={onSessionReorder}
             onNewSession={onNewSession}
           />
-        ) : (
+        ) : activeTab === "folders" ? (
           <FoldersTab
             fileTree={fileTree}
             expandedFolders={expandedFolders}
@@ -253,6 +258,8 @@ export function ChatSidebar({
             repositoryId={repositoryId}
             onFileCreated={() => setFileTreeVersion((v) => v + 1)}
           />
+        ) : (
+          <HistoryTab repositoryId={repositoryId} />
         )}
       </ScrollArea>
 

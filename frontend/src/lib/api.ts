@@ -97,6 +97,25 @@ export interface FileContent {
   path: string;
 }
 
+export interface GitCommit {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  author: { name: string; email: string };
+  date: string;
+  refs: string[];
+}
+
+export interface GitCommitDiff {
+  sha: string;
+  shortSha: string;
+  subject: string;
+  body: string;
+  author: { name: string; email: string };
+  date: string;
+  diff: string;
+}
+
 export type ImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
 export interface ImageContent {
@@ -151,12 +170,22 @@ class ApiClient {
     prompt: string,
     workingDir: string,
     userId: number,
-    resumeSessionId?: string,
-    images?: ImageContent[]
+    options?: {
+      resumeSessionId?: string;
+      newSession?: boolean;
+      images?: ImageContent[];
+    }
   ): Promise<Task & { sessionId?: string }> {
     return this.request<Task & { sessionId?: string }>("/api/tasks", {
       method: "POST",
-      body: JSON.stringify({ prompt, workingDir, userId, resumeSessionId, images }),
+      body: JSON.stringify({
+        prompt,
+        workingDir,
+        userId,
+        resumeSessionId: options?.resumeSessionId,
+        newSession: options?.newSession,
+        images: options?.images,
+      }),
     });
   }
 
@@ -250,6 +279,15 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify({ userId, path: filePath, content }),
     });
+  }
+
+  // Git History
+  async getCommits(userId: number, repositoryId: string, limit: number = 50): Promise<GitCommit[]> {
+    return this.request<GitCommit[]>(`/api/repositories/${repositoryId}/commits?userId=${userId}&limit=${limit}`);
+  }
+
+  async getCommitDiff(userId: number, repositoryId: string, sha: string): Promise<GitCommitDiff> {
+    return this.request<GitCommitDiff>(`/api/repositories/${repositoryId}/commits/${sha}/diff?userId=${userId}`);
   }
 
   // Config

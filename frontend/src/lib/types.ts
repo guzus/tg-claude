@@ -25,12 +25,8 @@ export function isDraftSessionId(id: SessionId | undefined | null): id is `draft
   return typeof id === "string" && id.startsWith("draft-");
 }
 
-export function isGeneralSession(id: SessionId | undefined | null): boolean {
-  return id === "general" || !id;
-}
-
 export function isTaskSession(id: SessionId | undefined | null): boolean {
-  return typeof id === "string" && !isDraftSessionId(id) && id !== "general";
+  return typeof id === "string" && !isDraftSessionId(id);
 }
 
 // Message Types

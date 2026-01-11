@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Plus, Compass } from "lucide-react";
+import { Sparkles, Plus } from "lucide-react";
 import { AddWorkspaceModal } from "./add-workspace-modal";
 import { api, type Repository } from "@/lib/api";
 
@@ -130,18 +130,6 @@ export function ServerBar({ activeWorkspace, onWorkspaceSelect }: ServerBarProps
           </TooltipTrigger>
           <TooltipContent side="right" className="font-medium">
             Add Workspace
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Explore */}
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <button className="workspace-icon bg-card text-muted-foreground hover:text-foreground border border-border">
-              <Compass className="w-5 h-5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-medium">
-            Explore
           </TooltipContent>
         </Tooltip>
       </div>

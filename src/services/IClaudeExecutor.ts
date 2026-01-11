@@ -11,6 +11,7 @@ export interface ExecutorOptions {
   mcpServers?: Record<string, McpServer>;
   images?: ImageContent[];
   resumeSessionId?: string;
+  disableAutoResume?: boolean;
 }
 
 /**

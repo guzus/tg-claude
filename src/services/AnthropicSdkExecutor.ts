@@ -42,6 +42,7 @@ type TaskRunOptions = {
   resumeSessionId?: string;
   promptOverride?: string;
   images?: ImageContent[];
+  newSession?: boolean; // If true, skip auto-resume and create a fresh conversation
 };
 
 // Type guards for SDK message types
@@ -339,9 +340,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
+    // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.resumeSessionId ?? this.sessionStore.getSession(chatId),
+      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
     };
 
     void this.runTask(task, effectiveOptions).catch((error) => {
@@ -362,9 +364,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
     this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
+    // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.resumeSessionId ?? this.sessionStore.getSession(chatId),
+      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
     };
 
     await this.runTask(task, effectiveOptions);

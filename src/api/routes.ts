@@ -7,6 +7,7 @@ import { AuditLogger } from '../services/AuditLogger';
 import { gitService } from '../services/GitService';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
+import { parseSlashCommand } from './slashCommands';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -134,18 +135,34 @@ export function createApiRoutes(
   // Create new task
   router.post('/tasks', async (req: Request, res: Response) => {
     try {
-      const { prompt, workingDir, userId, resumeSessionId, images } = req.body;
+      const { prompt, workingDir, userId, resumeSessionId, newSession, images } = req.body;
 
       if (!prompt || !workingDir || !userId) {
         return res.status(400).json({ error: 'Missing required fields: prompt, workingDir, userId' });
       }
 
-      const userConfig = userConfigManager.getConfig(userId);
-      const task = executor.startTask(userId, userId, prompt, {
+      const userConfig = await userConfigManager.getConfig(userId);
+
+      // Parse slash commands
+      const parsedCommand = parseSlashCommand(prompt);
+      const effectivePrompt = parsedCommand?.prompt || prompt;
+      const extraOptions = parsedCommand?.options || {};
+
+      if (parsedCommand) {
+        logger.info('Parsed slash command', {
+          command: parsedCommand.command,
+          prompt: parsedCommand.prompt,
+          options: parsedCommand.options
+        });
+      }
+
+      const task = executor.startTask(userId, userId, effectivePrompt, {
         workingDir,
-        aiProvider: userConfig?.aiProvider,
+        aiProvider: userConfig.aiProvider,
         resumeSessionId,
-        images
+        newSession,
+        images,
+        ...extraOptions
       });
 
       res.json({ id: task.id, status: 'started', sessionId: task.sessionId });
@@ -304,9 +321,9 @@ export function createApiRoutes(
         if (createGithub) {
           try {
             // Get user config for git settings
-            const userConfig = userConfigManager.getConfig(userId);
-            const gitUserName = userConfig?.git?.userName || 'tg-claude';
-            const gitUserEmail = userConfig?.git?.userEmail || 'claude-code@remote.machine';
+            const userConfig = await userConfigManager.getConfig(userId);
+            const gitUserName = userConfig.git?.userName || 'tg-claude';
+            const gitUserEmail = userConfig.git?.userEmail || 'claude-code@remote.machine';
 
             // Configure git user
             await execAsync(`git config user.name "${gitUserName}"`, { cwd: repo.path, timeout: 5000 });
@@ -472,10 +489,106 @@ export function createApiRoutes(
     }
   });
 
+  // ============ GIT HISTORY ============
+
+  // Get git commits for repository
+  router.get('/repositories/:repoId/commits', async (req: Request, res: Response) => {
+    try {
+      const { repoId } = req.params;
+      const userId = parseInt(req.query.userId as string, 10);
+      const limit = parseInt(req.query.limit as string, 10) || 50;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      // Get commits with git log
+      const { stdout } = await execAsync(
+        `git log --oneline -n ${limit} --format="%H|%h|%s|%an|%ae|%aI|%D"`,
+        { cwd: repo.path, timeout: 10000 }
+      );
+
+      const commits = stdout.trim().split('\n').filter(Boolean).map(line => {
+        const [sha, shortSha, subject, authorName, authorEmail, date, refs] = line.split('|');
+        return {
+          sha,
+          shortSha,
+          subject,
+          author: { name: authorName, email: authorEmail },
+          date,
+          refs: refs ? refs.split(', ').filter(Boolean) : []
+        };
+      });
+
+      res.json(commits);
+    } catch (error) {
+      logger.error('API: Failed to get commits', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get commits' });
+    }
+  });
+
+  // Get diff for a specific commit
+  router.get('/repositories/:repoId/commits/:sha/diff', async (req: Request, res: Response) => {
+    try {
+      const { repoId, sha } = req.params;
+      const userId = parseInt(req.query.userId as string, 10);
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      // Sanitize sha to prevent command injection
+      if (!/^[a-f0-9]+$/i.test(sha)) {
+        return res.status(400).json({ error: 'Invalid commit SHA' });
+      }
+
+      // Get diff for the commit (comparing with parent)
+      const { stdout: diff } = await execAsync(
+        `git show ${sha} --format="" --stat --patch`,
+        { cwd: repo.path, timeout: 30000, maxBuffer: 10 * 1024 * 1024 }
+      );
+
+      // Get commit details
+      const { stdout: details } = await execAsync(
+        `git show ${sha} --format="%H|%h|%s|%b|%an|%ae|%aI" -s`,
+        { cwd: repo.path, timeout: 5000 }
+      );
+
+      const [fullSha, shortSha, subject, body, authorName, authorEmail, date] = details.trim().split('|');
+
+      res.json({
+        sha: fullSha,
+        shortSha,
+        subject,
+        body: body || '',
+        author: { name: authorName, email: authorEmail },
+        date,
+        diff
+      });
+    } catch (error) {
+      logger.error('API: Failed to get commit diff', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get commit diff' });
+    }
+  });
+
   // ============ CONFIG ============
 
   // Get user config
-  router.get('/config', (req: Request, res: Response) => {
+  router.get('/config', async (req: Request, res: Response) => {
     try {
       const userId = parseInt(req.query.userId as string, 10);
 
@@ -483,12 +596,7 @@ export function createApiRoutes(
         return res.status(400).json({ error: 'Missing userId query parameter' });
       }
 
-      const config = userConfigManager.getConfig(userId);
-
-      if (!config) {
-        return res.json({ userId });
-      }
-
+      const config = await userConfigManager.getConfig(userId);
       res.json(config);
     } catch (error) {
       logger.error('API: Failed to get config', { error: getErrorMessage(error) });
@@ -505,19 +613,7 @@ export function createApiRoutes(
         return res.status(400).json({ error: 'Missing userId' });
       }
 
-      const config = userConfigManager.getConfig(userId) || {
-        userId,
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-
-      const updatedConfig: UserConfig = {
-        ...config,
-        ...updates,
-        updatedAt: new Date()
-      };
-
-      await userConfigManager.saveConfig(updatedConfig);
+      const updatedConfig = await userConfigManager.updateConfig(userId, updates);
       res.json(updatedConfig);
     } catch (error) {
       logger.error('API: Failed to update config', { error: getErrorMessage(error) });

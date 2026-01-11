@@ -12,7 +12,7 @@ import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatInput, fileToImageContent, type SelectedImage } from "@/components/chat/chat-input";
 import { StreamingActions } from "@/components/chat/streaming-actions";
-import { type Message, isDraftSessionId, isGeneralSession } from "@/lib/types";
+import { type Message, isDraftSessionId } from "@/lib/types";
 
 export default function HomePage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -53,90 +53,68 @@ export default function HomePage() {
 
   // Update messages based on active session
   useEffect(() => {
-    if (isDraftSessionId(activeSession)) {
-      // Draft session - only show pending message if exists
+    // No session selected or draft session - show empty/pending state
+    if (!activeSession || isDraftSessionId(activeSession)) {
       if (pendingMessage) {
         setMessages([pendingMessage]);
       } else {
         setMessages([]);
       }
-    } else if (isGeneralSession(activeSession)) {
-      // Show all messages for general session
-      const taskMessages: Message[] = tasks.flatMap((task) => {
-        const msgs: Message[] = [
-          {
-            id: `${task.id}-prompt`,
-            author: { name: "You", isBot: false },
-            content: task.prompt,
-            timestamp: task.startTime,
-            type: "text",
-          },
-        ];
+      return;
+    }
 
-        if (task.output) {
-          msgs.push({
-            id: `${task.id}-output`,
-            author: { name: "Claude", isBot: true },
-            content: task.output.slice(0, 500) + (task.output.length > 500 ? "..." : ""),
-            timestamp: task.endTime || task.startTime,
-            type: "text",
-          });
-        }
+    // Show messages for specific session/task
+    // First, try to find task by ID
+    let task = tasks.find((t) => t.id === activeSession);
 
-        return msgs;
-      });
+    // If not found by ID, try to find by sessionId (the session might be identified by sessionId)
+    if (!task) {
+      task = tasks.find((t) => t.sessionId === activeSession);
+    }
 
-      // Add pending message if exists
-      if (pendingMessage) {
-        taskMessages.push(pendingMessage);
-      }
+    if (task) {
+      // Find all tasks that share the same sessionId (conversation)
+      const sessionTasks = task.sessionId
+        ? tasks.filter((t) => t.sessionId === task.sessionId).sort(
+            (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
+          )
+        : [task];
 
-      setMessages(taskMessages);
-    } else {
-      // Show messages for specific session/task
-      const task = tasks.find((t) => t.id === activeSession);
-      if (task) {
-        // Find all tasks that share the same sessionId (conversation)
-        const sessionTasks = task.sessionId
-          ? tasks.filter((t) => t.sessionId === task.sessionId).sort(
-              (a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime()
-            )
-          : [task];
+      const sessionMessages: Message[] = [];
 
-        const sessionMessages: Message[] = [];
+      // Add messages from all tasks in the session
+      for (const t of sessionTasks) {
+        sessionMessages.push({
+          id: `${t.id}-prompt`,
+          author: { name: "You", isBot: false },
+          content: t.prompt,
+          timestamp: t.startTime,
+          type: "text",
+        });
 
-        // Add messages from all tasks in the session
-        for (const t of sessionTasks) {
+        if (t.output) {
           sessionMessages.push({
-            id: `${t.id}-prompt`,
-            author: { name: "You", isBot: false },
-            content: t.prompt,
-            timestamp: t.startTime,
+            id: `${t.id}-output`,
+            author: { name: "Claude", isBot: true },
+            content: t.output,
+            timestamp: t.endTime || t.startTime,
             type: "text",
           });
-
-          if (t.output) {
-            sessionMessages.push({
-              id: `${t.id}-output`,
-              author: { name: "Claude", isBot: true },
-              content: t.output,
-              timestamp: t.endTime || t.startTime,
-              type: "text",
-            });
-          }
         }
-
-        // Add pending message if exists for this session
-        if (pendingMessage) {
-          sessionMessages.push(pendingMessage);
-        }
-
-        setMessages(sessionMessages);
-      } else if (pendingMessage) {
-        // Task not found yet but we have a pending message - show it
-        setMessages([pendingMessage]);
       }
-      // If no task and no pending message, keep previous messages (don't clear)
+
+      // Add pending message if exists for this session
+      if (pendingMessage) {
+        sessionMessages.push(pendingMessage);
+      }
+
+      setMessages(sessionMessages);
+    } else if (pendingMessage) {
+      // Task not found yet but we have a pending message - show it
+      setMessages([pendingMessage]);
+    } else {
+      // Clear messages when switching to a session that doesn't exist yet
+      setMessages([]);
     }
   }, [activeSession, tasks, pendingMessage]);
 
@@ -161,11 +139,11 @@ export default function HomePage() {
     };
 
     const wasDraftSession = isDraftSessionId(activeSession);
-    const isTaskSession = !wasDraftSession && !isGeneralSession(activeSession);
+    const isNewSession = !activeSession || wasDraftSession;
 
-    // Get the sessionId if we're continuing a conversation in an existing task session
+    // Only get resumeSessionId if we're continuing an EXISTING task session
     let resumeSessionId: string | undefined;
-    if (isTaskSession) {
+    if (!isNewSession) {
       const currentTask = tasks.find((t) => t.id === activeSession);
       resumeSessionId = currentTask?.sessionId;
     }
@@ -186,20 +164,22 @@ export default function HomePage() {
         input || "Please analyze this image",
         workingDir,
         1,
-        resumeSessionId,
-        imageContents.length > 0 ? imageContents : undefined
+        {
+          resumeSessionId,
+          newSession: isNewSession,
+          images: imageContents.length > 0 ? imageContents : undefined,
+        }
       );
 
-      // If this was a draft session, remove it and switch to the new task
-      if (wasDraftSession) {
-        removeDraftSession(activeSession as `draft-${string}`);
+      // If this was a new session (draft or empty), switch to the new task
+      if (isNewSession) {
+        if (wasDraftSession) {
+          removeDraftSession(activeSession as `draft-${string}`);
+        }
         // Switch to the new task's session
         if (newTask?.id) {
           setActiveSession(newTask.id);
         }
-      } else if (isGeneralSession(activeSession) && newTask?.id) {
-        // In general view, switch to the new task
-        setActiveSession(newTask.id);
       }
       // For existing task sessions, stay on the same session (the new task will appear there)
 
@@ -223,8 +203,8 @@ export default function HomePage() {
 
   // Find running task - for session view, check if any task in the session is running
   const runningTask = (() => {
-    if (isDraftSessionId(activeSession) || isGeneralSession(activeSession)) {
-      return tasks.find((t) => t.status === "running");
+    if (!activeSession || isDraftSessionId(activeSession)) {
+      return undefined;
     }
     const currentTask = tasks.find((t) => t.id === activeSession);
     if (!currentTask?.sessionId) {
@@ -237,10 +217,10 @@ export default function HomePage() {
   })();
 
   // Get current session name
-  const currentSessionName = isDraftSessionId(activeSession)
+  const currentSessionName = !activeSession
+    ? "New Chat"
+    : isDraftSessionId(activeSession)
     ? "New Session"
-    : isGeneralSession(activeSession)
-    ? "General"
     : tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
 
   // Filter messages based on search query

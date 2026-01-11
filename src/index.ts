@@ -3,7 +3,7 @@ process.env.NTBA_FIX_350 = '1';
 
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
-import { config, validateConfig, EXECUTOR_TYPE } from './config';
+import { config, validateConfig, EXECUTOR_TYPE, ENABLE_TELEGRAM, ENABLE_DISCORD } from './config';
 import { logger, log } from './utils/logger';
 import { createExecutor } from './services/ExecutorFactory';
 import { RateLimiter } from './services/RateLimiter';
@@ -76,83 +76,88 @@ const mothershipService = new MothershipService();
   });
 })();
 
-// Initialize Telegram bot
-const bot = new TelegramBot(config.telegramToken, { polling: true });
-const handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
+// Initialize Telegram bot (if enabled)
+let bot: TelegramBot | null = null;
+let handlers: BotHandlers | null = null;
+let chamberHandlers: ChamberHandlers | null = null;
 
-executor.on('taskResumed', async (
-  _taskId: string,
-  task: ClaudeTaskWithStreaming,
-  meta?: { aiProvider?: AIProviderConfig }
-) => {
-  const chatId = task.chatId;
-  const userId = task.userId;
-  const workingDir = task.workingDir;
-  let messageId = task.messageId;
+if (ENABLE_TELEGRAM && config.telegramToken) {
+  bot = new TelegramBot(config.telegramToken, { polling: true });
+  handlers = new BotHandlers(bot, executor, rateLimiter, auditLogger, repositoryManager, conversationManager, userConfigManager, mothershipService);
+  chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigManager);
 
-  try {
-    await bot.sendMessage(
-      chatId,
-      `🔄 Task resumed after restart\n\nID: \`${task.id.substring(0, 8)}\``,
-      { parse_mode: 'Markdown' }
-    );
-  } catch {
-    logger.debug('Failed to send resume notification', { taskId: task.id });
-  }
+  // Handle task resume notifications for Telegram
+  executor.on('taskResumed', async (
+    _taskId: string,
+    task: ClaudeTaskWithStreaming,
+    meta?: { aiProvider?: AIProviderConfig }
+  ) => {
+    const chatId = task.chatId;
+    const userId = task.userId;
+    const workingDir = task.workingDir;
+    let messageId = task.messageId;
 
-  if (messageId) {
     try {
-      await bot.editMessageText('🔄 Resuming task...', {
-        chat_id: chatId,
-        message_id: messageId,
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
-            { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
-          ]]
-        }
-      });
+      await bot!.sendMessage(
+        chatId,
+        `🔄 Task resumed after restart\n\nID: \`${task.id.substring(0, 8)}\``,
+        { parse_mode: 'Markdown' }
+      );
     } catch {
-      messageId = undefined;
+      logger.debug('Failed to send resume notification', { taskId: task.id });
     }
-  }
 
-  if (!messageId) {
-    try {
-      const statusMsg = await bot.sendMessage(chatId, '🔄 Resuming task...', {
-        parse_mode: 'Markdown',
-        reply_markup: {
-          inline_keyboard: [[
-            { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
-            { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
-          ]]
-        }
-      });
-      messageId = statusMsg.message_id;
-      executor.setTaskMessageId(task.id, messageId);
-    } catch (error) {
-      logger.debug('Failed to attach resume status message', { taskId: task.id, error: getErrorMessage(error) });
-      return;
+    if (messageId) {
+      try {
+        await bot!.editMessageText('🔄 Resuming task...', {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
+              { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+            ]]
+          }
+        });
+      } catch {
+        messageId = undefined;
+      }
     }
-  }
 
-  handlers.resumeTaskMonitor({
-    taskId: task.id,
-    userId,
-    chatId,
-    messageId,
-    workingDir,
-    aiProvider: meta?.aiProvider
+    if (!messageId) {
+      try {
+        const statusMsg = await bot!.sendMessage(chatId, '🔄 Resuming task...', {
+          parse_mode: 'Markdown',
+          reply_markup: {
+            inline_keyboard: [[
+              { text: '🛑 Cancel', callback_data: `cancel_task:${task.id}` },
+              { text: '📋 Full Log', callback_data: `view_log:${task.id}` }
+            ]]
+          }
+        });
+        messageId = statusMsg.message_id;
+        executor.setTaskMessageId(task.id, messageId);
+      } catch (error) {
+        logger.debug('Failed to attach resume status message', { taskId: task.id, error: getErrorMessage(error) });
+        return;
+      }
+    }
+
+    handlers!.resumeTaskMonitor({
+      taskId: task.id,
+      userId,
+      chatId,
+      messageId,
+      workingDir,
+      aiProvider: meta?.aiProvider
+    });
   });
-});
+} // End of ENABLE_TELEGRAM block
 
-// Initialize Chamber handlers
-const chamberHandlers = new ChamberHandlers(bot, repositoryManager, userConfigManager);
-
-// Initialize Discord client (if configured)
+// Initialize Discord client (if enabled)
 let discordClient: DiscordClient | null = null;
-if (config.discordToken) {
+if (ENABLE_DISCORD && config.discordToken) {
   discordClient = new DiscordClient(
     executor,
     rateLimiter,
@@ -243,156 +248,159 @@ const notifyDeploy = async (): Promise<void> => {
   await notifyDeploy();
 })();
 
-type TelegramCommandHandler = (msg: TelegramBot.Message, match?: RegExpExecArray | null) => void;
+// Register Telegram commands (if enabled)
+if (ENABLE_TELEGRAM && bot && handlers && chamberHandlers) {
+  type TelegramCommandHandler = (msg: TelegramBot.Message, match?: RegExpExecArray | null) => void;
 
-const telegramCommands: Array<{
-  command: string;
-  description: string;
-  pattern: RegExp;
-  handler: TelegramCommandHandler;
-}> = [
-  {
-    command: 'start',
-    description: 'Welcome message and command list',
-    pattern: /\/start/,
-    handler: (msg: TelegramBot.Message) => handlers.handleStart(msg)
-  },
-  {
-    command: 'ralph',
-    description: '🔄 Ralph loop (ralph-loop plugin)',
-    pattern: /\/ralph(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRalph(msg, match || null)
-  },
-  {
-    command: 'new_repo',
-    description: '📁 Create new GitHub repository',
-    pattern: /\/new_repo(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleNewRepo(msg, match || null)
-  },
-  {
-    command: 'repo',
-    description: 'Manage repositories (clone/new/list/switch)',
-    pattern: /\/repo(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRepo(msg, match || null)
-  },
-  {
-    command: 'scan',
-    description: 'Scan for existing repositories',
-    pattern: /\/scan/,
-    handler: (msg: TelegramBot.Message) => handlers.handleScan(msg)
-  },
-  {
-    command: 'remote',
-    description: 'Manage git remote (show/set/test/remove)',
-    pattern: /\/remote(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRemote(msg, match || null)
-  },
-  {
-    command: 'bot',
-    description: '🤖 Manage bots via Mothership (in development)',
-    pattern: /\/bot(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleBotCommand(msg, match || null)
-  },
-  {
-    command: 'chamber',
-    description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation',
-    pattern: /\/chamber(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => chamberHandlers.handleChamber(msg, match || null)
-  },
-  {
-    command: 'check',
-    description: 'Check Claude CLI installation and setup',
-    pattern: /\/check/,
-    handler: (msg: TelegramBot.Message) => handlers.handleCheck(msg)
-  },
-  {
-    command: 'status',
-    description: 'Check active tasks',
-    pattern: /\/status/,
-    handler: (msg: TelegramBot.Message) => handlers.handleStatus(msg)
-  },
-  {
-    command: 'cancel',
-    description: 'Cancel an active task by ID',
-    pattern: /\/cancel(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleCancel(msg, match || null)
-  },
-  {
-    command: 'limits',
-    description: 'Show your remaining rate limits',
-    pattern: /\/limits/,
-    handler: (msg: TelegramBot.Message) => handlers.handleLimits(msg)
-  },
-  {
-    command: 'config',
-    description: 'Manage user configuration',
-    pattern: /\/config(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleConfig(msg, match || null)
-  },
-  {
-    command: 'ai',
-    description: 'Quick toggle AI provider',
-    pattern: /\/ai/,
-    handler: (msg: TelegramBot.Message) => handlers.handleAi(msg)
-  },
-  {
-    command: 'mcp',
-    description: '🔌 Manage MCP servers (per-repository)',
-    pattern: /\/mcp(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleMcp(msg, match || null)
-  },
-  {
-    command: 'plugin',
-    description: '🧩 Manage Claude plugins (ralph-loop, etc.)',
-    pattern: /\/plugin(.*)/,
-    handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handlePlugin(msg, match || null)
-  },
-  {
-    command: 'version',
-    description: 'Show bot version/commit hash',
-    pattern: /\/version/,
-    handler: (msg: TelegramBot.Message) => handlers.handleVersion(msg)
-  },
-  {
-    command: 'help',
-    description: 'Show help message',
-    pattern: /\/help/,
-    handler: (msg: TelegramBot.Message) => handlers.handleHelp(msg)
-  }
-];
+  const telegramCommands: Array<{
+    command: string;
+    description: string;
+    pattern: RegExp;
+    handler: TelegramCommandHandler;
+  }> = [
+    {
+      command: 'start',
+      description: 'Welcome message and command list',
+      pattern: /\/start/,
+      handler: (msg: TelegramBot.Message) => handlers.handleStart(msg)
+    },
+    {
+      command: 'ralph',
+      description: '🔄 Ralph loop (ralph-loop plugin)',
+      pattern: /\/ralph(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRalph(msg, match || null)
+    },
+    {
+      command: 'new_repo',
+      description: '📁 Create new GitHub repository',
+      pattern: /\/new_repo(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleNewRepo(msg, match || null)
+    },
+    {
+      command: 'repo',
+      description: 'Manage repositories (clone/new/list/switch)',
+      pattern: /\/repo(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRepo(msg, match || null)
+    },
+    {
+      command: 'scan',
+      description: 'Scan for existing repositories',
+      pattern: /\/scan/,
+      handler: (msg: TelegramBot.Message) => handlers.handleScan(msg)
+    },
+    {
+      command: 'remote',
+      description: 'Manage git remote (show/set/test/remove)',
+      pattern: /\/remote(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleRemote(msg, match || null)
+    },
+    {
+      command: 'bot',
+      description: '🤖 Manage bots via Mothership (in development)',
+      pattern: /\/bot(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleBotCommand(msg, match || null)
+    },
+    {
+      command: 'chamber',
+      description: '🏛️ Chamber mode - GLM ↔ Anthropic conversation',
+      pattern: /\/chamber(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => chamberHandlers.handleChamber(msg, match || null)
+    },
+    {
+      command: 'check',
+      description: 'Check Claude CLI installation and setup',
+      pattern: /\/check/,
+      handler: (msg: TelegramBot.Message) => handlers.handleCheck(msg)
+    },
+    {
+      command: 'status',
+      description: 'Check active tasks',
+      pattern: /\/status/,
+      handler: (msg: TelegramBot.Message) => handlers.handleStatus(msg)
+    },
+    {
+      command: 'cancel',
+      description: 'Cancel an active task by ID',
+      pattern: /\/cancel(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleCancel(msg, match || null)
+    },
+    {
+      command: 'limits',
+      description: 'Show your remaining rate limits',
+      pattern: /\/limits/,
+      handler: (msg: TelegramBot.Message) => handlers.handleLimits(msg)
+    },
+    {
+      command: 'config',
+      description: 'Manage user configuration',
+      pattern: /\/config(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleConfig(msg, match || null)
+    },
+    {
+      command: 'ai',
+      description: 'Quick toggle AI provider',
+      pattern: /\/ai/,
+      handler: (msg: TelegramBot.Message) => handlers.handleAi(msg)
+    },
+    {
+      command: 'mcp',
+      description: '🔌 Manage MCP servers (per-repository)',
+      pattern: /\/mcp(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handleMcp(msg, match || null)
+    },
+    {
+      command: 'plugin',
+      description: '🧩 Manage Claude plugins (ralph-loop, etc.)',
+      pattern: /\/plugin(.*)/,
+      handler: (msg: TelegramBot.Message, match?: RegExpExecArray | null) => handlers.handlePlugin(msg, match || null)
+    },
+    {
+      command: 'version',
+      description: 'Show bot version/commit hash',
+      pattern: /\/version/,
+      handler: (msg: TelegramBot.Message) => handlers.handleVersion(msg)
+    },
+    {
+      command: 'help',
+      description: 'Show help message',
+      pattern: /\/help/,
+      handler: (msg: TelegramBot.Message) => handlers.handleHelp(msg)
+    }
+  ];
 
-bot.setMyCommands(telegramCommands.map(({ command, description }) => ({ command, description })))
-  .catch((error) => {
-    logger.error('Failed to set bot commands', { error: getErrorMessage(error) });
+  bot.setMyCommands(telegramCommands.map(({ command, description }) => ({ command, description })))
+    .catch((error) => {
+      logger.error('Failed to set bot commands', { error: getErrorMessage(error) });
+    });
+
+  telegramCommands.forEach(({ pattern, handler }) => {
+    bot.onText(pattern, handler);
   });
 
-telegramCommands.forEach(({ pattern, handler }) => {
-  bot.onText(pattern, handler);
-});
+  // Handle callback queries from inline keyboards
+  bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
 
-// Handle callback queries from inline keyboards
-bot.on('callback_query', (query) => handlers.handleCallbackQuery(query));
+  // Handle plain text messages (treat as task commands)
+  bot.on('message', (msg) => {
+    // Skip if it's a command or has no text
+    if (!msg.text || msg.text.startsWith('/')) return;
 
-// Handle plain text messages (treat as task commands)
-bot.on('message', (msg) => {
-  // Skip if it's a command or has no text
-  if (!msg.text || msg.text.startsWith('/')) return;
-
-  // Treat plain messages as task commands
-  handlers.handlePlainMessage(msg);
-});
-
-// Handle photo messages (image input for Claude)
-bot.on('photo', (msg) => {
-  handlers.handlePhotoMessage(msg);
-});
-
-// Handle polling errors
-bot.on('polling_error', (error) => {
-  logger.error('Telegram polling error', {
-    error: getErrorMessage(error)
+    // Treat plain messages as task commands
+    handlers.handlePlainMessage(msg);
   });
-});
+
+  // Handle photo messages (image input for Claude)
+  bot.on('photo', (msg) => {
+    handlers.handlePhotoMessage(msg);
+  });
+
+  // Handle polling errors
+  bot.on('polling_error', (error) => {
+    logger.error('Telegram polling error', {
+      error: getErrorMessage(error)
+    });
+  });
+} // End of Telegram commands block
 
 // Health check endpoint
 const app = express();
@@ -448,7 +456,9 @@ setInterval(() => {
 // Graceful shutdown
 const shutdown = async (signal: string): Promise<void> => {
   logger.info(`${signal} received, shutting down gracefully`);
-  bot.stopPolling();
+  if (bot) {
+    bot.stopPolling();
+  }
   if (discordClient) {
     await discordClient.stop();
   }
@@ -473,8 +483,9 @@ log.info(`Discord users: ${config.discordAllowedUserIds?.length || 0}`);
 log.info(`Max concurrent tasks: ${config.maxConcurrentTasks}`);
 
 log.section('Services');
-log.success(`Telegram: ${config.telegramToken ? 'enabled' : 'disabled'}`);
-log.success(`Discord: ${config.discordToken ? 'enabled' : 'disabled'}`);
+log.success(`Telegram: ${ENABLE_TELEGRAM && config.telegramToken ? 'enabled' : 'disabled'}`);
+log.success(`Discord: ${ENABLE_DISCORD && config.discordToken ? 'enabled' : 'disabled'}`);
+log.success(`API: enabled`);
 
 log.section('Endpoints');
 log.info(`Health:   http://localhost:${healthPort}/health`);
