@@ -24,6 +24,7 @@ import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
 import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
+import { SessionStore } from './SessionStore';
 
 const execAsync = promisify(exec);
 const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
@@ -78,7 +79,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
   private taskHistory: Map<string, ClaudeTaskWithStreaming> = new Map();
   private taskLogFiles: Map<string, fs.WriteStream> = new Map();
   private taskInitialHeads: Map<string, string> = new Map();
-  private chatSessions: Map<number, string> = new Map(); // chatId -> last sessionId
+  private sessionStore: SessionStore;
   private actionCounter = 0;
   private claudeCodePath: string | undefined;
   private taskStateStore: TaskStateStore;
@@ -100,6 +101,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
     this.resumeLockId = uuidv4();
     this.taskStateStore = new TaskStateStore();
+    this.sessionStore = new SessionStore();
     setTimeout(() => {
       void this.resumeActiveTasks();
     }, 0);
@@ -339,7 +341,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     // Auto-resume previous session for this chat if not explicitly provided
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.resumeSessionId ?? this.chatSessions.get(chatId),
+      resumeSessionId: options.resumeSessionId ?? this.sessionStore.getSession(chatId),
     };
 
     void this.runTask(task, effectiveOptions).catch((error) => {
@@ -362,7 +364,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     // Auto-resume previous session for this chat if not explicitly provided
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.resumeSessionId ?? this.chatSessions.get(chatId),
+      resumeSessionId: options.resumeSessionId ?? this.sessionStore.getSession(chatId),
     };
 
     await this.runTask(task, effectiveOptions);
@@ -666,7 +668,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       // Store session for future resumption (both success and failure - session context is valuable)
       if (task.sessionId) {
-        this.chatSessions.set(task.chatId, task.sessionId);
+        this.sessionStore.setSession(task.chatId, task.sessionId);
         logger.debug('Stored session for chat', { chatId: task.chatId, sessionId: task.sessionId });
       }
 
@@ -704,7 +706,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       // Store session even on failure - context is valuable for follow-up
       if (task.sessionId) {
-        this.chatSessions.set(task.chatId, task.sessionId);
+        this.sessionStore.setSession(task.chatId, task.sessionId);
       }
 
       this.emit('taskError', task.id, error);
@@ -809,19 +811,18 @@ export class AnthropicSdkExecutor extends EventEmitter {
    * Clear the stored session for a chat, forcing the next task to start fresh
    */
   clearChatSession(chatId: number): boolean {
-    const had = this.chatSessions.has(chatId);
-    this.chatSessions.delete(chatId);
-    if (had) {
+    const cleared = this.sessionStore.clearSession(chatId);
+    if (cleared) {
       logger.info('Cleared chat session', { chatId });
     }
-    return had;
+    return cleared;
   }
 
   /**
    * Get the stored session ID for a chat (if any)
    */
   getChatSessionId(chatId: number): string | undefined {
-    return this.chatSessions.get(chatId);
+    return this.sessionStore.getSession(chatId);
   }
 
   cleanupOldTasks(maxAge = 3600000): number {
