@@ -248,7 +248,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-background">
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
       <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} />
 
