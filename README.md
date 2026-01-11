@@ -20,121 +20,44 @@
   <a href="https://x.com/uncanny_guzus/status/2006073533252919361"><strong>Demo Video</strong></a>
 </p>
 
-## Philosophy
-
-> *"Cinema is the art of sculpting in time."* — Andrei Tarkovsky
-
-Likewise, **the agent is the art of time**.
-
-```
-──────────────────────────────────────────────────────────────────────────────
-                                    TIME
-──────────────────────────────────────────────────────────────────────────────
-
-   PAST                         PRESENT                        FUTURE
-    │                              │                              │
-    ▼                              ▼                              ▼
-
-┌─────────────────┐    ┌─────────────────────┐    ┌─────────────────────────┐
-│   Claude.md     │    │   Context Window    │    │   Codebase Artifacts    │
-│                 │    │                     │    │                         │
-│ Accumulated     │───▶│  Active working     │───▶│  Commits, PRs, docs     │
-│ project wisdom  │    │  memory             │    │  that outlive session   │
-│                 │    │                     │    │                         │
-└─────────────────┘    └─────────────────────┘    └─────────────────────────┘
-        │                        │                           │
-        │              ┌─────────┴─────────┐                 │
-        │              │                   │                 │
-        ▼              ▼                   ▼                 ▼
-
-┌─────────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│ Session History │    │   Harness   │    │ Task Queue  │    │  Git History│
-│                 │    │             │    │             │    │             │
-│ Recent          │    │ Plugins     │    │ Ralph loops │    │ Permanent   │
-│ conversations   │    │ MCP servers │    │ Scheduled   │    │ record      │
-│                 │    │ Skills      │    │ work        │    │             │
-└─────────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
-```
-
-**North Star**: Optimal agentic Claude usage — measured by task completion, token efficiency, and minimal human intervention.
-
 ## How It Works
 
 ```mermaid
-flowchart TB
-    subgraph User
-        TG[Telegram App]
-        DC[Discord App]
+flowchart LR
+    subgraph Clients
+        TG[Telegram]
+        DC[Discord]
         Hub[Claude Hub]
     end
 
-    subgraph Docker Container
-        Bot[tg-claude Bot]
-
-        subgraph Executors
-            SDK[Anthropic SDK Executor]
-            SDKMCP[MCP Servers]
-            SDKSkills[Skills]
-            SDKPlugins[Plugins]
-            SDKSubagents[Subagents]
-        end
-
-        subgraph Services
-            Factory[ExecutorFactory]
-            Ralph[RalphLoopExecutor]
-            Git[GitService]
-            Repo[RepositoryManager]
-        end
+    subgraph Core
+        Bot[tg-claude]
+        SDK[SDK Executor]
     end
 
-    subgraph Storage["Storage (/persistent)"]
-        Workspace["/persistent/workspace"]
-        Data["/persistent/app/data"]
-        Config["/persistent/app/config"]
+    subgraph Harness
+        MCP[MCP Servers]
+        Skills[Skills]
+        Plugins[Plugins]
     end
 
-    subgraph External
-        GitHub[GitHub]
-        ClaudeAPI[Claude API]
-        ZaiAPI[Z.ai GLM API]
-        OpenRouter[OpenRouter API]
+    subgraph APIs
+        Claude[Claude API]
+        GLM[GLM API]
+        OR[OpenRouter]
     end
 
-    TG -->|Commands| Bot
-    DC -->|Slash Commands| Bot
-    Hub -->|REST API| Bot
-    Bot -->|Parse & Route| Factory
-    Factory -->|EXECUTOR_TYPE=sdk| SDK
-    Bot -->|Autonomous Tasks| Ralph
-    SDK --> SDKMCP
-    SDK --> SDKSkills
-    SDK --> SDKPlugins
-    SDK --> SDKSubagents
-    SDK -->|API Key| ClaudeAPI
-    SDK -->|API Key| ZaiAPI
-    SDK -->|API Key| OpenRouter
-    SDK -->|Read/Write| Workspace
-    Git -->|Clone/Push| GitHub
-    Repo -->|Manage| Workspace
-    Bot -->|State| Data
-    Bot -->|Settings| Config
-    Bot -->|Response| TG
-    Bot -->|Response| DC
-    Bot -->|SSE Stream| Hub
+    subgraph Storage
+        WS[Workspace]
+        GH[GitHub]
+    end
 
-    classDef user fill:#E8F3FF,stroke:#1E78D6,stroke-width:1px,color:#0B2D52;
-    classDef bot fill:#FFF3E0,stroke:#FB8C00,stroke-width:1px,color:#5A2D00;
-    classDef executor fill:#E3F2FD,stroke:#1976D2,stroke-width:1px,color:#0D47A1;
-    classDef services fill:#E8F5E9,stroke:#2E7D32,stroke-width:1px,color:#0F3B17;
-    classDef storage fill:#F3E5F5,stroke:#7B1FA2,stroke-width:1px,color:#3B0C4A;
-    classDef external fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238;
-
-    class TG,DC,Hub user;
-    class Bot bot;
-    class SDK executor;
-    class Factory,Ralph,Git,Repo services;
-    class Workspace,Data,Config storage;
-    class GitHub,ClaudeAPI,ZaiAPI,OpenRouter external;
+    TG & DC & Hub --> Bot
+    Bot --> SDK
+    SDK --> MCP & Skills & Plugins
+    SDK --> Claude & GLM & OR
+    SDK <--> WS
+    WS <--> GH
 ```
 
 ## Executor Modes
