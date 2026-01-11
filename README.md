@@ -27,6 +27,7 @@ flowchart TB
     subgraph User
         TG[Telegram App]
         DC[Discord App]
+        Hub[Claude Hub]
     end
 
     subgraph Docker Container
@@ -63,6 +64,7 @@ flowchart TB
 
     TG -->|Commands| Bot
     DC -->|Slash Commands| Bot
+    Hub -->|REST API| Bot
     Bot -->|Parse & Route| Factory
     Factory -->|EXECUTOR_TYPE=sdk| SDK
     Bot -->|Autonomous Tasks| Ralph
@@ -80,6 +82,7 @@ flowchart TB
     Bot -->|Settings| Config
     Bot -->|Response| TG
     Bot -->|Response| DC
+    Bot -->|SSE Stream| Hub
 
     classDef user fill:#E8F3FF,stroke:#1E78D6,stroke-width:1px,color:#0B2D52;
     classDef bot fill:#FFF3E0,stroke:#FB8C00,stroke-width:1px,color:#5A2D00;
@@ -88,7 +91,7 @@ flowchart TB
     classDef storage fill:#F3E5F5,stroke:#7B1FA2,stroke-width:1px,color:#3B0C4A;
     classDef external fill:#ECEFF1,stroke:#546E7A,stroke-width:1px,color:#263238;
 
-    class TG,DC user;
+    class TG,DC,Hub user;
     class Bot bot;
     class SDK executor;
     class Factory,Ralph,Git,Repo services;
