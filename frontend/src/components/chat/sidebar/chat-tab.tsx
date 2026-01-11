@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { Plus, MessageCircle, Play, CheckCircle2, Circle, Pencil } from "lucide-react";
+import { Plus, MessageCircle, Play, CheckCircle2, Circle, Pencil, GripVertical } from "lucide-react";
 
 export interface Session {
   id: string;
@@ -17,12 +17,15 @@ interface ChatTabProps {
   activeSession?: string;
   onSessionSelect?: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, name: string) => void;
+  onSessionReorder?: (sessionIds: string[]) => void;
   onNewSession?: () => void;
 }
 
-export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRename, onNewSession }: ChatTabProps) {
+export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRename, onSessionReorder, onNewSession }: ChatTabProps) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Focus input when editing starts
@@ -53,6 +56,57 @@ export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRen
     setEditingSessionId(null);
     setEditingName("");
   };
+
+  const handleDragStart = (e: React.DragEvent, sessionId: string) => {
+    if (sessionId === "general") {
+      e.preventDefault();
+      return;
+    }
+    setDraggedId(sessionId);
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", sessionId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, sessionId: string) => {
+    e.preventDefault();
+    if (sessionId !== "general" && draggedId && sessionId !== draggedId) {
+      setDragOverId(sessionId);
+    }
+  };
+
+  const handleDragLeave = () => {
+    setDragOverId(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedId || targetId === "general" || draggedId === targetId) {
+      setDraggedId(null);
+      setDragOverId(null);
+      return;
+    }
+
+    // Reorder sessions
+    const currentOrder = sessions.map((s) => s.id);
+    const draggedIndex = currentOrder.indexOf(draggedId);
+    const targetIndex = currentOrder.indexOf(targetId);
+
+    if (draggedIndex !== -1 && targetIndex !== -1) {
+      const newOrder = [...currentOrder];
+      newOrder.splice(draggedIndex, 1);
+      newOrder.splice(targetIndex, 0, draggedId);
+      onSessionReorder?.(newOrder);
+    }
+
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedId(null);
+    setDragOverId(null);
+  };
+
   const getStatusIcon = (status: Session["status"]) => {
     switch (status) {
       case "running":
@@ -100,18 +154,33 @@ export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRen
             const isActive = activeSession === session.id || (!activeSession && session.id === "general");
             const isEditing = editingSessionId === session.id;
             const isRenamable = session.id !== "general";
+            const isDraggable = session.id !== "general";
+            const isDragOver = dragOverId === session.id;
 
             return (
               <div
                 key={session.id}
+                draggable={isDraggable && !isEditing}
+                onDragStart={(e) => handleDragStart(e, session.id)}
+                onDragOver={(e) => handleDragOver(e, session.id)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, session.id)}
+                onDragEnd={handleDragEnd}
                 className={cn(
-                  "group flex items-center gap-2 px-2 py-2 rounded-md cursor-pointer",
+                  "group flex items-center gap-1 px-1 py-2 rounded-md cursor-pointer transition-all",
                   isActive
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-secondary hover:text-foreground"
+                    : "text-muted-foreground hover:bg-secondary hover:text-foreground",
+                  isDragOver && "border-t-2 border-primary",
+                  draggedId === session.id && "opacity-50"
                 )}
                 onClick={() => !isEditing && onSessionSelect?.(session.id)}
               >
+                {isDraggable ? (
+                  <GripVertical className="w-3 h-3 opacity-0 group-hover:opacity-50 cursor-grab flex-shrink-0" />
+                ) : (
+                  <div className="w-3" />
+                )}
                 {getStatusIcon(session.status)}
                 <MessageCircle className="w-3.5 h-3.5 opacity-60 flex-shrink-0" />
                 {isEditing ? (

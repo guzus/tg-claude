@@ -25,6 +25,8 @@ interface ChatContextType {
   renameDraftSession: (id: DraftSession["id"], name: string) => void;
   customSessionNames: Record<string, string>;
   setCustomSessionName: (sessionId: string, name: string) => void;
+  sessionOrder: string[];
+  setSessionOrder: (order: string[]) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -49,13 +51,22 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [showSettings, setShowSettings] = useState(false);
   const [draftSessions, setDraftSessions] = useState<DraftSession[]>([]);
   const [customSessionNames, setCustomSessionNames] = useState<Record<string, string>>({});
+  const [sessionOrder, setSessionOrderState] = useState<string[]>([]);
 
-  // Load custom session names from localStorage on mount
+  // Load custom session names and order from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem("customSessionNames");
-    if (stored) {
+    const storedNames = localStorage.getItem("customSessionNames");
+    if (storedNames) {
       try {
-        setCustomSessionNames(JSON.parse(stored));
+        setCustomSessionNames(JSON.parse(storedNames));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    const storedOrder = localStorage.getItem("sessionOrder");
+    if (storedOrder) {
+      try {
+        setSessionOrderState(JSON.parse(storedOrder));
       } catch {
         // Ignore parse errors
       }
@@ -69,6 +80,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       localStorage.setItem("customSessionNames", JSON.stringify(updated));
       return updated;
     });
+  }, []);
+
+  // Save session order to localStorage
+  const setSessionOrder = useCallback((order: string[]) => {
+    setSessionOrderState(order);
+    localStorage.setItem("sessionOrder", JSON.stringify(order));
   }, []);
 
   // Create a new draft session
@@ -136,6 +153,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         renameDraftSession,
         customSessionNames,
         setCustomSessionName,
+        sessionOrder,
+        setSessionOrder,
       }}
     >
       <TooltipProvider>
@@ -154,6 +173,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             activeSession={activeSession}
             draftSessions={draftSessions}
             customSessionNames={customSessionNames}
+            sessionOrder={sessionOrder}
             onSessionSelect={(sessionId) => {
               setActiveSession(sessionId);
               setSelectedFile(null);
@@ -166,6 +186,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 setCustomSessionName(sessionId, name);
               }
             }}
+            onSessionReorder={setSessionOrder}
             onFileSelect={setSelectedFile}
             onNewSession={() => {
               createNewSession();

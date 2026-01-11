@@ -16,8 +16,10 @@ interface ChatSidebarProps {
   activeSession?: string;
   draftSessions?: DraftSession[];
   customSessionNames?: Record<string, string>;
+  sessionOrder?: string[];
   onSessionSelect?: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, name: string) => void;
+  onSessionReorder?: (sessionIds: string[]) => void;
   onFileSelect?: (filePath: string) => void;
   onNewSession?: () => void;
   onShowSettings?: () => void;
@@ -36,8 +38,10 @@ export function ChatSidebar({
   activeSession,
   draftSessions = [],
   customSessionNames = {},
+  sessionOrder = [],
   onSessionSelect,
   onSessionRename,
+  onSessionReorder,
   onFileSelect,
   onNewSession,
   onShowSettings,
@@ -84,9 +88,6 @@ export function ChatSidebar({
           });
         }
 
-        // Sort sessions by timestamp (newest first)
-        taskSessions.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
-
         // Convert draft sessions to Session format
         const draftSessionsList: Session[] = draftSessions.map((ds) => ({
           id: ds.id,
@@ -95,8 +96,29 @@ export function ChatSidebar({
           timestamp: ds.createdAt,
         }));
 
-        // Always include default session first, then draft sessions, then task sessions
-        setSessions([DEFAULT_SESSION, ...draftSessionsList, ...taskSessions.slice(0, 9)]);
+        // Combine all sessions (excluding default which is always first)
+        const allSessions = [...draftSessionsList, ...taskSessions.slice(0, 9)];
+
+        // Apply custom order if available, otherwise sort by timestamp
+        if (sessionOrder.length > 0) {
+          allSessions.sort((a, b) => {
+            const aIndex = sessionOrder.indexOf(a.id);
+            const bIndex = sessionOrder.indexOf(b.id);
+            // Sessions not in order go to the end, sorted by timestamp
+            if (aIndex === -1 && bIndex === -1) {
+              return new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime();
+            }
+            if (aIndex === -1) return 1;
+            if (bIndex === -1) return -1;
+            return aIndex - bIndex;
+          });
+        } else {
+          // Default: sort by timestamp (newest first)
+          allSessions.sort((a, b) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
+        }
+
+        // Always include default session first
+        setSessions([DEFAULT_SESSION, ...allSessions]);
       } catch {
         // Convert draft sessions to Session format even on error
         const draftSessionsList: Session[] = draftSessions.map((ds) => ({
@@ -112,7 +134,7 @@ export function ChatSidebar({
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions, customSessionNames]);
+  }, [draftSessions, customSessionNames, sessionOrder]);
 
   // Fetch file tree when repository changes
   useEffect(() => {
@@ -219,6 +241,7 @@ export function ChatSidebar({
             activeSession={activeSession}
             onSessionSelect={onSessionSelect}
             onSessionRename={onSessionRename}
+            onSessionReorder={onSessionReorder}
             onNewSession={onNewSession}
           />
         ) : (
