@@ -27,7 +27,7 @@ This guide walks you through deploying tg-claude on Railway from scratch.
 1. Search for [@userinfobot](https://t.me/userinfobot) on Telegram
 2. Start a chat and send any message
 3. It will reply with your user ID (a number like `123456789`)
-4. **Save this ID** - you'll need it as `ALLOWED_USER_IDS`
+4. **Save this ID** - you'll need it as `TELEGRAM_ALLOWED_USER_IDS`
 
 > 💡 You can add multiple user IDs separated by commas: `123456789,987654321`
 
@@ -52,7 +52,7 @@ A GitHub token enables:
        - **Metadata**: Read-only
 4. Click **"Generate token"**
 5. **Copy the token immediately** - you won't see it again
-6. **Save this token** - you'll need it as `GITHUB_TOKEN`
+6. **Save this token** - you'll need it as `GITHUB_PAT`
 
 ## Step 3: Generate Claude OAuth Token
 
@@ -104,9 +104,9 @@ Fill in the required variables:
 | Variable | Value | Required |
 |----------|-------|----------|
 | `TELEGRAM_BOT_TOKEN` | Your bot token from Step 1 | ✅ |
-| `ALLOWED_USER_IDS` | Your Telegram user ID(s) | ✅ |
+| `TELEGRAM_ALLOWED_USER_IDS` | Your Telegram user ID(s) | ✅ |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Your Claude token from Step 3 | ✅ |
-| `GITHUB_TOKEN` | Your GitHub token from Step 2 | Optional |
+| `GITHUB_PAT` | Your GitHub token from Step 2 | Optional |
 
 ### Add Persistent Storage
 
@@ -142,7 +142,7 @@ This is pre-configured in the template.
 
 - Check Railway logs for errors
 - Verify `TELEGRAM_BOT_TOKEN` is correct
-- Ensure `ALLOWED_USER_IDS` includes your Telegram ID
+- Ensure `TELEGRAM_ALLOWED_USER_IDS` includes your Telegram ID
 
 ### Claude commands fail
 
@@ -152,7 +152,7 @@ This is pre-configured in the template.
 
 ### GitHub operations fail
 
-- Verify `GITHUB_TOKEN` has correct permissions
+- Verify `GITHUB_PAT` has correct permissions
 - Check token hasn't expired
 - Ensure repository access is configured
 

@@ -97,7 +97,7 @@ Set ONE of:
 1. Click the button above
 2. Set required environment variables:
    - `TELEGRAM_BOT_TOKEN` - from [@BotFather](https://t.me/BotFather)
-   - `ALLOWED_USER_IDS` - your Telegram ID (get from [@userinfobot](https://t.me/userinfobot))
+   - `TELEGRAM_ALLOWED_USER_IDS` - your Telegram ID (get from [@userinfobot](https://t.me/userinfobot))
    - `CLAUDE_CODE_OAUTH_TOKEN` - from `claude setup-token` (uses your Claude subscription)
    - Or `ANTHROPIC_API_KEY` - from [Anthropic Console](https://console.anthropic.com/) (uses API billing)
 3. Deploy!
@@ -204,7 +204,7 @@ docker compose up -d
 
 ## Security
 
-- User whitelist via `ALLOWED_USER_IDS`
+- User whitelist via `TELEGRAM_ALLOWED_USER_IDS`
 - Rate limiting per user
 - Uses `--dangerously-skip-permissions` - run only with trusted users
 

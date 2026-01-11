@@ -18,7 +18,7 @@ const TASK_LOGS_DIR = path.join(LOGS_PATH, 'tasks');
 
 /**
  * @deprecated CLI mode is not maintained. Use AnthropicSdkExecutor (SDK mode) instead.
- * Set EXECUTOR_TYPE=sdk in your environment to use the SDK executor.
+ * Set CLAUDE_EXECUTOR_TYPE=sdk in your environment to use the SDK executor.
  */
 export class ClaudeExecutor extends EventEmitter {
   private activeTasks: Map<string, ChildProcess> = new Map();
@@ -56,7 +56,7 @@ export class ClaudeExecutor extends EventEmitter {
   }
 
   private async authenticateGitHub(): Promise<void> {
-    const githubToken = process.env.GITHUB_TOKEN;
+    const githubToken = process.env.GITHUB_PAT;
     if (!githubToken) return;
 
     try {
@@ -104,7 +104,7 @@ export class ClaudeExecutor extends EventEmitter {
 
     // CLI mode doesn't support images - log warning if images were provided
     if (options.images && options.images.length > 0) {
-      logger.warn('CLI executor does not support image inputs. Use SDK executor (EXECUTOR_TYPE=sdk) for image support.', { taskId: task.id });
+      logger.warn('CLI executor does not support image inputs. Use SDK executor (CLAUDE_EXECUTOR_TYPE=sdk) for image support.', { taskId: task.id });
     }
 
     void this.runTask(task, options).catch((error) => {

@@ -22,7 +22,7 @@ export function createExecutor(
   }
 
   // CLI mode is deprecated - warn but still allow
-  logger.warn('CLI executor is deprecated and not maintained. Consider using SDK mode (EXECUTOR_TYPE=sdk)');
+  logger.warn('CLI executor is deprecated and not maintained. Consider using SDK mode (CLAUDE_EXECUTOR_TYPE=sdk)');
   return new ClaudeExecutor();
 }
 
