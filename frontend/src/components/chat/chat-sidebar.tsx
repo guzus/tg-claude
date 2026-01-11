@@ -130,7 +130,7 @@ export function ChatSidebar({
     return () => clearInterval(interval);
   }, [draftSessions, customSessionNames, sessionOrder]);
 
-  // Fetch file tree when repository changes
+  // Fetch file tree when repository changes (with auto-refresh)
   useEffect(() => {
     if (!repositoryId) {
       setFileTree([]);
@@ -148,6 +148,8 @@ export function ChatSidebar({
     };
 
     fetchFileTree();
+    const interval = setInterval(fetchFileTree, 10000); // Refresh every 10s
+    return () => clearInterval(interval);
   }, [repositoryId, fileTreeVersion]);
 
   const toggleFolder = (path: string) => {
