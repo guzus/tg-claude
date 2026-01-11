@@ -9,9 +9,32 @@ export type { Message };
 interface MessageItemProps {
   message: Message;
   showHeader: boolean;
+  highlightText?: string;
 }
 
-export function MessageItem({ message, showHeader }: MessageItemProps) {
+function HighlightedText({ text, highlight }: { text: string; highlight?: string }) {
+  if (!highlight) {
+    return <>{text}</>;
+  }
+
+  const parts = text.split(new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        part.toLowerCase() === highlight.toLowerCase() ? (
+          <mark key={i} className="bg-yellow-300 dark:bg-yellow-600 text-foreground rounded px-0.5">
+            {part}
+          </mark>
+        ) : (
+          part
+        )
+      )}
+    </>
+  );
+}
+
+export function MessageItem({ message, showHeader, highlightText }: MessageItemProps) {
   const isAction = message.type === "action";
 
   if (isAction) {
@@ -28,7 +51,9 @@ export function MessageItem({ message, showHeader }: MessageItemProps) {
             <CheckCircle2 className="w-4 h-4 text-primary" />
           )}
         </div>
-        <span className="font-mono text-xs">{message.content}</span>
+        <span className="font-mono text-xs">
+          <HighlightedText text={message.content} highlight={highlightText} />
+        </span>
         <span className="text-[10px] text-muted-foreground ml-auto">
           {new Date(message.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
@@ -92,7 +117,7 @@ export function MessageItem({ message, showHeader }: MessageItemProps) {
             </div>
           )}
           <div className="text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
-            {message.content}
+            <HighlightedText text={message.content} highlight={highlightText} />
           </div>
         </div>
       </div>

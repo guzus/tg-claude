@@ -20,7 +20,8 @@ export default function HomePage() {
   const [isTyping, setIsTyping] = useState(false);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession } = useChatContext();
 
   // Fetch all tasks
@@ -139,9 +140,7 @@ export default function HomePage() {
   }, [activeSession, tasks, pendingMessage]);
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -227,6 +226,13 @@ export default function HomePage() {
     ? "General"
     : tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
 
+  // Filter messages based on search query
+  const filteredMessages = searchQuery.trim()
+    ? messages.filter((msg) =>
+        msg.content.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : messages;
+
   // Show settings view if settings is selected
   if (showSettings) {
     return (
@@ -250,29 +256,36 @@ export default function HomePage() {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
-      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} />
+      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} onSearch={setSearchQuery} />
 
       {/* Messages */}
-      <ScrollArea className="flex-1" ref={scrollRef}>
+      <ScrollArea className="flex-1">
         <div className="py-6">
           {/* Welcome Message */}
           <WelcomeSection />
 
           {/* Messages */}
           <div className="space-y-0">
-            {messages.map((message, index) => (
-              <MessageItem
-                key={message.id}
-                message={message}
-                showHeader={
-                  index === 0 ||
-                  messages[index - 1].author.name !== message.author.name ||
-                  new Date(message.timestamp).getTime() -
-                    new Date(messages[index - 1].timestamp).getTime() >
-                    300000
-                }
-              />
-            ))}
+            {filteredMessages.length === 0 && searchQuery.trim() ? (
+              <p className="text-center text-muted-foreground py-8">
+                No messages matching &quot;{searchQuery}&quot;
+              </p>
+            ) : (
+              filteredMessages.map((message, index) => (
+                <MessageItem
+                  key={message.id}
+                  message={message}
+                  showHeader={
+                    index === 0 ||
+                    filteredMessages[index - 1].author.name !== message.author.name ||
+                    new Date(message.timestamp).getTime() -
+                      new Date(filteredMessages[index - 1].timestamp).getTime() >
+                      300000
+                  }
+                  highlightText={searchQuery.trim() || undefined}
+                />
+              ))
+            )}
           </div>
 
           {/* Streaming Actions - show real-time progress when task is running */}
@@ -288,6 +301,9 @@ export default function HomePage() {
 
           {/* Typing Indicator */}
           {isTyping && !runningTask && <TypingIndicator />}
+
+          {/* Scroll anchor */}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
