@@ -20,6 +20,44 @@
   <a href="https://x.com/uncanny_guzus/status/2006073533252919361"><strong>Demo Video</strong></a>
 </p>
 
+## Philosophy
+
+> *"Cinema is the art of sculpting in time."* — Andrei Tarkovsky
+
+Likewise, **the agent is the art of time**.
+
+```
+──────────────────────────────────────────────────────────────────────────────
+                                    TIME
+──────────────────────────────────────────────────────────────────────────────
+
+   PAST                         PRESENT                        FUTURE
+    │                              │                              │
+    ▼                              ▼                              ▼
+
+┌─────────────────┐    ┌─────────────────────┐    ┌─────────────────────────┐
+│   Claude.md     │    │   Context Window    │    │   Codebase Artifacts    │
+│                 │    │                     │    │                         │
+│ Accumulated     │───▶│  Active working     │───▶│  Commits, PRs, docs     │
+│ project wisdom  │    │  memory             │    │  that outlive session   │
+│                 │    │                     │    │                         │
+└─────────────────┘    └─────────────────────┘    └─────────────────────────┘
+        │                        │                           │
+        │              ┌─────────┴─────────┐                 │
+        │              │                   │                 │
+        ▼              ▼                   ▼                 ▼
+
+┌─────────────────┐    ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│ Session History │    │   Harness   │    │ Task Queue  │    │  Git History│
+│                 │    │             │    │             │    │             │
+│ Recent          │    │ Plugins     │    │ Ralph loops │    │ Permanent   │
+│ conversations   │    │ MCP servers │    │ Scheduled   │    │ record      │
+│                 │    │ Skills      │    │ work        │    │             │
+└─────────────────┘    └─────────────┘    └─────────────┘    └─────────────┘
+```
+
+**North Star**: Optimal agentic Claude usage — measured by task completion, token efficiency, and minimal human intervention.
+
 ## How It Works
 
 ```mermaid
