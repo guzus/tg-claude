@@ -1,29 +1,101 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Key, Save, Check, Zap, Globe } from "lucide-react";
+import { Bot, Key, Save, Check, Zap, Globe, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { api } from "@/lib/api";
+
+type ProviderType = "anthropic" | "openrouter" | "glm";
 
 interface AIProvider {
-  id: string;
+  id: ProviderType;
   name: string;
   icon: React.ElementType;
-  active: boolean;
-  apiKey?: string;
 }
 
-export function AIProviderSettings() {
-  const [providers, setProviders] = useState<AIProvider[]>([
-    { id: "anthropic", name: "Anthropic", icon: Bot, active: true },
-    { id: "openrouter", name: "OpenRouter", icon: Globe, active: false },
-    { id: "glm", name: "GLM", icon: Zap, active: false },
-  ]);
+const PROVIDERS: AIProvider[] = [
+  { id: "anthropic", name: "Anthropic", icon: Bot },
+  { id: "openrouter", name: "OpenRouter", icon: Globe },
+  { id: "glm", name: "GLM", icon: Zap },
+];
 
+export function AIProviderSettings() {
+  const [activeProvider, setActiveProvider] = useState<ProviderType>("anthropic");
   const [apiKey, setApiKey] = useState("");
+  const [haikuModel, setHaikuModel] = useState("");
+  const [sonnetModel, setSonnetModel] = useState("");
+  const [opusModel, setOpusModel] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  // Load current config on mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const config = await api.getConfig(1);
+        if (config.aiProvider) {
+          setActiveProvider(config.aiProvider.provider || "anthropic");
+          setHaikuModel(config.aiProvider.haikuModel || "");
+          setSonnetModel(config.aiProvider.sonnetModel || "");
+          setOpusModel(config.aiProvider.opusModel || "");
+        }
+      } catch (error) {
+        console.error("Failed to load config:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  const handleProviderChange = async (providerId: ProviderType) => {
+    setActiveProvider(providerId);
+    setSaving(true);
+    try {
+      await api.updateConfig(1, {
+        aiProvider: {
+          provider: providerId,
+          haikuModel: haikuModel || undefined,
+          sonnetModel: sonnetModel || undefined,
+          opusModel: opusModel || undefined,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to save provider:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveModels = async () => {
+    setSaving(true);
+    try {
+      await api.updateConfig(1, {
+        aiProvider: {
+          provider: activeProvider,
+          haikuModel: haikuModel || undefined,
+          sonnetModel: sonnetModel || undefined,
+          opusModel: opusModel || undefined,
+        },
+      });
+    } catch (error) {
+      console.error("Failed to save models:", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -40,49 +112,54 @@ export function AIProviderSettings() {
           <CardDescription>Select which AI provider to use for tasks</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
-          {providers.map((provider) => (
-            <button
-              key={provider.id}
-              onClick={() =>
-                setProviders((prev) =>
-                  prev.map((p) => ({ ...p, active: p.id === provider.id }))
-                )
-              }
-              className={cn(
-                "w-full flex items-center justify-between p-4 rounded-lg border transition-colors",
-                provider.active
-                  ? "border-primary bg-primary/5"
-                  : "border-border hover:border-primary/50"
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div
-                  className={cn(
-                    "p-2 rounded-lg",
-                    provider.active ? "bg-primary text-primary-foreground" : "bg-muted"
-                  )}
-                >
-                  <provider.icon className="w-5 h-5" />
+          {PROVIDERS.map((provider) => {
+            const isActive = provider.id === activeProvider;
+            return (
+              <button
+                key={provider.id}
+                onClick={() => handleProviderChange(provider.id)}
+                disabled={saving}
+                className={cn(
+                  "w-full flex items-center justify-between p-4 rounded-lg border transition-colors",
+                  isActive
+                    ? "border-primary bg-primary/5"
+                    : "border-border hover:border-primary/50",
+                  saving && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={cn(
+                      "p-2 rounded-lg",
+                      isActive ? "bg-primary text-primary-foreground" : "bg-muted"
+                    )}
+                  >
+                    <provider.icon className="w-5 h-5" />
+                  </div>
+                  <div className="text-left">
+                    <p className="font-medium">{provider.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {provider.id === "anthropic"
+                        ? "Claude models"
+                        : provider.id === "openrouter"
+                        ? "Multiple providers"
+                        : "GLM-4 models"}
+                    </p>
+                  </div>
                 </div>
-                <div className="text-left">
-                  <p className="font-medium">{provider.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {provider.id === "anthropic"
-                      ? "Claude models"
-                      : provider.id === "openrouter"
-                      ? "Multiple providers"
-                      : "GLM-4 models"}
-                  </p>
-                </div>
-              </div>
-              {provider.active && (
-                <Badge variant="default" className="gap-1">
-                  <Check className="w-3 h-3" />
-                  Active
-                </Badge>
-              )}
-            </button>
-          ))}
+                {isActive && (
+                  <Badge variant="default" className="gap-1">
+                    {saving ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      <Check className="w-3 h-3" />
+                    )}
+                    Active
+                  </Badge>
+                )}
+              </button>
+            );
+          })}
         </CardContent>
       </Card>
 
@@ -119,18 +196,34 @@ export function AIProviderSettings() {
         <CardContent className="space-y-4">
           <div>
             <label className="text-sm font-medium mb-1.5 block">Haiku Model</label>
-            <Input placeholder="claude-3-5-haiku-latest" />
+            <Input
+              placeholder="claude-3-5-haiku-latest"
+              value={haikuModel}
+              onChange={(e) => setHaikuModel(e.target.value)}
+            />
           </div>
           <div>
             <label className="text-sm font-medium mb-1.5 block">Sonnet Model</label>
-            <Input placeholder="claude-sonnet-4-20250514" />
+            <Input
+              placeholder="claude-sonnet-4-20250514"
+              value={sonnetModel}
+              onChange={(e) => setSonnetModel(e.target.value)}
+            />
           </div>
           <div>
             <label className="text-sm font-medium mb-1.5 block">Opus Model</label>
-            <Input placeholder="claude-opus-4-20250514" />
+            <Input
+              placeholder="claude-opus-4-20250514"
+              value={opusModel}
+              onChange={(e) => setOpusModel(e.target.value)}
+            />
           </div>
-          <Button className="mt-2">
-            <Save className="w-4 h-4 mr-1.5" />
+          <Button className="mt-2" onClick={handleSaveModels} disabled={saving}>
+            {saving ? (
+              <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+            ) : (
+              <Save className="w-4 h-4 mr-1.5" />
+            )}
             Save Changes
           </Button>
         </CardContent>
