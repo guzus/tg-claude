@@ -4,7 +4,6 @@ import { useState, useRef, useEffect } from "react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { Plus, MessageCircle, Play, CheckCircle2, Circle, Pencil } from "lucide-react";
-import { isDraftSessionId } from "@/lib/types";
 
 export interface Session {
   id: string;
@@ -35,7 +34,8 @@ export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRen
   }, [editingSessionId]);
 
   const startEditing = (session: Session) => {
-    if (isDraftSessionId(session.id)) {
+    // Allow editing all sessions except "general"
+    if (session.id !== "general") {
       setEditingSessionId(session.id);
       setEditingName(session.name);
     }
@@ -99,7 +99,7 @@ export function ChatTab({ sessions, activeSession, onSessionSelect, onSessionRen
           sessions.map((session) => {
             const isActive = activeSession === session.id || (!activeSession && session.id === "general");
             const isEditing = editingSessionId === session.id;
-            const isRenamable = isDraftSessionId(session.id);
+            const isRenamable = session.id !== "general";
 
             return (
               <div

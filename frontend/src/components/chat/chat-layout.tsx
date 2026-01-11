@@ -23,6 +23,8 @@ interface ChatContextType {
   createNewSession: () => DraftSession["id"];
   removeDraftSession: (id: DraftSession["id"]) => void;
   renameDraftSession: (id: DraftSession["id"], name: string) => void;
+  customSessionNames: Record<string, string>;
+  setCustomSessionName: (sessionId: string, name: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -46,6 +48,28 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [draftSessions, setDraftSessions] = useState<DraftSession[]>([]);
+  const [customSessionNames, setCustomSessionNames] = useState<Record<string, string>>({});
+
+  // Load custom session names from localStorage on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("customSessionNames");
+    if (stored) {
+      try {
+        setCustomSessionNames(JSON.parse(stored));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  }, []);
+
+  // Save custom session name to localStorage
+  const setCustomSessionName = useCallback((sessionId: string, name: string) => {
+    setCustomSessionNames((prev) => {
+      const updated = { ...prev, [sessionId]: name };
+      localStorage.setItem("customSessionNames", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   // Create a new draft session
   const createNewSession = useCallback((): DraftSession["id"] => {
@@ -110,6 +134,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         createNewSession,
         removeDraftSession,
         renameDraftSession,
+        customSessionNames,
+        setCustomSessionName,
       }}
     >
       <TooltipProvider>
@@ -127,6 +153,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             gitUrl={currentRepository?.gitUrl}
             activeSession={activeSession}
             draftSessions={draftSessions}
+            customSessionNames={customSessionNames}
             onSessionSelect={(sessionId) => {
               setActiveSession(sessionId);
               setSelectedFile(null);
@@ -135,6 +162,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             onSessionRename={(sessionId, name) => {
               if (isDraftSessionId(sessionId)) {
                 renameDraftSession(sessionId, name);
+              } else {
+                setCustomSessionName(sessionId, name);
               }
             }}
             onFileSelect={setSelectedFile}

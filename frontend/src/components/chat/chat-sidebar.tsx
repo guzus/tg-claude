@@ -15,6 +15,7 @@ interface ChatSidebarProps {
   gitUrl?: string;
   activeSession?: string;
   draftSessions?: DraftSession[];
+  customSessionNames?: Record<string, string>;
   onSessionSelect?: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, name: string) => void;
   onFileSelect?: (filePath: string) => void;
@@ -34,6 +35,7 @@ export function ChatSidebar({
   gitUrl,
   activeSession,
   draftSessions = [],
+  customSessionNames = {},
   onSessionSelect,
   onSessionRename,
   onFileSelect,
@@ -70,11 +72,13 @@ export function ChatSidebar({
           const latestTask = groupTasks[groupTasks.length - 1];
 
           // Use the first task's id as the session id (for navigation)
-          // Use the first task's prompt as the session name
+          // Use custom name if set, otherwise first task's prompt
           // Use the latest task's status for the session status
+          const sessionId = firstTask.id;
+          const defaultName = firstTask.prompt.slice(0, 30) + (firstTask.prompt.length > 30 ? "..." : "");
           taskSessions.push({
-            id: firstTask.id,
-            name: firstTask.prompt.slice(0, 30) + (firstTask.prompt.length > 30 ? "..." : ""),
+            id: sessionId,
+            name: customSessionNames[sessionId] || defaultName,
             status: latestTask.status === "running" ? "running" : latestTask.status === "completed" ? "completed" : "idle",
             timestamp: firstTask.startTime,
           });
@@ -108,7 +112,7 @@ export function ChatSidebar({
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions]);
+  }, [draftSessions, customSessionNames]);
 
   // Fetch file tree when repository changes
   useEffect(() => {
