@@ -45,6 +45,10 @@ export class TaskStateStore {
     );
   }
 
+  getAllTasks(): PersistedTaskState[] {
+    return Array.from(this.tasks.values());
+  }
+
   upsertTask(task: PersistedTaskState): void {
     const updatedAt = new Date().toISOString();
     this.tasks.set(task.id, { ...task, updatedAt });

@@ -103,9 +103,45 @@ export class AnthropicSdkExecutor extends EventEmitter {
     this.resumeLockId = uuidv4();
     this.taskStateStore = new TaskStateStore();
     this.sessionStore = new SessionStore();
+    this.loadPersistedTasks();
     setTimeout(() => {
       void this.resumeActiveTasks();
     }, 0);
+  }
+
+  /**
+   * Load completed/failed tasks from state store into memory for session history
+   */
+  private loadPersistedTasks(): void {
+    const allPersistedTasks = this.taskStateStore.getAllTasks();
+    let loaded = 0;
+    for (const persisted of allPersistedTasks) {
+      // Skip active tasks - they'll be handled by resumeActiveTasks
+      if (persisted.status === TaskStatus.PENDING || persisted.status === TaskStatus.RUNNING) {
+        continue;
+      }
+      // Load completed/failed/cancelled tasks into taskHistory
+      const task: ClaudeTaskWithStreaming = {
+        id: persisted.id,
+        userId: persisted.userId,
+        chatId: persisted.chatId,
+        prompt: persisted.prompt,
+        workingDir: persisted.workingDir,
+        status: persisted.status,
+        startTime: new Date(persisted.startTime),
+        output: '',
+        errorOutput: '',
+        actions: [],
+        events: [],
+        sessionId: persisted.sessionId,
+        messageId: persisted.messageId,
+      };
+      this.taskHistory.set(task.id, task);
+      loaded++;
+    }
+    if (loaded > 0) {
+      logger.info('Loaded persisted tasks into history', { count: loaded });
+    }
   }
 
   private createTaskLogFile(taskId: string): fs.WriteStream {
@@ -691,7 +727,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
       logStream.end();
       this.taskLogFiles.delete(task.id);
       this.activeTasks.delete(task.id);
-      this.taskStateStore.removeTask(task.id);
+      // Keep completed tasks in state store for session history persistence
+      this.taskStateStore.updateTask(task.id, {
+        status: task.status,
+        sessionId: task.sessionId,
+      });
 
       this.emit('taskComplete', task.id, task);
 
@@ -714,7 +754,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       this.emit('taskError', task.id, error);
       this.activeTasks.delete(task.id);
-      this.taskStateStore.removeTask(task.id);
+      // Keep failed tasks in state store for session history persistence
+      this.taskStateStore.updateTask(task.id, {
+        status: task.status,
+        sessionId: task.sessionId,
+      });
 
       throw error;
     }
@@ -773,7 +817,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
       task.status = TaskStatus.CANCELLED;
       task.endTime = new Date();
       this.activeTasks.delete(taskId);
-      this.taskStateStore.removeTask(taskId);
+      // Keep cancelled tasks in state store for session history persistence
+      this.taskStateStore.updateTask(taskId, {
+        status: task.status,
+        sessionId: task.sessionId,
+      });
       logger.info('Task cancelled', { taskId });
       return true;
     } catch {
