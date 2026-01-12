@@ -103,6 +103,50 @@ export type InstalledPluginEntry = {
   installPath?: string;
 };
 
+/**
+ * Install a plugin if not already installed
+ * @param pluginSpec - Plugin specification in format "name@registry"
+ * @param cwd - Working directory for the command
+ * @returns true if plugin was installed or already exists, false on failure
+ */
+export function ensurePluginInstalled(pluginSpec: string, cwd?: string): boolean {
+  // Check if already installed
+  if (getInstalledPluginPath(pluginSpec)) {
+    logger.debug('Plugin already installed', { pluginSpec });
+    return true;
+  }
+
+  try {
+    execClaude(`claude plugin install ${pluginSpec}`, cwd);
+    logger.info('Installed Claude plugin', { pluginSpec, cwd });
+    return true;
+  } catch (error) {
+    logger.warn('Failed to install Claude plugin', {
+      pluginSpec,
+      cwd,
+      error: getErrorMessage(error)
+    });
+    return false;
+  }
+}
+
+/**
+ * Ensure all required plugins are installed
+ * Called at startup to pre-install plugins
+ */
+export function ensureRequiredPlugins(cwd?: string): void {
+  // First ensure marketplaces are added
+  ensureDefaultPluginMarketplaces(cwd);
+
+  // Install ralph-loop plugin (required for /ralph-loop command)
+  ensurePluginInstalled('ralph-loop@claude-plugins-official', cwd);
+
+  // Install other default plugins
+  ensurePluginInstalled('commit-commands@claude-plugins-official', cwd);
+  ensurePluginInstalled('github@claude-plugins-official', cwd);
+  ensurePluginInstalled('frontend-design@claude-plugins-official', cwd);
+}
+
 export function listInstalledPlugins(homeDir: string = process.env.HOME || ''): InstalledPluginEntry[] {
   if (!homeDir) return [];
   const indexPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');

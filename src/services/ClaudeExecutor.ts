@@ -61,7 +61,16 @@ export class ClaudeExecutor extends EventEmitter {
 
     try {
       await execAsync('which gh');
-      await execAsync(`echo "${githubToken}" | gh auth login --with-token`, { timeout: 10000 });
+      // Use spawn to pass token via stdin (not command line) to prevent leakage
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn('gh', ['auth', 'login', '--with-token'], {
+          stdio: ['pipe', 'pipe', 'pipe'],
+        });
+        proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`exit code ${code}`)));
+        proc.on('error', reject);
+        proc.stdin.write(githubToken);
+        proc.stdin.end();
+      });
       await execAsync('gh auth setup-git', { timeout: 10000 });
       logger.info('Authenticated with GitHub CLI');
     } catch {

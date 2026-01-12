@@ -35,6 +35,7 @@ export function AIProviderSettings() {
   const [savingKey, setSavingKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [effectiveModels, setEffectiveModels] = useState<{ haiku: string; sonnet: string; opus: string } | null>(null);
 
   // Get the current API key based on provider
   const getCurrentApiKey = () => {
@@ -63,6 +64,9 @@ export function AIProviderSettings() {
           if (config.aiProvider.glmApiKey) setGlmApiKey(config.aiProvider.glmApiKey);
           if (config.aiProvider.openrouterApiKey) setOpenrouterApiKey(config.aiProvider.openrouterApiKey);
         }
+        if (config.effectiveModels) {
+          setEffectiveModels(config.effectiveModels);
+        }
       } catch (error) {
         console.error("Failed to load config:", error);
       } finally {
@@ -84,6 +88,11 @@ export function AIProviderSettings() {
           opusModel: opusModel || undefined,
         },
       });
+      // Refresh effective models after provider change
+      const config = await api.getConfig(1);
+      if (config.effectiveModels) {
+        setEffectiveModels(config.effectiveModels);
+      }
     } catch (error) {
       console.error("Failed to save provider:", error);
     } finally {
@@ -102,6 +111,11 @@ export function AIProviderSettings() {
           opusModel: opusModel || undefined,
         },
       });
+      // Refresh effective models after saving
+      const config = await api.getConfig(1);
+      if (config.effectiveModels) {
+        setEffectiveModels(config.effectiveModels);
+      }
     } catch (error) {
       console.error("Failed to save models:", error);
     } finally {
@@ -185,7 +199,9 @@ export function AIProviderSettings() {
                   <div className="text-left">
                     <p className="font-medium">{provider.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {provider.id === "anthropic"
+                      {isActive && sonnetModel
+                        ? sonnetModel
+                        : provider.id === "anthropic"
                         ? "Claude models"
                         : provider.id === "openrouter"
                         ? "Multiple providers"
@@ -208,6 +224,37 @@ export function AIProviderSettings() {
           })}
         </CardContent>
       </Card>
+
+      {effectiveModels && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Effective Models</CardTitle>
+            <CardDescription>Models currently being used for each slot</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Haiku</p>
+                <p className="text-sm font-mono bg-muted px-2 py-1 rounded truncate" title={effectiveModels.haiku}>
+                  {effectiveModels.haiku}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sonnet</p>
+                <p className="text-sm font-mono bg-muted px-2 py-1 rounded truncate" title={effectiveModels.sonnet}>
+                  {effectiveModels.sonnet}
+                </p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Opus</p>
+                <p className="text-sm font-mono bg-muted px-2 py-1 rounded truncate" title={effectiveModels.opus}>
+                  {effectiveModels.opus}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {activeProvider !== "anthropic" && (
         <Card>

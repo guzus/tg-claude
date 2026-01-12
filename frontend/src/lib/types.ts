@@ -36,6 +36,12 @@ export interface MessageAuthor {
   isBot?: boolean;
 }
 
+export interface TaskMetadata {
+  durationSeconds?: number;
+  costUsd?: number;
+  status?: "completed" | "failed" | "cancelled" | "timeout";
+}
+
 export interface Message {
   id: string;
   author: MessageAuthor;
@@ -43,6 +49,7 @@ export interface Message {
   timestamp: string;
   type?: "text" | "code" | "action";
   actionType?: "command" | "file_change" | "tool";
+  metadata?: TaskMetadata;
 }
 
 // Re-export API types for convenience

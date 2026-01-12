@@ -3,13 +3,9 @@
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Settings, LogIn, LogOut } from "lucide-react";
+import { LogIn, LogOut } from "lucide-react";
 
-interface UserPanelProps {
-  onShowSettings?: () => void;
-}
-
-export function UserPanel({ onShowSettings }: UserPanelProps) {
+export function UserPanel() {
   const { data: session, status } = useSession();
 
   const isLoading = status === "loading";
@@ -107,21 +103,6 @@ export function UserPanel({ onShowSettings }: UserPanelProps) {
           </Tooltip>
         </>
       )}
-
-      {/* Settings Button */}
-      <Tooltip delayDuration={0}>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onShowSettings}
-            className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
-          >
-            <Settings className="w-4 h-4" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-xs">Settings</TooltipContent>
-      </Tooltip>
     </div>
   );
 }

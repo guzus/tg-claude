@@ -2,8 +2,6 @@
  * Slash command parsing and handling for the API
  */
 
-import { AIProviderConfig } from '../types';
-
 export interface SlashCommandOptions {
   ralphLoop?: { completionPromise: string; maxIterations: number };
   // Add more command-specific options here as needed

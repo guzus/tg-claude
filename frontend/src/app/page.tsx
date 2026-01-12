@@ -1,13 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api, type Task } from "@/lib/api";
 import { useChatContext } from "@/components/chat/chat-layout";
 import { FileViewer } from "@/components/chat/file-viewer";
 import { SettingsView } from "@/components/chat/settings-view";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { WelcomeSection } from "@/components/chat/welcome-section";
 import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatInput, fileToImageContent, type SelectedImage } from "@/components/chat/chat-input";
@@ -22,7 +21,6 @@ export default function HomePage() {
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession } = useChatContext();
 
   // Fetch all tasks
@@ -92,13 +90,26 @@ export default function HomePage() {
           type: "text",
         });
 
-        if (t.output) {
+        if (t.output || t.status === "completed" || t.status === "failed" || t.status === "cancelled") {
+          // Calculate duration if we have both start and end times
+          let durationSeconds: number | undefined;
+          if (t.startTime && t.endTime) {
+            durationSeconds = Math.round(
+              (new Date(t.endTime).getTime() - new Date(t.startTime).getTime()) / 1000
+            );
+          }
+
           sessionMessages.push({
             id: `${t.id}-output`,
             author: { name: "Claude", isBot: true },
-            content: t.output,
+            content: t.output || (t.status === "cancelled" ? "Task was cancelled." : t.status === "failed" ? "Task failed." : ""),
             timestamp: t.endTime || t.startTime,
             type: "text",
+            metadata: {
+              durationSeconds,
+              costUsd: t.costUsd,
+              status: t.status as "completed" | "failed" | "cancelled" | "timeout" | undefined,
+            },
           });
         }
       }
@@ -118,9 +129,6 @@ export default function HomePage() {
     }
   }, [activeSession, tasks, pendingMessage]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,7 +179,11 @@ export default function HomePage() {
         }
       );
 
-      // If this was a new session (draft or empty), switch to the new task
+      // Immediately fetch tasks to get the new task
+      await fetchTasks();
+
+      // If this was a new session (draft or empty), switch to the new task AFTER fetching
+      // This ensures the task is in the list before we switch to it
       if (isNewSession) {
         if (wasDraftSession) {
           removeDraftSession(activeSession as `draft-${string}`);
@@ -182,9 +194,6 @@ export default function HomePage() {
         }
       }
       // For existing task sessions, stay on the same session (the new task will appear there)
-
-      // Immediately fetch tasks to get the new task
-      await fetchTasks();
     } catch (error) {
       console.error("Failed to create task:", error);
       // Clear pending message on error
@@ -258,9 +267,6 @@ export default function HomePage() {
       {/* Messages */}
       <ScrollArea className="flex-1">
         <div className="py-6">
-          {/* Welcome Message */}
-          <WelcomeSection />
-
           {/* Messages */}
           <div className="space-y-0">
             {filteredMessages.length === 0 && searchQuery.trim() ? (
@@ -298,9 +304,6 @@ export default function HomePage() {
 
           {/* Typing Indicator */}
           {isTyping && !runningTask && <TypingIndicator />}
-
-          {/* Scroll anchor */}
-          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 

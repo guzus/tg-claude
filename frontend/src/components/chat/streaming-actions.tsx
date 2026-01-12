@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import { api, type StreamAction, type StreamEvent } from "@/lib/api";
-import { Check, X, Loader2 } from "lucide-react";
+import { Check, X, Loader2, Square } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface ActionEvent {
   action: StreamAction;
@@ -35,7 +36,18 @@ export function StreamingActions({ taskId, onComplete }: StreamingActionsProps) 
   const [currentAction, setCurrentAction] = useState<StreamAction | undefined>();
   const [elapsed, setElapsed] = useState(0);
   const [isComplete, setIsComplete] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const startTimeRef = useRef<Date | null>(null);
+
+  const handleCancel = async () => {
+    if (isCancelling) return;
+    setIsCancelling(true);
+    try {
+      await api.cancelTask(taskId);
+    } catch (error) {
+      console.error("Failed to cancel task:", error);
+    }
+  };
 
   useEffect(() => {
     if (!taskId) return;
@@ -98,11 +110,23 @@ export function StreamingActions({ taskId, onComplete }: StreamingActionsProps) 
 
   return (
     <div className="px-6 py-3 mx-4 border-l-2 border-amber-500/50 bg-amber-500/5">
-      {/* Header with timer */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-        <Loader2 className="w-3 h-3 animate-spin" />
-        <span className="font-medium">{formatDuration(elapsed)}</span>
-        <span className="text-muted-foreground/60">· Claude</span>
+      {/* Header with timer and stop button */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          <span className="font-medium">{formatDuration(elapsed)}</span>
+          <span className="text-muted-foreground/60">· Claude</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleCancel}
+          disabled={isCancelling}
+          className="h-6 px-2 text-xs text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
+        >
+          <Square className="w-3 h-3 mr-1 fill-current" />
+          {isCancelling ? "Stopping..." : "Stop"}
+        </Button>
       </div>
 
       {/* Action history */}

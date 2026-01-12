@@ -158,6 +158,7 @@ export interface UserConfig {
   aiProvider?: AIProviderConfig;
   claudeMdTemplate?: string;
   mcpConfigs?: Record<string, McpConfig>;
+  enabledPlugins?: string[]; // List of enabled plugin IDs (e.g., ['ralph-loop', 'commit-commands'])
   limits?: {
     maxConcurrentTasks?: number;
     taskTimeoutMs?: number;

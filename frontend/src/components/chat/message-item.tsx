@@ -1,8 +1,8 @@
 "use client";
 
 import { cn, formatDate } from "@/lib/utils";
-import { Bot, User, Terminal, FileCode, CheckCircle2 } from "lucide-react";
-import { type Message } from "@/lib/types";
+import { Bot, User, Terminal, FileCode, CheckCircle2, Clock, DollarSign } from "lucide-react";
+import { type Message, type TaskMetadata } from "@/lib/types";
 
 export type { Message };
 
@@ -10,6 +10,54 @@ interface MessageItemProps {
   message: Message;
   showHeader: boolean;
   highlightText?: string;
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${secs}s`;
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  return `${hours}h ${mins}m`;
+}
+
+function formatCost(usd: number): string {
+  if (usd < 0.01) return `$${usd.toFixed(4)}`;
+  if (usd < 1) return `$${usd.toFixed(3)}`;
+  return `$${usd.toFixed(2)}`;
+}
+
+function TaskMetadataFooter({ metadata }: { metadata: TaskMetadata }) {
+  const hasData = metadata.durationSeconds !== undefined || metadata.costUsd !== undefined;
+  if (!hasData) return null;
+
+  return (
+    <div className="flex items-center gap-3 mt-2 pt-2 border-t border-border/50 text-xs text-muted-foreground">
+      {metadata.durationSeconds !== undefined && (
+        <div className="flex items-center gap-1">
+          <Clock className="w-3 h-3" />
+          <span>{formatDuration(metadata.durationSeconds)}</span>
+        </div>
+      )}
+      {metadata.costUsd !== undefined && (
+        <div className="flex items-center gap-1">
+          <DollarSign className="w-3 h-3" />
+          <span>{formatCost(metadata.costUsd)}</span>
+        </div>
+      )}
+      {metadata.status && metadata.status !== "completed" && (
+        <span className={cn(
+          "px-1.5 py-0.5 rounded text-[10px] font-medium",
+          metadata.status === "failed" && "bg-red-500/10 text-red-500",
+          metadata.status === "cancelled" && "bg-amber-500/10 text-amber-500",
+          metadata.status === "timeout" && "bg-orange-500/10 text-orange-500"
+        )}>
+          {metadata.status}
+        </span>
+      )}
+    </div>
+  );
 }
 
 function HighlightedText({ text, highlight }: { text: string; highlight?: string }) {
@@ -119,6 +167,10 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
           <div className="text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
             <HighlightedText text={message.content} highlight={highlightText} />
           </div>
+          {/* Task metadata footer for bot messages */}
+          {message.author.isBot && message.metadata && (
+            <TaskMetadataFooter metadata={message.metadata} />
+          )}
         </div>
       </div>
     </div>

@@ -20,7 +20,6 @@ import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { gitService } from './GitService';
 import { PLUGIN_PRESETS } from '../presets';
-import { buildRalphLoopPrompt } from '../utils/RalphPrompt';
 import { getInstalledPluginPath } from './ClaudePluginMarketplace';
 import { configureProviderEnv } from '../utils/ClaudeRunner';
 import { TaskStateStore, PersistedTaskState } from './TaskStateStore';
@@ -372,18 +371,33 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
-    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
     // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
+    const effectiveResumeSessionId = options.newSession
+      ? undefined
+      : (options.resumeSessionId ?? this.sessionStore.getSession(chatId));
+
+    // Pre-assign sessionId if we're resuming - this ensures the task appears in the correct session
+    // even if it fails before the SDK responds with session info
+    const task = this.createTask(userId, chatId, prompt, workingDir, {
+      images: options.images,
+      sessionId: effectiveResumeSessionId,
+    });
+
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
+      resumeSessionId: effectiveResumeSessionId,
     };
 
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, effectiveOptions));
+
     void this.runTask(task, effectiveOptions).catch((error) => {
-      logger.error('Agent SDK task failed', { taskId: task.id, error: getErrorMessage(error) });
+      logger.error('Agent SDK task failed', {
+        taskId: task.id,
+        error: getErrorMessage(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     });
 
     return task;
@@ -396,15 +410,26 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
-    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
     // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
+    const effectiveResumeSessionId = options.newSession
+      ? undefined
+      : (options.resumeSessionId ?? this.sessionStore.getSession(chatId));
+
+    // Pre-assign sessionId if we're resuming - this ensures the task appears in the correct session
+    // even if it fails before the SDK responds with session info
+    const task = this.createTask(userId, chatId, prompt, workingDir, {
+      images: options.images,
+      sessionId: effectiveResumeSessionId,
+    });
+
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
+      resumeSessionId: effectiveResumeSessionId,
     };
+
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, effectiveOptions));
 
     await this.runTask(task, effectiveOptions);
     return task;
@@ -434,6 +459,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     });
 
     try {
+      logger.debug('Task setup: checking working directory', { taskId: task.id, workingDir });
       if (!fs.existsSync(workingDir)) {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
       }
@@ -448,6 +474,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       const provider = aiProvider?.provider || 'anthropic';
       const model = this.getModel(aiProvider);
+      logger.debug('Task setup: provider and model ready', { taskId: task.id, provider, model });
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
       task.status = TaskStatus.RUNNING;
@@ -514,7 +541,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
           return { continue: true };
         } : undefined;
 
-        // Build the final prompt - add ralph loop instructions if enabled
+        // Final prompt - ralph loop plugin handles its own behavior
         let finalPrompt = effectivePrompt;
         const plugins: Array<{ type: 'local'; path: string }> = [];
 
@@ -531,21 +558,39 @@ export class AnthropicSdkExecutor extends EventEmitter {
           }
         }
 
+        let ralphLoopPluginLoaded = false;
         if (ralphLoop) {
-          finalPrompt = buildRalphLoopPrompt({
-            request: task.prompt,
-            maxIterations: ralphLoop.maxIterations,
-            completionPromise: ralphLoop.completionPromise,
-          });
-
+          // Load ralph-loop plugin - the plugin handles loop behavior via Stop hook
           const preset = PLUGIN_PRESETS['ralph-loop'];
           const pluginSpec = preset ? `${preset.name}@${preset.registry}` : 'ralph-loop@claude-plugins-official';
           const pluginPath = getInstalledPluginPath(pluginSpec);
           if (pluginPath) {
             plugins.push({ type: 'local', path: pluginPath });
+            ralphLoopPluginLoaded = true;
           } else {
-            logger.warn('Ralph loop plugin path not found for SDK session', { pluginSpec });
+            logger.warn('Ralph loop plugin not found, using fallback prompt injection', { pluginSpec });
           }
+        }
+
+        // If ralph loop is enabled but plugin not available, inject instructions into prompt
+        if (ralphLoop && !ralphLoopPluginLoaded) {
+          const ralphLoopInstructions = `
+# Ralph Loop Mode
+
+You are in an autonomous development loop. Please work on the following task:
+
+${finalPrompt}
+
+## Important Instructions:
+- Work autonomously until the task is complete
+- When you try to exit, you will be prompted again to continue iterating
+- You can see your previous work in files and git history
+- Output "${ralphLoop.completionPromise}" ONLY when the task is genuinely complete
+- Do NOT output the completion promise prematurely to escape the loop
+- Maximum iterations: ${ralphLoop.maxIterations}
+
+Start working on the task now.`;
+          finalPrompt = ralphLoopInstructions;
         }
 
         const mcpServers = mcpServersOverride || await this.readMcpServers(workingDir);
@@ -584,6 +629,14 @@ export class AnthropicSdkExecutor extends EventEmitter {
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
+        logger.debug('Task setup: calling query()', {
+          taskId: task.id,
+          model,
+          workingDir,
+          hasPlugins: plugins.length > 0,
+          hasStopHook: !!stopHook,
+          hasResume: !!resumeSessionId
+        });
         const q = query({
           prompt: promptInput,
           options: {

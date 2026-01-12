@@ -1,9 +1,49 @@
-import { exec } from 'child_process';
+import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 
 const execAsync = promisify(exec);
+
+/**
+ * Sanitize error messages to remove any tokens
+ */
+function sanitizeError(error: unknown): string {
+  const msg = getErrorMessage(error);
+  // Redact GitHub PAT tokens (ghp_..., gho_..., ghs_..., ghr_...)
+  return msg.replace(/gh[opsr]_[a-zA-Z0-9]+/g, '[REDACTED]');
+}
+
+/**
+ * Run gh auth login with token via stdin (not command line)
+ */
+function ghAuthLogin(token: string): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('gh', ['auth', 'login', '--with-token'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    proc.stdout.on('data', (data) => { stdout += data.toString(); });
+    proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+      } else {
+        reject(new Error(`gh auth login failed with exit code ${code}: ${stderr}`));
+      }
+    });
+
+    proc.on('error', reject);
+
+    // Write token to stdin and close
+    proc.stdin.write(token);
+    proc.stdin.end();
+  });
+}
 
 /**
  * Service for handling GitHub CLI operations
@@ -28,7 +68,7 @@ export class GitHubService {
     try {
       logger.info('Authenticating with GitHub CLI...');
 
-      // First check if already authenticated (GITHUB_TOKEN env var might be in use)
+      // First check if already authenticated (GITHUB_PAT env var might be in use)
       const isAlreadyAuth = await this.checkAuthStatus();
       if (isAlreadyAuth) {
         logger.info('GitHub CLI already authenticated via environment variable');
@@ -36,12 +76,8 @@ export class GitHubService {
         return true;
       }
 
-      // Unset GITHUB_TOKEN temporarily to allow gh auth login --with-token
-      // The gh CLI prioritizes env vars over stdin, which causes conflicts
-      const { stderr } = await execAsync(
-        `unset GITHUB_TOKEN && echo "${this.token}" | gh auth login --with-token`,
-        { shell: '/bin/bash' }
-      );
+      // Use stdin to pass token (not command line args) to prevent leakage
+      const { stderr } = await ghAuthLogin(this.token);
 
       if (stderr && !stderr.includes('Logged in')) {
         logger.warn('GitHub authentication warning', { stderr });
@@ -56,8 +92,9 @@ export class GitHubService {
       this.isAuthenticated = true;
       return true;
     } catch (error) {
+      // Sanitize error message to prevent token leakage in logs
       logger.error('GitHub authentication failed', {
-        error: getErrorMessage(error)
+        error: sanitizeError(error)
       });
       this.isAuthenticated = false;
       return false;
