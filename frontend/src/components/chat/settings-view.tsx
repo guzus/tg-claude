@@ -44,7 +44,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </Button>
       </div>
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Sidebar */}
         <div className="w-56 border-r border-border bg-secondary/30 overflow-hidden">
           <ScrollArea className="h-full">
@@ -70,7 +70,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 h-full overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-6 max-w-3xl">
               {activeSection === "ai" && <AIProviderSettings />}
