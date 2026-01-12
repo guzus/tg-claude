@@ -4,10 +4,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Settings, Github } from "lucide-react";
+import { Settings, Github, X } from "lucide-react";
 import { api, type FileNode, type Task } from "@/lib/api";
 import { ChatTab, FoldersTab, HistoryTab, UserPanel, type Session } from "./sidebar";
-import { type DraftSession } from "./chat-layout";
+import { type DraftSession, useChatContext } from "./chat-layout";
 
 const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
@@ -59,6 +59,7 @@ export function ChatSidebar({
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const { isMobileSidebarOpen, closeMobileSidebar } = useChatContext();
 
   // Handle resize drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -216,8 +217,12 @@ export function ChatSidebar({
   return (
     <div
       ref={sidebarRef}
-      className="bg-secondary/30 flex flex-col border-r border-border relative"
-      style={{ width: sidebarWidth }}
+      className={cn(
+        "bg-secondary/30 flex flex-col border-r border-border relative h-full",
+        // On mobile when sidebar is open, use fixed width
+        isMobileSidebarOpen ? "w-[280px] md:w-auto" : ""
+      )}
+      style={{ width: isMobileSidebarOpen ? undefined : sidebarWidth }}
     >
       {/* Workspace Header */}
       <div className="h-14 px-4 flex items-center justify-between border-b border-border bg-card shadow-subtle">
@@ -253,6 +258,13 @@ export function ChatSidebar({
               Settings
             </TooltipContent>
           </Tooltip>
+          {/* Mobile close button */}
+          <button
+            onClick={closeMobileSidebar}
+            className="w-7 h-7 md:hidden flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
@@ -324,11 +336,11 @@ export function ChatSidebar({
       {/* User Panel */}
       <UserPanel />
 
-      {/* Resize Handle */}
+      {/* Resize Handle - hidden on mobile */}
       <div
         onMouseDown={handleMouseDown}
         className={cn(
-          "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
+          "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors hidden md:block",
           isResizing && "bg-primary/50"
         )}
       />

@@ -153,3 +153,77 @@ code {
 pre code {
   @apply p-0 bg-transparent;
 }
+
+/* Mobile-specific styles */
+@media (max-width: 768px) {
+  /* Prevent text selection on touch interactions */
+  .workspace-icon {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  /* Larger touch targets on mobile */
+  button, a {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Safe area insets for notched devices */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .safe-area-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Prevent pull-to-refresh on chat area */
+  .no-overscroll {
+    overscroll-behavior: contain;
+  }
+}
+
+/* Mobile sidebar animation */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOut {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.sidebar-enter {
+  animation: slideIn 0.2s ease-out forwards;
+}
+
+.sidebar-exit {
+  animation: slideOut 0.2s ease-in forwards;
+}
+
+/* Touch-friendly scrollbar */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    width: 3px;
+    height: 3px;
+  }
+}
+
+/* Improve input focus on mobile */
+@media (max-width: 768px) {
+  input:focus, textarea:focus {
+    font-size: 16px; /* Prevents zoom on iOS */
+  }
+}

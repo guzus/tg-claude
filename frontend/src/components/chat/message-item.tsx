@@ -136,8 +136,8 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
 
   if (isAction) {
     return (
-      <div className="px-6 py-1.5 flex items-center gap-3 text-sm text-muted-foreground hover:bg-secondary/50 rounded-lg mx-4">
-        <div className="w-10 flex justify-center">
+      <div className="px-3 md:px-6 py-1.5 flex items-center gap-2 md:gap-3 text-sm text-muted-foreground hover:bg-secondary/50 rounded-lg mx-2 md:mx-4">
+        <div className="w-6 md:w-10 flex justify-center shrink-0">
           {message.actionType === "command" && (
             <Terminal className="w-4 h-4 text-amber-600" />
           )}
@@ -148,10 +148,10 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
             <CheckCircle2 className="w-4 h-4 text-primary" />
           )}
         </div>
-        <span className="font-mono text-xs">
+        <span className="font-mono text-xs truncate flex-1 min-w-0">
           <HighlightedText text={message.content} highlight={highlightText} />
         </span>
-        <span className="text-[10px] text-muted-foreground ml-auto">
+        <span className="text-[10px] text-muted-foreground shrink-0">
           {new Date(message.timestamp).toLocaleTimeString([], {
             hour: "2-digit",
             minute: "2-digit",
@@ -164,26 +164,26 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
   return (
     <div
       className={cn(
-        "group px-6 py-1 hover:bg-secondary/30 mx-4 rounded-lg",
-        showHeader && "mt-4 pt-2"
+        "group px-3 md:px-6 py-1 hover:bg-secondary/30 mx-2 md:mx-4 rounded-lg",
+        showHeader && "mt-3 md:mt-4 pt-2"
       )}
     >
-      <div className="flex gap-4">
+      <div className="flex gap-2 md:gap-4">
         {/* Avatar */}
         {showHeader ? (
-          <div className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center overflow-hidden">
+          <div className="w-8 h-8 md:w-10 md:h-10 rounded-full shrink-0 flex items-center justify-center overflow-hidden">
             {message.author.isBot ? (
               <div className="w-full h-full bg-primary flex items-center justify-center">
-                <Bot className="w-5 h-5 text-primary-foreground" />
+                <Bot className="w-4 h-4 md:w-5 md:h-5 text-primary-foreground" />
               </div>
             ) : (
               <div className="w-full h-full bg-foreground flex items-center justify-center">
-                <User className="w-5 h-5 text-background" />
+                <User className="w-4 h-4 md:w-5 md:h-5 text-background" />
               </div>
             )}
           </div>
         ) : (
-          <div className="w-10 shrink-0 flex items-center justify-center">
+          <div className="w-8 md:w-10 shrink-0 flex items-center justify-center">
             <span className="text-[10px] text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
               {new Date(message.timestamp).toLocaleTimeString([], {
                 hour: "2-digit",
@@ -196,25 +196,25 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
         {/* Content */}
         <div className="flex-1 min-w-0">
           {showHeader && (
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex items-center gap-1.5 md:gap-2 mb-1 flex-wrap">
               <span
                 className={cn(
-                  "font-semibold hover:underline cursor-pointer",
+                  "font-semibold hover:underline cursor-pointer text-sm md:text-base",
                   message.author.isBot ? "text-primary" : "text-foreground"
                 )}
               >
                 {message.author.name}
               </span>
               {message.author.isBot && (
-                <span className="badge badge-primary">BOT</span>
+                <span className="badge badge-primary text-[9px] md:text-[10px]">BOT</span>
               )}
-              <span className="text-xs text-muted-foreground">
+              <span className="text-[10px] md:text-xs text-muted-foreground">
                 {formatDate(message.timestamp)}
               </span>
             </div>
           )}
           <div className={cn(
-            "text-[15px] leading-relaxed text-foreground break-words",
+            "text-sm md:text-[15px] leading-relaxed text-foreground break-words",
             !message.author.isBot && "whitespace-pre-wrap"
           )}>
             {message.author.isBot ? (

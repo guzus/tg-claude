@@ -145,7 +145,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
   };
 
   return (
-    <form onSubmit={onSubmit} className="px-4 pb-4">
+    <form onSubmit={onSubmit} className="px-3 md:px-4 pb-3 md:pb-4">
       <div className="relative rounded-xl bg-card border border-border shadow-subtle">
         {/* Slash Command Menu */}
         {showCommands && filteredCommands.length > 0 && (
@@ -168,7 +168,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
                       : "hover:bg-secondary text-foreground"
                   )}
                 >
-                  <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-muted-foreground">
+                  <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-muted-foreground shrink-0">
                     {cmd.icon}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -176,7 +176,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
                     <div className="text-xs text-muted-foreground truncate">{cmd.description}</div>
                   </div>
                   {cmd.category && (
-                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] text-muted-foreground bg-secondary px-1.5 py-0.5 rounded hidden sm:inline">
                       {cmd.category}
                     </span>
                   )}
@@ -194,12 +194,12 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
                 <img
                   src={image.preview}
                   alt="Upload preview"
-                  className="w-16 h-16 object-cover rounded-lg border border-border"
+                  className="w-14 h-14 md:w-16 md:h-16 object-cover rounded-lg border border-border"
                 />
                 <button
                   type="button"
                   onClick={() => removeImage(image.id)}
-                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                 >
                   <X className="w-3 h-3" />
                 </button>
@@ -219,7 +219,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
         />
 
         {/* Attach Button */}
-        <div className="absolute left-3 bottom-3">
+        <div className="absolute left-2 md:left-3 bottom-2 md:bottom-3">
           <Button
             type="button"
             variant="ghost"
@@ -241,14 +241,14 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDownInternal}
-          placeholder={images.length > 0 ? "Add a message about the image(s)..." : "Message Claude... (type / for commands)"}
+          placeholder={images.length > 0 ? "Add a message..." : "Message Claude..."}
           rows={1}
-          className="w-full bg-transparent text-[15px] py-3.5 px-14 resize-none focus:outline-none placeholder:text-muted-foreground"
-          style={{ minHeight: "52px", maxHeight: "200px" }}
+          className="w-full bg-transparent text-[15px] py-3 md:py-3.5 px-12 md:px-14 resize-none focus:outline-none placeholder:text-muted-foreground"
+          style={{ minHeight: "48px", maxHeight: "200px" }}
         />
 
         {/* Send Button */}
-        <div className="absolute right-3 bottom-3">
+        <div className="absolute right-2 md:right-3 bottom-2 md:bottom-3">
           <Button
             type="submit"
             size="icon"
@@ -264,9 +264,10 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
           </Button>
         </div>
       </div>
-      <p className="text-[11px] text-muted-foreground text-center mt-2">
-        Press Enter to send, Shift+Enter for new line
-        {images.length > 0 && ` • ${images.length} image${images.length > 1 ? "s" : ""} attached`}
+      <p className="text-[10px] md:text-[11px] text-muted-foreground text-center mt-2">
+        <span className="hidden sm:inline">Press Enter to send, Shift+Enter for new line</span>
+        <span className="sm:hidden">Tap send button to send</span>
+        {images.length > 0 && ` • ${images.length} image${images.length > 1 ? "s" : ""}`}
       </p>
     </form>
   );
