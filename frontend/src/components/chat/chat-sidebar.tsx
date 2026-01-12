@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -8,6 +8,10 @@ import { Settings, Github } from "lucide-react";
 import { api, type FileNode, type Task } from "@/lib/api";
 import { ChatTab, FoldersTab, HistoryTab, UserPanel, type Session } from "./sidebar";
 import { type DraftSession } from "./chat-layout";
+
+const MIN_WIDTH = 200;
+const MAX_WIDTH = 400;
+const DEFAULT_WIDTH = 256;
 
 interface ChatSidebarProps {
   workspaceName?: string;
@@ -46,6 +50,41 @@ export function ChatSidebar({
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const [fileTreeVersion, setFileTreeVersion] = useState(0);
+  const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const sidebarRef = useRef<HTMLDivElement>(null);
+
+  // Handle resize drag
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isResizing) return;
+      const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX - 68)); // 68px is server bar width
+      setSidebarWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    if (isResizing) {
+      document.addEventListener("mousemove", handleMouseMove);
+      document.addEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    }
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+  }, [isResizing]);
 
   // Fetch sessions from tasks - group by sessionId
   useEffect(() => {
@@ -165,7 +204,11 @@ export function ChatSidebar({
   };
 
   return (
-    <div className="w-64 bg-secondary/30 flex flex-col border-r border-border">
+    <div
+      ref={sidebarRef}
+      className="bg-secondary/30 flex flex-col border-r border-border relative"
+      style={{ width: sidebarWidth }}
+    >
       {/* Workspace Header */}
       <div className="h-14 px-4 flex items-center justify-between border-b border-border bg-card shadow-subtle">
         <h2 className="font-semibold text-[15px] truncate flex-1">{workspaceName}</h2>
@@ -267,6 +310,15 @@ export function ChatSidebar({
 
       {/* User Panel */}
       <UserPanel />
+
+      {/* Resize Handle */}
+      <div
+        onMouseDown={handleMouseDown}
+        className={cn(
+          "absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/50 transition-colors",
+          isResizing && "bg-primary/50"
+        )}
+      />
     </div>
   );
 }
