@@ -122,6 +122,11 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
+    // Reset active session when switching workspaces
+    setActiveSession("");
+    setSelectedFile(null);
+    setShowSettings(false);
+
     const fetchRepository = async () => {
       try {
         const repos = await api.getRepositories(1);
