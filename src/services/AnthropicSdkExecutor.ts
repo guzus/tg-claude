@@ -371,15 +371,26 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): ClaudeTaskWithStreaming {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
-    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
     // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
+    const effectiveResumeSessionId = options.newSession
+      ? undefined
+      : (options.resumeSessionId ?? this.sessionStore.getSession(chatId));
+
+    // Pre-assign sessionId if we're resuming - this ensures the task appears in the correct session
+    // even if it fails before the SDK responds with session info
+    const task = this.createTask(userId, chatId, prompt, workingDir, {
+      images: options.images,
+      sessionId: effectiveResumeSessionId,
+    });
+
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
+      resumeSessionId: effectiveResumeSessionId,
     };
+
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, effectiveOptions));
 
     void this.runTask(task, effectiveOptions).catch((error) => {
       logger.error('Agent SDK task failed', {
@@ -399,15 +410,26 @@ export class AnthropicSdkExecutor extends EventEmitter {
     options: TaskRunOptions = {}
   ): Promise<ClaudeTaskWithStreaming> {
     const workingDir = options.workingDir || WORKSPACE_PATH;
-    const task = this.createTask(userId, chatId, prompt, workingDir, { images: options.images });
-    this.taskStateStore.upsertTask(this.buildPersistedTask(task, options));
 
     // Auto-resume previous session for this chat if not explicitly provided
     // Skip auto-resume if newSession flag is set (user wants a fresh conversation)
+    const effectiveResumeSessionId = options.newSession
+      ? undefined
+      : (options.resumeSessionId ?? this.sessionStore.getSession(chatId));
+
+    // Pre-assign sessionId if we're resuming - this ensures the task appears in the correct session
+    // even if it fails before the SDK responds with session info
+    const task = this.createTask(userId, chatId, prompt, workingDir, {
+      images: options.images,
+      sessionId: effectiveResumeSessionId,
+    });
+
     const effectiveOptions = {
       ...options,
-      resumeSessionId: options.newSession ? undefined : (options.resumeSessionId ?? this.sessionStore.getSession(chatId)),
+      resumeSessionId: effectiveResumeSessionId,
     };
+
+    this.taskStateStore.upsertTask(this.buildPersistedTask(task, effectiveOptions));
 
     await this.runTask(task, effectiveOptions);
     return task;
