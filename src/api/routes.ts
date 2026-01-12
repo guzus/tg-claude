@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { Repository, TaskStatus, StreamEvent } from '../types';
+import { Repository, TaskStatus, StreamEvent, AIProvider, GLM_MODEL_MAPPINGS, OPENROUTER_MODEL_MAPPINGS, UserConfig } from '../types';
 import { ClaudeExecutorInstance } from '../services/IClaudeExecutor';
 import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';
@@ -20,6 +20,32 @@ interface FileNode {
   path: string;
   type: 'file' | 'directory';
   children?: FileNode[];
+}
+
+/**
+ * Compute effective model names based on provider and user config
+ */
+function getEffectiveModels(provider: AIProvider, config: UserConfig): { haiku: string; sonnet: string; opus: string } {
+  const ai = config.aiProvider;
+
+  if (provider === 'glm') {
+    return {
+      haiku: ai?.haikuModel || GLM_MODEL_MAPPINGS.haiku,
+      sonnet: ai?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet,
+      opus: ai?.opusModel || GLM_MODEL_MAPPINGS.opus,
+    };
+  }
+
+  if (provider === 'openrouter') {
+    return {
+      haiku: ai?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku,
+      sonnet: ai?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet,
+      opus: ai?.opusModel || OPENROUTER_MODEL_MAPPINGS.opus,
+    };
+  }
+
+  // Anthropic: show Claude Code's internal slot names
+  return { haiku: 'haiku', sonnet: 'sonnet', opus: 'opus' };
 }
 
 async function buildFileTree(dirPath: string, relativePath: string = ''): Promise<FileNode[]> {
@@ -597,7 +623,13 @@ export function createApiRoutes(
       }
 
       const config = await userConfigManager.getConfig(userId);
-      res.json(config);
+      const provider: AIProvider = config.aiProvider?.provider || 'anthropic';
+      const effectiveModels = getEffectiveModels(provider, config);
+
+      res.json({
+        ...config,
+        effectiveModels,
+      });
     } catch (error) {
       logger.error('API: Failed to get config', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to get config' });
