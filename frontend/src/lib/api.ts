@@ -62,6 +62,7 @@ export interface UserConfig {
   };
   mcpConfigs?: Record<string, McpConfig>;
   claudeMdTemplate?: string;
+  enabledPlugins?: string[];
 }
 
 export interface McpConfig {

@@ -181,6 +181,9 @@ export class UserConfigManager {
     if (updates.deletedRepositories !== undefined) {
       config.deletedRepositories = updates.deletedRepositories;
     }
+    if (updates.enabledPlugins !== undefined) {
+      config.enabledPlugins = updates.enabledPlugins;
+    }
 
     config.updatedAt = new Date();
 
