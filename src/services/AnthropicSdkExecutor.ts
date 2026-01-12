@@ -382,7 +382,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
     };
 
     void this.runTask(task, effectiveOptions).catch((error) => {
-      logger.error('Agent SDK task failed', { taskId: task.id, error: getErrorMessage(error) });
+      logger.error('Agent SDK task failed', {
+        taskId: task.id,
+        error: getErrorMessage(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
     });
 
     return task;
@@ -433,6 +437,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
     });
 
     try {
+      logger.debug('Task setup: checking working directory', { taskId: task.id, workingDir });
       if (!fs.existsSync(workingDir)) {
         throw new Error(`Working directory does not exist: ${workingDir}. Use /repo to set up a repository first.`);
       }
@@ -447,6 +452,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       const provider = aiProvider?.provider || 'anthropic';
       const model = this.getModel(aiProvider);
+      logger.debug('Task setup: provider and model ready', { taskId: task.id, provider, model });
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
       task.status = TaskStatus.RUNNING;
@@ -601,6 +607,14 @@ Start working on the task now.`;
         }
 
         // Use the v1 query API which supports cwd and bypassPermissions
+        logger.debug('Task setup: calling query()', {
+          taskId: task.id,
+          model,
+          workingDir,
+          hasPlugins: plugins.length > 0,
+          hasStopHook: !!stopHook,
+          hasResume: !!resumeSessionId
+        });
         const q = query({
           prompt: promptInput,
           options: {
