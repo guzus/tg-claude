@@ -70,7 +70,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 h-0 overflow-y-auto">
           <div className="p-6 max-w-3xl">
             {activeSection === "ai" && <AIProviderSettings />}
             {activeSection === "mcp" && <McpServerSettings />}
