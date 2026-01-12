@@ -7,7 +7,6 @@ import { useChatContext } from "@/components/chat/chat-layout";
 import { FileViewer } from "@/components/chat/file-viewer";
 import { SettingsView } from "@/components/chat/settings-view";
 import { ChatHeader } from "@/components/chat/chat-header";
-import { WelcomeSection } from "@/components/chat/welcome-section";
 import { MessageItem } from "@/components/chat/message-item";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { ChatInput, fileToImageContent, type SelectedImage } from "@/components/chat/chat-input";
@@ -268,9 +267,6 @@ export default function HomePage() {
       {/* Messages */}
       <ScrollArea className="flex-1">
         <div className="py-6">
-          {/* Welcome Message */}
-          <WelcomeSection />
-
           {/* Messages */}
           <div className="space-y-0">
             {filteredMessages.length === 0 && searchQuery.trim() ? (
