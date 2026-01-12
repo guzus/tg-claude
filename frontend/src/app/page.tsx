@@ -99,10 +99,22 @@ export default function HomePage() {
             );
           }
 
+          // Determine the output content with appropriate fallbacks
+          let outputContent = t.output;
+          if (!outputContent) {
+            if (t.status === "cancelled") {
+              outputContent = "Task was cancelled.";
+            } else if (t.status === "failed") {
+              outputContent = t.errorOutput || "Task failed.";
+            } else if (t.status === "completed") {
+              outputContent = "*No response was recorded for this task.*";
+            }
+          }
+
           sessionMessages.push({
             id: `${t.id}-output`,
             author: { name: "Claude", isBot: true },
-            content: t.output || (t.status === "cancelled" ? "Task was cancelled." : t.status === "failed" ? "Task failed." : ""),
+            content: outputContent || "",
             timestamp: t.endTime || t.startTime,
             type: "text",
             metadata: {
