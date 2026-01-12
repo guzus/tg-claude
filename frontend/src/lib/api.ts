@@ -60,6 +60,11 @@ export interface UserConfig {
     sonnetModel?: string;
     opusModel?: string;
   };
+  effectiveModels?: {
+    haiku: string;
+    sonnet: string;
+    opus: string;
+  };
   mcpConfigs?: Record<string, McpConfig>;
   claudeMdTemplate?: string;
   enabledPlugins?: string[];
