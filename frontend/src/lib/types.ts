@@ -9,6 +9,7 @@ export interface DraftSession {
   id: `draft-${string}`;
   name: string;
   createdAt: string;
+  repositoryId?: string;
 }
 
 export interface TaskSession {

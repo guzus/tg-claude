@@ -95,13 +95,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       id,
       name: "New Session",
       createdAt: new Date().toISOString(),
+      repositoryId: activeWorkspace || undefined,
     };
     setDraftSessions((prev) => [newSession, ...prev]);
     setActiveSession(id);
     setSelectedFile(null);
     setShowSettings(false);
     return id;
-  }, []);
+  }, [activeWorkspace]);
 
   // Remove a draft session (when it becomes a real task)
   const removeDraftSession = useCallback((id: DraftSession["id"]) => {

@@ -122,13 +122,15 @@ export function ChatSidebar({
           });
         }
 
-        // Convert draft sessions to Session format
-        const draftSessionsList: Session[] = draftSessions.map((ds) => ({
-          id: ds.id,
-          name: ds.name,
-          status: "idle" as const,
-          timestamp: ds.createdAt,
-        }));
+        // Convert draft sessions to Session format (filtered by current repository)
+        const draftSessionsList: Session[] = draftSessions
+          .filter((ds) => ds.repositoryId === repositoryId)
+          .map((ds) => ({
+            id: ds.id,
+            name: ds.name,
+            status: "idle" as const,
+            timestamp: ds.createdAt,
+          }));
 
         // Combine all sessions (excluding default which is always first)
         const allSessions = [...draftSessionsList, ...taskSessions.slice(0, 9)];
@@ -153,13 +155,15 @@ export function ChatSidebar({
 
         setSessions(allSessions);
       } catch {
-        // Convert draft sessions to Session format even on error
-        const draftSessionsList: Session[] = draftSessions.map((ds) => ({
-          id: ds.id,
-          name: ds.name,
-          status: "idle" as const,
-          timestamp: ds.createdAt,
-        }));
+        // Convert draft sessions to Session format even on error (filtered by current repository)
+        const draftSessionsList: Session[] = draftSessions
+          .filter((ds) => ds.repositoryId === repositoryId)
+          .map((ds) => ({
+            id: ds.id,
+            name: ds.name,
+            status: "idle" as const,
+            timestamp: ds.createdAt,
+          }));
         setSessions(draftSessionsList);
       }
     };
@@ -167,7 +171,7 @@ export function ChatSidebar({
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions, customSessionNames, sessionOrder]);
+  }, [draftSessions, customSessionNames, sessionOrder, repositoryId]);
 
   // Fetch file tree when repository changes (with auto-refresh)
   useEffect(() => {
