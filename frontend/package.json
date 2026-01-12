@@ -19,6 +19,7 @@
     "@radix-ui/react-switch": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.1",
     "@radix-ui/react-tooltip": "^1.1.4",
+    "@tailwindcss/typography": "^0.5.19",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.468.0",
@@ -26,6 +27,9 @@
     "next-auth": "^5.0.0-beta.30",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "react-syntax-highlighter": "^16.1.0",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
@@ -34,6 +38,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/react-syntax-highlighter": "^15.5.13",
     "eslint": "^9.0.0",
     "eslint-config-next": "^15.1.0",
     "postcss": "^8.4.49",

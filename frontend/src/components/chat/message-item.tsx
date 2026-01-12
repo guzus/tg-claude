@@ -3,6 +3,10 @@
 import { cn, formatDate } from "@/lib/utils";
 import { Bot, User, Terminal, FileCode, CheckCircle2, Clock, DollarSign } from "lucide-react";
 import { type Message, type TaskMetadata } from "@/lib/types";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
 export type { Message };
 
@@ -79,6 +83,51 @@ function HighlightedText({ text, highlight }: { text: string; highlight?: string
         )
       )}
     </>
+  );
+}
+
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2 prose-headings:my-3 prose-ul:my-2 prose-ol:my-2 prose-li:my-0.5 prose-pre:my-2 prose-pre:p-0 prose-pre:bg-transparent">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          code({ className, children, ...props }) {
+            const match = /language-(\w+)/.exec(className || "");
+            const isInline = !match && !String(children).includes("\n");
+
+            if (isInline) {
+              return (
+                <code className="px-1.5 py-0.5 rounded bg-secondary text-sm font-mono" {...props}>
+                  {children}
+                </code>
+              );
+            }
+
+            return (
+              <SyntaxHighlighter
+                style={oneDark}
+                language={match ? match[1] : "text"}
+                PreTag="div"
+                className="rounded-lg text-sm !my-2"
+                customStyle={{ margin: 0, borderRadius: "0.5rem" }}
+              >
+                {String(children).replace(/\n$/, "")}
+              </SyntaxHighlighter>
+            );
+          },
+          a({ href, children }) {
+            return (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                {children}
+              </a>
+            );
+          },
+        }}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
   );
 }
 
@@ -164,8 +213,15 @@ export function MessageItem({ message, showHeader, highlightText }: MessageItemP
               </span>
             </div>
           )}
-          <div className="text-[15px] leading-relaxed text-foreground whitespace-pre-wrap break-words">
-            <HighlightedText text={message.content} highlight={highlightText} />
+          <div className={cn(
+            "text-[15px] leading-relaxed text-foreground break-words",
+            !message.author.isBot && "whitespace-pre-wrap"
+          )}>
+            {message.author.isBot ? (
+              <MarkdownContent content={message.content} />
+            ) : (
+              <HighlightedText text={message.content} highlight={highlightText} />
+            )}
           </div>
           {/* Task metadata footer for bot messages */}
           {message.author.isBot && message.metadata && (
