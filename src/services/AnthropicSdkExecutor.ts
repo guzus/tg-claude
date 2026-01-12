@@ -514,7 +514,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
         } : undefined;
 
         // Final prompt - ralph loop plugin handles its own behavior
-        const finalPrompt = effectivePrompt;
+        let finalPrompt = effectivePrompt;
         const plugins: Array<{ type: 'local'; path: string }> = [];
 
         // Load default plugins
@@ -530,6 +530,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
           }
         }
 
+        let ralphLoopPluginLoaded = false;
         if (ralphLoop) {
           // Load ralph-loop plugin - the plugin handles loop behavior via Stop hook
           const preset = PLUGIN_PRESETS['ralph-loop'];
@@ -537,9 +538,31 @@ export class AnthropicSdkExecutor extends EventEmitter {
           const pluginPath = getInstalledPluginPath(pluginSpec);
           if (pluginPath) {
             plugins.push({ type: 'local', path: pluginPath });
+            ralphLoopPluginLoaded = true;
           } else {
-            logger.warn('Ralph loop plugin path not found for SDK session', { pluginSpec });
+            logger.warn('Ralph loop plugin not found, using fallback prompt injection', { pluginSpec });
           }
+        }
+
+        // If ralph loop is enabled but plugin not available, inject instructions into prompt
+        if (ralphLoop && !ralphLoopPluginLoaded) {
+          const ralphLoopInstructions = `
+# Ralph Loop Mode
+
+You are in an autonomous development loop. Please work on the following task:
+
+${finalPrompt}
+
+## Important Instructions:
+- Work autonomously until the task is complete
+- When you try to exit, you will be prompted again to continue iterating
+- You can see your previous work in files and git history
+- Output "${ralphLoop.completionPromise}" ONLY when the task is genuinely complete
+- Do NOT output the completion promise prematurely to escape the loop
+- Maximum iterations: ${ralphLoop.maxIterations}
+
+Start working on the task now.`;
+          finalPrompt = ralphLoopInstructions;
         }
 
         const mcpServers = mcpServersOverride || await this.readMcpServers(workingDir);

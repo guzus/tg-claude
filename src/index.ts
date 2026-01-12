@@ -13,7 +13,7 @@ import { ConversationManager } from './services/ConversationManager';
 import { UserConfigManager } from './services/UserConfigManager';
 import { GitHubService } from './services/GitHubService';
 import { MothershipService } from './services/MothershipService';
-import { ensureDefaultPluginMarketplaces } from './services/ClaudePluginMarketplace';
+import { ensureRequiredPlugins } from './services/ClaudePluginMarketplace';
 import { BotHandlers, ChamberHandlers } from './clients/telegram';
 import { DiscordClient } from './clients/discord';
 import { getVersionHash } from './utils/version';
@@ -38,11 +38,11 @@ try {
   process.exit(1);
 }
 
-// Best-effort: ensure default Claude plugin marketplaces exist for this runtime
+// Best-effort: ensure required Claude plugins are installed (including ralph-loop)
 try {
-  ensureDefaultPluginMarketplaces(process.cwd());
+  ensureRequiredPlugins(process.cwd());
 } catch (error) {
-  logger.debug('Skipping plugin marketplace bootstrap', {
+  logger.debug('Skipping plugin bootstrap', {
     error: getErrorMessage(error)
   });
 }

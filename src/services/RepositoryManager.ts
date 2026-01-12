@@ -1,10 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
-import { promisify } from 'util';
 import { createHash } from 'crypto';
-
-const execAsync = promisify(exec);
 import { Repository, RepositoryType, UserSession } from '../types';
 import { logger } from '../utils/logger';
 import { WORKSPACE_PATH } from '../config';
@@ -12,7 +8,7 @@ import { gitService } from './GitService';
 import { UserConfigManager } from './UserConfigManager';
 import { ClaudeSettingsManager } from './ClaudeSettingsManager';
 import { PLUGIN_PRESETS } from '../presets';
-import { ensureDefaultPluginMarketplaces } from './ClaudePluginMarketplace';
+import { ensureDefaultPluginMarketplaces, ensurePluginInstalled } from './ClaudePluginMarketplace';
 import { getErrorMessage } from '../utils/errors';
 
 export class RepositoryManager {
@@ -580,28 +576,27 @@ export class RepositoryManager {
   }
 
   /**
-   * Install default Claude plugins for a repository
+   * Install all required Claude plugins for a repository
    * Called automatically when a repository is created/cloned
+   * Includes ralph-loop and other essential plugins
    */
   async installDefaultPlugins(repoPath: string): Promise<void> {
     // Ensure default plugin marketplaces exist before trying to install presets
     ensureDefaultPluginMarketplaces(repoPath);
 
-    const defaultPlugins = Object.entries(PLUGIN_PRESETS)
-      .filter(([, preset]) => preset.isDefault)
+    // Install ALL plugins (not just defaults) including ralph-loop
+    const allPlugins = Object.entries(PLUGIN_PRESETS)
       .map(([, preset]) => `${preset.name}@${preset.registry}`);
 
     // Install plugins in parallel for faster setup
-    await Promise.all(defaultPlugins.map(async (pluginSpec) => {
+    await Promise.all(allPlugins.map(async (pluginSpec) => {
       try {
-        await execAsync(`claude plugin install ${pluginSpec}`, {
-          cwd: repoPath,
-          timeout: 60000,
-        });
-        logger.info('Default plugin installed', { pluginSpec, repoPath });
+        // Use ensurePluginInstalled which checks if already installed first
+        ensurePluginInstalled(pluginSpec, repoPath);
+        logger.info('Plugin installed/verified', { pluginSpec, repoPath });
       } catch (error) {
         // Don't fail repo creation if plugin install fails
-        logger.warn('Failed to install default plugin', {
+        logger.warn('Failed to install plugin', {
           pluginSpec,
           repoPath,
           error: getErrorMessage(error)
