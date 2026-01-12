@@ -167,7 +167,11 @@ export default function HomePage() {
         }
       );
 
-      // If this was a new session (draft or empty), switch to the new task
+      // Immediately fetch tasks to get the new task
+      await fetchTasks();
+
+      // If this was a new session (draft or empty), switch to the new task AFTER fetching
+      // This ensures the task is in the list before we switch to it
       if (isNewSession) {
         if (wasDraftSession) {
           removeDraftSession(activeSession as `draft-${string}`);
@@ -178,9 +182,6 @@ export default function HomePage() {
         }
       }
       // For existing task sessions, stay on the same session (the new task will appear there)
-
-      // Immediately fetch tasks to get the new task
-      await fetchTasks();
     } catch (error) {
       console.error("Failed to create task:", error);
       // Clear pending message on error
