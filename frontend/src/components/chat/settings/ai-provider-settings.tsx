@@ -185,7 +185,9 @@ export function AIProviderSettings() {
                   <div className="text-left">
                     <p className="font-medium">{provider.name}</p>
                     <p className="text-xs text-muted-foreground">
-                      {provider.id === "anthropic"
+                      {isActive && sonnetModel
+                        ? sonnetModel
+                        : provider.id === "anthropic"
                         ? "Claude models"
                         : provider.id === "openrouter"
                         ? "Multiple providers"
