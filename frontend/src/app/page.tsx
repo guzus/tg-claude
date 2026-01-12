@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api, type Task } from "@/lib/api";
 import { useChatContext } from "@/components/chat/chat-layout";
@@ -22,7 +22,6 @@ export default function HomePage() {
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession } = useChatContext();
 
   // Fetch all tasks
@@ -118,9 +117,6 @@ export default function HomePage() {
     }
   }, [activeSession, tasks, pendingMessage]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -298,9 +294,6 @@ export default function HomePage() {
 
           {/* Typing Indicator */}
           {isTyping && !runningTask && <TypingIndicator />}
-
-          {/* Scroll anchor */}
-          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
