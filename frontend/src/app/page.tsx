@@ -91,13 +91,26 @@ export default function HomePage() {
           type: "text",
         });
 
-        if (t.output) {
+        if (t.output || t.status === "completed" || t.status === "failed" || t.status === "cancelled") {
+          // Calculate duration if we have both start and end times
+          let durationSeconds: number | undefined;
+          if (t.startTime && t.endTime) {
+            durationSeconds = Math.round(
+              (new Date(t.endTime).getTime() - new Date(t.startTime).getTime()) / 1000
+            );
+          }
+
           sessionMessages.push({
             id: `${t.id}-output`,
             author: { name: "Claude", isBot: true },
-            content: t.output,
+            content: t.output || (t.status === "cancelled" ? "Task was cancelled." : t.status === "failed" ? "Task failed." : ""),
             timestamp: t.endTime || t.startTime,
             type: "text",
+            metadata: {
+              durationSeconds,
+              costUsd: t.costUsd,
+              status: t.status as "completed" | "failed" | "cancelled" | "timeout" | undefined,
+            },
           });
         }
       }
