@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Sparkles, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { AddWorkspaceModal } from "./add-workspace-modal";
 import { api, type Repository } from "@/lib/api";
 
@@ -61,32 +61,6 @@ export function ServerBar({ activeWorkspace, onWorkspaceSelect }: ServerBarProps
         onWorkspaceCreated={handleWorkspaceCreated}
       />
       <div className="w-[68px] bg-secondary/50 flex flex-col items-center py-3 gap-2 border-r border-border">
-        {/* Home */}
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <button
-              className={cn(
-                "workspace-icon relative",
-                !activeWorkspace
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-card hover:text-foreground border border-border"
-              )}
-              onClick={() => onWorkspaceSelect?.("")}
-            >
-              <Sparkles className="w-5 h-5" />
-              {!activeWorkspace && (
-                <span className="absolute -left-3 w-1 h-8 rounded-r-full bg-foreground" />
-              )}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="right" className="font-medium">
-            Claude Hub
-          </TooltipContent>
-        </Tooltip>
-
-        {/* Divider */}
-        {repositories.length > 0 && <div className="w-8 h-px bg-border my-1" />}
-
         {/* Repositories */}
         {repositories.map((repo) => {
           const isActive = activeWorkspace === repo.id;
