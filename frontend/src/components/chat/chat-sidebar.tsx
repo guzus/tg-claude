@@ -266,7 +266,7 @@ export function ChatSidebar({
       </ScrollArea>
 
       {/* User Panel */}
-      <UserPanel onShowSettings={onShowSettings} />
+      <UserPanel />
     </div>
   );
 }
