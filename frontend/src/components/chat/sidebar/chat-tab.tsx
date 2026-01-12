@@ -255,7 +255,7 @@ export function ChatTab({ sessions, activeSession, archivedSessions = new Set(),
                 e.stopPropagation();
                 onNewSession?.();
               }}
-              className="w-5 h-5 flex items-center justify-center rounded hover:bg-secondary text-muted-foreground hover:text-foreground"
+              className="w-5 h-5 flex items-center justify-center rounded hover:bg-secondary text-foreground"
             >
               <Plus className="w-3.5 h-3.5" />
             </button>
