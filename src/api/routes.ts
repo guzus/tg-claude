@@ -145,7 +145,7 @@ export function createApiRoutes(
   router.get('/tasks/:taskId', (req: Request, res: Response) => {
     try {
       const { taskId } = req.params;
-      const task = executor.getTaskOutput(taskId);
+      const task = executor.getTask(taskId);
 
       if (!task) {
         return res.status(404).json({ error: 'Task not found' });

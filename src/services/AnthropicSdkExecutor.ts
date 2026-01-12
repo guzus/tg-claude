@@ -128,8 +128,10 @@ export class AnthropicSdkExecutor extends EventEmitter {
         workingDir: persisted.workingDir,
         status: persisted.status,
         startTime: new Date(persisted.startTime),
-        output: '',
-        errorOutput: '',
+        endTime: persisted.endTime ? new Date(persisted.endTime) : undefined,
+        output: persisted.output || '',
+        errorOutput: persisted.errorOutput || '',
+        costUsd: persisted.costUsd,
         actions: [],
         events: [],
         sessionId: persisted.sessionId,
@@ -784,6 +786,10 @@ Start working on the task now.`;
       this.taskStateStore.updateTask(task.id, {
         status: task.status,
         sessionId: task.sessionId,
+        endTime: task.endTime?.toISOString(),
+        output: task.output,
+        errorOutput: task.errorOutput,
+        costUsd: task.costUsd,
       });
 
       this.emit('taskComplete', task.id, task);
@@ -811,6 +817,10 @@ Start working on the task now.`;
       this.taskStateStore.updateTask(task.id, {
         status: task.status,
         sessionId: task.sessionId,
+        endTime: task.endTime?.toISOString(),
+        output: task.output,
+        errorOutput: task.errorOutput,
+        costUsd: task.costUsd,
       });
 
       throw error;
@@ -874,6 +884,10 @@ Start working on the task now.`;
       this.taskStateStore.updateTask(taskId, {
         status: task.status,
         sessionId: task.sessionId,
+        endTime: task.endTime?.toISOString(),
+        output: task.output,
+        errorOutput: task.errorOutput,
+        costUsd: task.costUsd,
       });
       logger.info('Task cancelled', { taskId });
       return true;

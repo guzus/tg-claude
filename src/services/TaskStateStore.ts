@@ -13,8 +13,12 @@ export interface PersistedTaskState {
   workingDir: string;
   status: TaskStatus;
   startTime: string;
+  endTime?: string;
   updatedAt: string;
   sessionId?: string;
+  output?: string;
+  errorOutput?: string;
+  costUsd?: number;
   aiProvider?: AIProviderConfig;
   ralphLoop?: { completionPromise: string; maxIterations: number };
   mcpServers?: Record<string, McpServer>;
