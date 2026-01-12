@@ -21,9 +21,12 @@ interface ChatSidebarProps {
   draftSessions?: DraftSession[];
   customSessionNames?: Record<string, string>;
   sessionOrder?: string[];
+  archivedSessions?: Set<string>;
   onSessionSelect?: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, name: string) => void;
   onSessionReorder?: (sessionIds: string[]) => void;
+  onSessionArchive?: (sessionId: string) => void;
+  onSessionUnarchive?: (sessionId: string) => void;
   onFileSelect?: (filePath: string) => void;
   onNewSession?: () => void;
   onShowSettings?: () => void;
@@ -38,9 +41,12 @@ export function ChatSidebar({
   draftSessions = [],
   customSessionNames = {},
   sessionOrder = [],
+  archivedSessions = new Set(),
   onSessionSelect,
   onSessionRename,
   onSessionReorder,
+  onSessionArchive,
+  onSessionUnarchive,
   onFileSelect,
   onNewSession,
   onShowSettings,
@@ -293,9 +299,12 @@ export function ChatSidebar({
           <ChatTab
             sessions={sessions}
             activeSession={activeSession}
+            archivedSessions={archivedSessions}
             onSessionSelect={onSessionSelect}
             onSessionRename={onSessionRename}
             onSessionReorder={onSessionReorder}
+            onSessionArchive={onSessionArchive}
+            onSessionUnarchive={onSessionUnarchive}
             onNewSession={onNewSession}
           />
         ) : activeTab === "folders" ? (

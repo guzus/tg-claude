@@ -27,6 +27,9 @@ interface ChatContextType {
   setCustomSessionName: (sessionId: string, name: string) => void;
   sessionOrder: string[];
   setSessionOrder: (order: string[]) => void;
+  archivedSessions: Set<string>;
+  archiveSession: (sessionId: string) => void;
+  unarchiveSession: (sessionId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -52,8 +55,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [draftSessions, setDraftSessions] = useState<DraftSession[]>([]);
   const [customSessionNames, setCustomSessionNames] = useState<Record<string, string>>({});
   const [sessionOrder, setSessionOrderState] = useState<string[]>([]);
+  const [archivedSessions, setArchivedSessions] = useState<Set<string>>(new Set());
 
-  // Load custom session names and order from localStorage on mount
+  // Load custom session names, order, and archived from localStorage on mount
   useEffect(() => {
     const storedNames = localStorage.getItem("customSessionNames");
     if (storedNames) {
@@ -67,6 +71,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     if (storedOrder) {
       try {
         setSessionOrderState(JSON.parse(storedOrder));
+      } catch {
+        // Ignore parse errors
+      }
+    }
+    const storedArchived = localStorage.getItem("archivedSessions");
+    if (storedArchived) {
+      try {
+        setArchivedSessions(new Set(JSON.parse(storedArchived)));
       } catch {
         // Ignore parse errors
       }
@@ -86,6 +98,26 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const setSessionOrder = useCallback((order: string[]) => {
     setSessionOrderState(order);
     localStorage.setItem("sessionOrder", JSON.stringify(order));
+  }, []);
+
+  // Archive a session
+  const archiveSession = useCallback((sessionId: string) => {
+    setArchivedSessions((prev) => {
+      const updated = new Set(prev);
+      updated.add(sessionId);
+      localStorage.setItem("archivedSessions", JSON.stringify([...updated]));
+      return updated;
+    });
+  }, []);
+
+  // Unarchive a session
+  const unarchiveSession = useCallback((sessionId: string) => {
+    setArchivedSessions((prev) => {
+      const updated = new Set(prev);
+      updated.delete(sessionId);
+      localStorage.setItem("archivedSessions", JSON.stringify([...updated]));
+      return updated;
+    });
   }, []);
 
   // Create a new draft session
@@ -161,6 +193,9 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         setCustomSessionName,
         sessionOrder,
         setSessionOrder,
+        archivedSessions,
+        archiveSession,
+        unarchiveSession,
       }}
     >
       <TooltipProvider>
@@ -180,6 +215,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             draftSessions={draftSessions}
             customSessionNames={customSessionNames}
             sessionOrder={sessionOrder}
+            archivedSessions={archivedSessions}
             onSessionSelect={(sessionId) => {
               setActiveSession(sessionId);
               setSelectedFile(null);
@@ -193,6 +229,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               }
             }}
             onSessionReorder={setSessionOrder}
+            onSessionArchive={archiveSession}
+            onSessionUnarchive={unarchiveSession}
             onFileSelect={setSelectedFile}
             onNewSession={() => {
               createNewSession();
