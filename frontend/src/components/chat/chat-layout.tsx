@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext, useCallback, useRef } from "react";
+import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServerBar } from "./server-bar";
 import { ChatSidebar } from "./chat-sidebar";
@@ -9,6 +10,8 @@ import { type DraftSession, type SessionId, isDraftSessionId } from "@/lib/types
 import { type Session } from "./sidebar";
 
 export type { DraftSession };
+
+type SidebarTab = "chat" | "folders" | "history";
 
 interface ChatContextType {
   activeWorkspace: string;
@@ -35,6 +38,9 @@ interface ChatContextType {
   isMobileSidebarOpen: boolean;
   setMobileSidebarOpen: (open: boolean) => void;
   closeMobileSidebar: () => void;
+  // Sidebar tab
+  sidebarTab: SidebarTab;
+  setSidebarTab: (tab: SidebarTab) => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -52,17 +58,111 @@ interface ChatLayoutProps {
 }
 
 export function ChatLayout({ children }: ChatLayoutProps) {
-  const [activeWorkspace, setActiveWorkspace] = useState<string>("");
-  const [activeSession, setActiveSession] = useState<SessionId>("");
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const isInitializedRef = useRef(false);
+
+  const [activeWorkspace, setActiveWorkspaceState] = useState<string>("");
+  const [activeSession, setActiveSessionState] = useState<SessionId>("");
+  const [selectedFile, setSelectedFileState] = useState<string | null>(null);
   const [currentRepository, setCurrentRepository] = useState<Repository | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
+  const [showSettings, setShowSettingsState] = useState(false);
   const [draftSessions, setDraftSessions] = useState<DraftSession[]>([]);
   const [customSessionNames, setCustomSessionNames] = useState<Record<string, string>>({});
   const [sessionOrder, setSessionOrderState] = useState<string[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<Set<string>>(new Set());
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [sidebarTab, setSidebarTabState] = useState<SidebarTab>("chat");
   const shouldAutoSelectRef = useRef(false);
+
+  // Update URL with current state
+  const updateUrl = useCallback((params: Record<string, string | null>) => {
+    const newParams = new URLSearchParams(searchParams.toString());
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === "") {
+        newParams.delete(key);
+      } else {
+        newParams.set(key, value);
+      }
+    }
+
+    const queryString = newParams.toString();
+    const newUrl = queryString ? `${pathname}?${queryString}` : pathname;
+    router.replace(newUrl, { scroll: false });
+  }, [router, pathname, searchParams]);
+
+  // Wrapped setters that also update URL
+  const setActiveWorkspace = useCallback((id: string) => {
+    setActiveWorkspaceState(id);
+    // Reset session and file when workspace changes
+    setActiveSessionState("");
+    setSelectedFileState(null);
+    setShowSettingsState(false);
+    shouldAutoSelectRef.current = true;
+    updateUrl({ workspace: id || null, session: null, file: null, settings: null });
+  }, [updateUrl]);
+
+  const setActiveSession = useCallback((id: SessionId) => {
+    setActiveSessionState(id);
+    setSelectedFileState(null);
+    setShowSettingsState(false);
+    updateUrl({ session: id || null, file: null, settings: null });
+  }, [updateUrl]);
+
+  const setSelectedFile = useCallback((path: string | null) => {
+    setSelectedFileState(path);
+    if (path) {
+      setShowSettingsState(false);
+      updateUrl({ file: path, settings: null });
+    } else {
+      updateUrl({ file: null });
+    }
+  }, [updateUrl]);
+
+  const setShowSettings = useCallback((show: boolean) => {
+    setShowSettingsState(show);
+    if (show) {
+      setSelectedFileState(null);
+      updateUrl({ settings: "true", file: null });
+    } else {
+      updateUrl({ settings: null });
+    }
+  }, [updateUrl]);
+
+  const setSidebarTab = useCallback((tab: SidebarTab) => {
+    setSidebarTabState(tab);
+    updateUrl({ tab: tab === "chat" ? null : tab });
+  }, [updateUrl]);
+
+  // Initialize state from URL on mount
+  useEffect(() => {
+    if (isInitializedRef.current) return;
+    isInitializedRef.current = true;
+
+    const workspaceParam = searchParams.get("workspace");
+    const sessionParam = searchParams.get("session");
+    const fileParam = searchParams.get("file");
+    const settingsParam = searchParams.get("settings");
+    const tabParam = searchParams.get("tab") as SidebarTab | null;
+
+    if (workspaceParam) {
+      setActiveWorkspaceState(workspaceParam);
+    }
+    if (sessionParam) {
+      setActiveSessionState(sessionParam as SessionId);
+    }
+    if (fileParam) {
+      setSelectedFileState(fileParam);
+    }
+    if (settingsParam === "true") {
+      setShowSettingsState(true);
+    }
+    if (tabParam && ["chat", "folders", "history"].includes(tabParam)) {
+      setSidebarTabState(tabParam);
+    }
+  }, [searchParams]);
 
   // Handle sessions loaded - auto-select first non-archived session if none selected
   const handleSessionsLoaded = useCallback((sessions: Session[]) => {
@@ -70,11 +170,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       // Find first non-archived session
       const firstSession = sessions.find(s => !archivedSessions.has(s.id));
       if (firstSession) {
-        setActiveSession(firstSession.id);
+        setActiveSessionState(firstSession.id);
+        updateUrl({ session: firstSession.id });
       }
       shouldAutoSelectRef.current = false;
     }
-  }, [archivedSessions]);
+  }, [archivedSessions, updateUrl]);
 
   // Close mobile sidebar
   const closeMobileSidebar = useCallback(() => {
@@ -154,11 +255,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       repositoryId: activeWorkspace || undefined,
     };
     setDraftSessions((prev) => [newSession, ...prev]);
+    // setActiveSession already clears file and settings
     setActiveSession(id);
-    setSelectedFile(null);
-    setShowSettings(false);
     return id;
-  }, [activeWorkspace]);
+  }, [activeWorkspace, setActiveSession]);
 
   // Remove a draft session (when it becomes a real task)
   const removeDraftSession = useCallback((id: DraftSession["id"]) => {
@@ -178,12 +278,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       setCurrentRepository(null);
       return;
     }
-
-    // Reset active session when switching workspaces and flag for auto-selection
-    setActiveSession("");
-    setSelectedFile(null);
-    setShowSettings(false);
-    shouldAutoSelectRef.current = true;
 
     const fetchRepository = async () => {
       try {
@@ -224,6 +318,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         isMobileSidebarOpen,
         setMobileSidebarOpen,
         closeMobileSidebar,
+        sidebarTab,
+        setSidebarTab,
       }}
     >
       <TooltipProvider>
@@ -259,10 +355,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               customSessionNames={customSessionNames}
               sessionOrder={sessionOrder}
               archivedSessions={archivedSessions}
+              activeTab={sidebarTab}
+              onTabChange={setSidebarTab}
               onSessionSelect={(sessionId) => {
                 setActiveSession(sessionId);
-                setSelectedFile(null);
-                setShowSettings(false);
                 closeMobileSidebar();
               }}
               onSessionRename={(sessionId, name) => {
@@ -285,7 +381,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               }}
               onShowSettings={() => {
                 setShowSettings(true);
-                setSelectedFile(null);
                 closeMobileSidebar();
               }}
               onSessionsLoaded={handleSessionsLoaded}
@@ -314,10 +409,10 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               customSessionNames={customSessionNames}
               sessionOrder={sessionOrder}
               archivedSessions={archivedSessions}
+              activeTab={sidebarTab}
+              onTabChange={setSidebarTab}
               onSessionSelect={(sessionId) => {
                 setActiveSession(sessionId);
-                setSelectedFile(null);
-                setShowSettings(false);
                 closeMobileSidebar();
               }}
               onSessionRename={(sessionId, name) => {
@@ -340,7 +435,6 @@ export function ChatLayout({ children }: ChatLayoutProps) {
               }}
               onShowSettings={() => {
                 setShowSettings(true);
-                setSelectedFile(null);
                 closeMobileSidebar();
               }}
               onSessionsLoaded={handleSessionsLoaded}
