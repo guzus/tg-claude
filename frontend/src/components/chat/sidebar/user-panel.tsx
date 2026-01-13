@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -49,10 +50,12 @@ export function UserPanel() {
           {/* User Avatar */}
           <div className="relative">
             {session.user.image ? (
-              <img
+              <Image
                 src={session.user.image}
                 alt={session.user.name || "User"}
-                className="w-9 h-9 rounded-full object-cover"
+                width={36}
+                height={36}
+                className="rounded-full object-cover"
               />
             ) : (
               <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-sm font-semibold">
