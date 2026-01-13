@@ -1,31 +1,73 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Github, Sparkles, AlertCircle } from "lucide-react";
+import { Github, Sparkles, AlertCircle, Loader2, Shield } from "lucide-react";
 
-const ERROR_MESSAGES: Record<string, string> = {
-  Configuration: "There is a problem with the server configuration.",
-  AccessDenied: "Access was denied. You may not have permission to sign in.",
-  Verification: "The verification token has expired or has already been used.",
-  OAuthSignin: "Error starting the OAuth sign-in flow.",
-  OAuthCallback: "Error handling the OAuth callback.",
-  OAuthCreateAccount: "Could not create OAuth account.",
-  EmailCreateAccount: "Could not create email account.",
-  Callback: "Error in the OAuth callback handler.",
-  OAuthAccountNotLinked: "This email is already linked to another account.",
-  SessionRequired: "Please sign in to access this page.",
-  Default: "An error occurred during sign in.",
+const ERROR_MESSAGES: Record<string, { message: string; suggestion?: string }> = {
+  Configuration: {
+    message: "Authentication is not configured on this server.",
+    suggestion: "Please contact the administrator to set up OAuth credentials."
+  },
+  AccessDenied: {
+    message: "Access was denied.",
+    suggestion: "You may not have permission to sign in with this account."
+  },
+  Verification: {
+    message: "The sign-in link has expired.",
+    suggestion: "Please try signing in again."
+  },
+  OAuthSignin: {
+    message: "Unable to start sign-in process.",
+    suggestion: "Try again or use a different sign-in method."
+  },
+  OAuthCallback: {
+    message: "Sign-in was interrupted.",
+    suggestion: "Please try signing in again. If the problem persists, try a different browser."
+  },
+  OAuthCreateAccount: {
+    message: "Unable to create your account.",
+    suggestion: "Please try again or contact support if the issue continues."
+  },
+  EmailCreateAccount: {
+    message: "Unable to create account with this email.",
+    suggestion: "Please try a different sign-in method."
+  },
+  Callback: {
+    message: "Sign-in callback failed.",
+    suggestion: "Please try again. Make sure pop-ups are not blocked."
+  },
+  OAuthAccountNotLinked: {
+    message: "This email is linked to a different sign-in method.",
+    suggestion: "Try signing in with the method you originally used."
+  },
+  SessionRequired: {
+    message: "Sign-in required to access this page.",
+  },
+  Default: {
+    message: "An error occurred during sign-in.",
+    suggestion: "Please try again or use a different sign-in method."
+  },
 };
 
 function LoginContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
-  const errorMessage = error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default : null;
+  const errorInfo = error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default : null;
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGitHubSignIn = async () => {
+    setIsLoading(true);
+    try {
+      await signIn("github", { callbackUrl: "/" });
+    } catch {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -37,25 +79,36 @@ function LoginContent() {
           <CardTitle className="text-2xl">Welcome to Claude Hub</CardTitle>
           <CardDescription>
             Sign in to sync your settings and access advanced features.
-            <br />
-            <span className="text-xs mt-2 block">Authentication is optional - you can use the app without signing in.</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {errorMessage && (
-            <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{errorMessage}</span>
+          {errorInfo && (
+            <div className="p-3 text-sm bg-destructive/10 rounded-md border border-destructive/20">
+              <div className="flex items-start gap-2 text-destructive">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-medium">{errorInfo.message}</span>
+                  {errorInfo.suggestion && (
+                    <p className="text-muted-foreground mt-1 text-xs">{errorInfo.suggestion}</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           <Button
             variant="outline"
-            className="w-full"
-            onClick={() => signIn("github", { callbackUrl: "/" })}
+            className="w-full h-11"
+            onClick={handleGitHubSignIn}
+            disabled={isLoading}
           >
-            <Github className="w-4 h-4 mr-2" />
-            Continue with GitHub
+            {isLoading ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Github className="w-4 h-4 mr-2" />
+            )}
+            {isLoading ? "Connecting..." : "Continue with GitHub"}
           </Button>
+
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
@@ -64,9 +117,21 @@ function LoginContent() {
               <span className="bg-background px-2 text-muted-foreground">Or</span>
             </div>
           </div>
-          <Button variant="ghost" className="w-full" asChild>
+
+          <Button variant="ghost" className="w-full" asChild disabled={isLoading}>
             <Link href="/">Continue without signing in</Link>
           </Button>
+
+          {/* Benefits of signing in */}
+          <div className="pt-2 border-t">
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <Shield className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+              <div>
+                <span className="font-medium text-foreground">Your data stays private</span>
+                <p className="mt-0.5">Sign in to isolate your workspaces and settings from other users.</p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -419,6 +419,14 @@ class ApiClient {
       body: JSON.stringify({ pat }),
     });
   }
+
+  // Sync GitHub token from NextAuth session to backend
+  async syncGitHubToken(userId: number, accessToken: string, login?: string): Promise<GitHubPatResponse> {
+    return this.request<GitHubPatResponse>("/api/github/sync", {
+      method: "POST",
+      body: JSON.stringify({ userId, accessToken, login }),
+    });
+  }
 }
 
 export const api = new ApiClient();

@@ -928,6 +928,56 @@ export function createApiRoutes(
     }
   });
 
+  // Sync GitHub token from frontend session (consolidated OAuth flow)
+  router.post('/github/sync', async (req: Request, res: Response) => {
+    try {
+      const { userId, accessToken, login } = req.body;
+
+      if (!userId || !accessToken) {
+        return res.status(400).json({ error: 'Missing userId or accessToken' });
+      }
+
+      // Validate the token works
+      const validation = await githubAppService.validatePat(accessToken);
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: 'Invalid token',
+          details: validation.error
+        });
+      }
+
+      // Store as OAuth token (not PAT) with long expiration
+      // GitHub OAuth tokens from NextAuth don't expire unless revoked
+      const connection = {
+        installationId: 0,
+        accessToken,
+        accessTokenExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        scope: validation.scopes?.join(' ') || 'repo',
+        connectedAt: new Date(),
+        login: validation.login || login || 'unknown',
+        avatarUrl: '',
+      };
+
+      await userConfigManager.setGitHubConnection(userId, connection);
+
+      logger.info('Synced GitHub token from session', {
+        userId,
+        login: validation.login,
+      });
+
+      res.json({
+        success: true,
+        login: validation.login,
+        scopes: validation.scopes,
+        method: 'app'
+      });
+    } catch (error) {
+      logger.error('API: Failed to sync GitHub token', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to sync GitHub token' });
+    }
+  });
+
   // Validate a GitHub PAT without saving
   router.post('/github/pat/validate', async (req: Request, res: Response) => {
     try {

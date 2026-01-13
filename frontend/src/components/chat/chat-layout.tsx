@@ -304,6 +304,30 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     fetchRepository();
   }, [userId, activeWorkspace]);
 
+  // Sync GitHub token from NextAuth session to backend (consolidated OAuth)
+  useEffect(() => {
+    const user = session?.user as { provider?: string; githubAccessToken?: string; name?: string } | undefined;
+    if (!isAuthenticated || !user?.githubAccessToken || user?.provider !== "github") {
+      return;
+    }
+
+    // Check if we've already synced this session
+    const syncKey = `github_synced_${userId}`;
+    if (sessionStorage.getItem(syncKey)) {
+      return;
+    }
+
+    // Sync the token to the backend
+    api.syncGitHubToken(userId, user.githubAccessToken, user.name || undefined)
+      .then(() => {
+        sessionStorage.setItem(syncKey, "true");
+        console.log("GitHub token synced to backend");
+      })
+      .catch((error) => {
+        console.error("Failed to sync GitHub token:", error);
+      });
+  }, [isAuthenticated, session, userId]);
+
   return (
     <ChatContext.Provider
       value={{
