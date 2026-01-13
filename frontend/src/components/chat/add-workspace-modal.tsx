@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { GitBranch, Loader2, ArrowLeft, Github, Lock, Globe } from "lucide-react";
-import { api } from "@/lib/api";
+import { GitBranch, Loader2, ArrowLeft, Github, Lock, Globe, Info } from "lucide-react";
+import { api, type GitHubAuthStatus } from "@/lib/api";
 
 type Mode = "select" | "clone" | "create";
 
@@ -35,6 +35,16 @@ export function AddWorkspaceModal({
   const [isPrivate, setIsPrivate] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [githubStatus, setGithubStatus] = useState<GitHubAuthStatus | null>(null);
+
+  // Fetch GitHub status when modal opens
+  useEffect(() => {
+    if (open) {
+      api.getGitHubStatus(userId)
+        .then(setGithubStatus)
+        .catch(() => setGithubStatus({ hasAuth: false, method: "none", appConfigured: false }));
+    }
+  }, [open, userId]);
 
   const resetState = () => {
     setMode("select");
@@ -83,7 +93,15 @@ export function AddWorkspaceModal({
       onWorkspaceCreated?.(repo.id);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to clone repository");
+      const message = err instanceof Error ? err.message : "Failed to clone repository";
+      // Improve error messages for common auth-related failures
+      if (message.includes("Authentication") || message.includes("401") || message.includes("403")) {
+        setError("Authentication required. Connect GitHub in Settings to clone private repositories.");
+      } else if (message.includes("not found") || message.includes("404")) {
+        setError("Repository not found. Check the URL or connect GitHub for private repos.");
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -106,7 +124,13 @@ export function AddWorkspaceModal({
       onWorkspaceCreated?.(repo.id);
       handleClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create repository");
+      const message = err instanceof Error ? err.message : "Failed to create repository";
+      // Improve error messages for auth-related failures
+      if (message.includes("Authentication") || message.includes("401") || message.includes("403") || message.includes("GitHub")) {
+        setError("GitHub connection required. Connect GitHub in Settings to create repositories.");
+      } else {
+        setError(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -173,23 +197,39 @@ export function AddWorkspaceModal({
             </button>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repository *</label>
+              <label htmlFor="clone-repo-url" className="text-sm font-medium">Repository *</label>
               <Input
+                id="clone-repo-url"
                 placeholder="user/repo"
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 disabled={isLoading}
+                aria-describedby="clone-repo-hint"
+                autoComplete="off"
+                spellCheck={false}
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="clone-repo-hint" className="text-xs text-muted-foreground">
                 Enter <code className="px-1 py-0.5 rounded bg-secondary">user/repo</code> or full URL
               </p>
             </div>
 
+            {/* GitHub auth hint for private repos */}
+            {githubStatus && !githubStatus.hasAuth && (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-blue-600 dark:text-blue-400">Private repos?</span>{" "}
+                  Sign in with GitHub or add a Personal Access Token in Settings.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label htmlFor="clone-repo-name" className="text-sm font-medium">
                 Name <span className="text-muted-foreground">(optional)</span>
               </label>
               <Input
+                id="clone-repo-name"
                 placeholder="Custom folder name"
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
@@ -198,10 +238,11 @@ export function AddWorkspaceModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label htmlFor="clone-repo-branch" className="text-sm font-medium">
                 Branch <span className="text-muted-foreground">(optional)</span>
               </label>
               <Input
+                id="clone-repo-branch"
                 placeholder="main"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
@@ -210,7 +251,7 @@ export function AddWorkspaceModal({
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p role="alert" aria-live="polite" className="text-sm text-destructive">{error}</p>
             )}
 
             <Button
@@ -241,8 +282,9 @@ export function AddWorkspaceModal({
             </button>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repository Name *</label>
+              <label htmlFor="create-repo-name" className="text-sm font-medium">Repository Name *</label>
               <Input
+                id="create-repo-name"
                 placeholder="my-new-project"
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
@@ -251,12 +293,24 @@ export function AddWorkspaceModal({
             </div>
 
             {/* GitHub Integration Notice */}
-            <div className="flex items-center gap-2 p-3 rounded-lg bg-secondary/50 border border-border">
-              <Github className="w-5 h-5 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                A GitHub repository will be created automatically
-              </span>
-            </div>
+            {githubStatus?.hasAuth ? (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-green-500/10 border border-green-500/20">
+                <Github className="w-5 h-5 text-green-500" />
+                <span className="text-sm text-green-600 dark:text-green-400">
+                  Connected as @{githubStatus.login} - repo will be created on your account
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <Info className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <span className="font-medium text-amber-600 dark:text-amber-400">GitHub not connected</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Sign in with GitHub or add a token in Settings to create repos.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Visibility Toggle */}
             <div className="space-y-2">
@@ -292,7 +346,7 @@ export function AddWorkspaceModal({
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p role="alert" aria-live="polite" className="text-sm text-destructive">{error}</p>
             )}
 
             <Button

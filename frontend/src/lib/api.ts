@@ -120,6 +120,40 @@ export interface FileContent {
   path: string;
 }
 
+export interface GitHubAuthStatus {
+  hasAuth: boolean;
+  method: "app" | "pat" | "none";
+  login?: string;
+  expiresAt?: string;
+  appConfigured: boolean;
+}
+
+export interface GitHubOAuthUrlResponse {
+  url: string;
+  state: string;
+}
+
+export interface GitHubOAuthCallbackResponse {
+  success: boolean;
+  login: string;
+  avatarUrl?: string;
+  method: "app";
+}
+
+export interface GitHubPatResponse {
+  success: boolean;
+  login: string;
+  scopes: string[];
+  method: "pat";
+}
+
+export interface GitHubPatValidation {
+  valid: boolean;
+  login?: string;
+  scopes?: string[];
+  error?: string;
+}
+
 export interface GitCommit {
   sha: string;
   shortSha: string;
@@ -168,7 +202,20 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      // Try to extract error message from response body
+      let errorMessage = `API error: ${response.status} ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody.error) {
+          errorMessage = errorBody.error;
+          if (errorBody.details) {
+            errorMessage += `: ${errorBody.details}`;
+          }
+        }
+      } catch {
+        // Response body wasn't JSON, use default message
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -338,6 +385,59 @@ class ApiClient {
     return this.request<{ success: boolean; pluginId: string; pluginSpec: string }>("/api/plugins/install", {
       method: "POST",
       body: JSON.stringify({ pluginId, registry }),
+    });
+  }
+
+  // GitHub Authentication
+  async getGitHubStatus(userId: number): Promise<GitHubAuthStatus> {
+    return this.request<GitHubAuthStatus>(`/api/github/status?userId=${userId}`);
+  }
+
+  async getGitHubOAuthUrl(userId: number, redirectUri: string): Promise<GitHubOAuthUrlResponse> {
+    return this.request<GitHubOAuthUrlResponse>(
+      `/api/github/oauth/url?userId=${userId}&redirectUri=${encodeURIComponent(redirectUri)}`
+    );
+  }
+
+  async completeGitHubOAuth(userId: number, code: string, state?: string): Promise<GitHubOAuthCallbackResponse> {
+    return this.request<GitHubOAuthCallbackResponse>("/api/github/oauth/callback", {
+      method: "POST",
+      body: JSON.stringify({ userId, code, state }),
+    });
+  }
+
+  async disconnectGitHub(userId: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>("/api/github/disconnect", {
+      method: "POST",
+      body: JSON.stringify({ userId }),
+    });
+  }
+
+  async setGitHubPat(userId: number, pat: string): Promise<GitHubPatResponse> {
+    return this.request<GitHubPatResponse>("/api/github/pat", {
+      method: "POST",
+      body: JSON.stringify({ userId, pat }),
+    });
+  }
+
+  async clearGitHubPat(userId: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/github/pat?userId=${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  async validateGitHubPat(pat: string): Promise<GitHubPatValidation> {
+    return this.request<GitHubPatValidation>("/api/github/pat/validate", {
+      method: "POST",
+      body: JSON.stringify({ pat }),
+    });
+  }
+
+  // Sync GitHub token from NextAuth session to backend
+  async syncGitHubToken(userId: number, accessToken: string, login?: string): Promise<GitHubPatResponse> {
+    return this.request<GitHubPatResponse>("/api/github/sync", {
+      method: "POST",
+      body: JSON.stringify({ userId, accessToken, login }),
     });
   }
 }

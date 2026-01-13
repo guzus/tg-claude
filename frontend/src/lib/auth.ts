@@ -24,6 +24,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID,
       clientSecret: process.env.AUTH_GITHUB_SECRET,
+      // Request repo scope for private repository access
+      authorization: {
+        params: {
+          scope: "read:user user:email repo",
+        },
+      },
     }),
     Google({
       clientId: process.env.AUTH_GOOGLE_ID,
@@ -44,6 +50,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Store both the original provider ID and generate a numeric ID
         token.id = user.id;
         token.numericId = generateNumericUserId(`${account.provider}:${user.id}`);
+        token.provider = account.provider;
+        // Store GitHub access token for repo operations
+        if (account.provider === "github" && account.access_token) {
+          token.githubAccessToken = account.access_token;
+        }
       }
       return token;
     },
@@ -52,6 +63,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.id = token.id as string;
         // Add numeric ID to session for API calls
         (session.user as { numericId?: number }).numericId = token.numericId as number;
+        // Add provider info and GitHub token to session
+        (session.user as { provider?: string }).provider = token.provider as string;
+        (session.user as { githubAccessToken?: string }).githubAccessToken = token.githubAccessToken as string | undefined;
       }
       return session;
     },

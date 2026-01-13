@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Bot, Server, Puzzle, ChevronRight, Settings2, X } from "lucide-react";
+import { Bot, Server, Puzzle, ChevronRight, Settings2, X, Github } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   AIProviderSettings,
   McpServerSettings,
   PluginSettings,
   GeneralSettings,
+  GitHubSettings,
 } from "./settings";
 
 interface SettingsViewProps {
@@ -20,6 +21,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
 
   const sections = [
     { id: "ai", name: "AI Provider", icon: Bot },
+    { id: "github", name: "GitHub", icon: Github },
     { id: "mcp", name: "MCP Servers", icon: Server },
     { id: "plugins", name: "Plugins", icon: Puzzle },
     { id: "general", name: "General", icon: Settings2 },
@@ -38,8 +40,9 @@ export function SettingsView({ onClose }: SettingsViewProps) {
           size="icon"
           onClick={onClose}
           className="w-8 h-8 text-muted-foreground hover:text-foreground"
+          aria-label="Close settings"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" aria-hidden="true" />
         </Button>
       </div>
 
@@ -70,6 +73,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="p-6 max-w-3xl">
             {activeSection === "ai" && <AIProviderSettings />}
+            {activeSection === "github" && <GitHubSettings />}
             {activeSection === "mcp" && <McpServerSettings />}
             {activeSection === "plugins" && <PluginSettings />}
             {activeSection === "general" && <GeneralSettings />}

@@ -59,6 +59,7 @@ export const config: BotConfig = {
 
 export function validateConfig(): void {
   const errors: string[] = [];
+  const warnings: string[] = [];
 
   // Only require Telegram token if Telegram is enabled
   if (ENABLE_TELEGRAM && !config.telegramToken) {
@@ -70,8 +71,21 @@ export function validateConfig(): void {
     errors.push('TELEGRAM_ALLOWED_USER_IDS must contain at least one user ID when ENABLE_TELEGRAM is true');
   }
 
+  // Helpful info about GitHub auth for CLI/bot usage
+  // Note: Frontend users who sign in with GitHub get automatic repo access via NextAuth
+  if (!config.githubToken) {
+    warnings.push('No GITHUB_PAT configured. CLI/bot users will need to configure their own token. Frontend users can sign in with GitHub for automatic access.');
+  }
+
   if (errors.length > 0) {
     throw new Error(`Configuration errors:\n${errors.join('\n')}`);
+  }
+
+  // Log warnings (don't fail startup)
+  if (warnings.length > 0) {
+    for (const warning of warnings) {
+      console.warn(`\x1b[33m[config warning]\x1b[0m ${warning}`);
+    }
   }
 }
 

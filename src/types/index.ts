@@ -141,6 +141,18 @@ export interface McpConfig {
   mcpServers: Record<string, McpServer>;
 }
 
+// GitHub Integration Types
+export interface GitHubAppConnection {
+  installationId: number;
+  accessToken: string;
+  accessTokenExpiresAt: Date;
+  refreshToken?: string;
+  scope?: string;
+  connectedAt: Date;
+  login?: string; // GitHub username
+  avatarUrl?: string;
+}
+
 export interface UserConfig {
   userId: number;
   currentRepositoryId?: string;
@@ -157,6 +169,9 @@ export interface UserConfig {
   techStack?: TechStackPreferences;
   aiProvider?: AIProviderConfig;
   claudeMdTemplate?: string;
+  // GitHub authentication
+  githubPat?: string;  // Personal Access Token (fallback option)
+  github?: GitHubAppConnection;  // GitHub App OAuth connection (primary)
   mcpConfigs?: Record<string, McpConfig>;
   enabledPlugins?: string[]; // List of enabled plugin IDs (e.g., ['ralph-loop', 'commit-commands'])
   limits?: {

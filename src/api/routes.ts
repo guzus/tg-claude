@@ -5,6 +5,7 @@ import { RepositoryManager } from '../services/RepositoryManager';
 import { UserConfigManager } from '../services/UserConfigManager';
 import { AuditLogger } from '../services/AuditLogger';
 import { gitService } from '../services/GitService';
+import { GitHubAppService } from '../services/GitHubAppService';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { parseSlashCommand } from './slashCommands';
@@ -101,6 +102,7 @@ export function createApiRoutes(
   auditLogger: AuditLogger
 ): Router {
   const router = Router();
+  const githubAppService = new GitHubAppService(userConfigManager);
 
   // Enable CORS for frontend
   router.use((_req, res, next) => {
@@ -758,6 +760,239 @@ export function createApiRoutes(
     } catch (error) {
       logger.error('API: Failed to install plugin', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to install plugin' });
+    }
+  });
+
+  // ============ GITHUB ============
+
+  // Get GitHub auth status for user
+  router.get('/github/status', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.query.userId as string, 10);
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      const status = await userConfigManager.getGitHubAuthStatus(userId);
+      const isConfigured = githubAppService.isConfigured();
+
+      res.json({
+        ...status,
+        appConfigured: isConfigured
+      });
+    } catch (error) {
+      logger.error('API: Failed to get GitHub status', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get GitHub status' });
+    }
+  });
+
+  // Get GitHub OAuth authorization URL
+  router.get('/github/oauth/url', (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.query.userId as string, 10);
+      const redirectUri = req.query.redirectUri as string;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      if (!redirectUri) {
+        return res.status(400).json({ error: 'Missing redirectUri query parameter' });
+      }
+
+      if (!githubAppService.isConfigured()) {
+        return res.status(503).json({ error: 'GitHub App not configured on server' });
+      }
+
+      const state = `${userId}_${Date.now()}`;
+      const url = githubAppService.getAuthorizationUrl(userId, redirectUri, state);
+
+      res.json({ url, state });
+    } catch (error) {
+      logger.error('API: Failed to get GitHub OAuth URL', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get GitHub OAuth URL' });
+    }
+  });
+
+  // Handle GitHub OAuth callback
+  router.post('/github/oauth/callback', async (req: Request, res: Response) => {
+    try {
+      const { code, userId, state } = req.body;
+
+      if (!code || !userId) {
+        return res.status(400).json({ error: 'Missing code or userId' });
+      }
+
+      // Verify state if provided (CSRF protection)
+      if (state) {
+        const expectedPrefix = `${userId}_`;
+        if (!state.startsWith(expectedPrefix)) {
+          return res.status(400).json({ error: 'Invalid state parameter' });
+        }
+      }
+
+      const connection = await githubAppService.completeOAuthFlow(userId, code);
+
+      res.json({
+        success: true,
+        login: connection.login,
+        avatarUrl: connection.avatarUrl,
+        method: 'app'
+      });
+    } catch (error) {
+      logger.error('API: Failed to complete GitHub OAuth', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to complete GitHub OAuth' });
+    }
+  });
+
+  // Disconnect GitHub App
+  router.post('/github/disconnect', async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId' });
+      }
+
+      await githubAppService.disconnect(userId);
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('API: Failed to disconnect GitHub', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to disconnect GitHub' });
+    }
+  });
+
+  // Set GitHub PAT
+  router.post('/github/pat', async (req: Request, res: Response) => {
+    try {
+      const { userId, pat } = req.body;
+
+      if (!userId || !pat) {
+        return res.status(400).json({ error: 'Missing userId or pat' });
+      }
+
+      // Validate the PAT first
+      const validation = await githubAppService.validatePat(pat);
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: 'Invalid PAT',
+          details: validation.error
+        });
+      }
+
+      // Check for required scopes
+      const requiredScopes = ['repo'];
+      const hasRequiredScopes = requiredScopes.every(scope =>
+        validation.scopes?.some(s => s === scope || s.startsWith(scope + ':'))
+      );
+
+      if (!hasRequiredScopes) {
+        return res.status(400).json({
+          error: 'PAT missing required scopes',
+          details: `Required: ${requiredScopes.join(', ')}. Found: ${validation.scopes?.join(', ') || 'none'}`
+        });
+      }
+
+      await userConfigManager.setGitHubPat(userId, pat);
+
+      res.json({
+        success: true,
+        login: validation.login,
+        scopes: validation.scopes,
+        method: 'pat'
+      });
+    } catch (error) {
+      logger.error('API: Failed to set GitHub PAT', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to set GitHub PAT' });
+    }
+  });
+
+  // Clear GitHub PAT
+  router.delete('/github/pat', async (req: Request, res: Response) => {
+    try {
+      const userId = parseInt(req.query.userId as string, 10);
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      await userConfigManager.clearGitHubPat(userId);
+
+      res.json({ success: true });
+    } catch (error) {
+      logger.error('API: Failed to clear GitHub PAT', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to clear GitHub PAT' });
+    }
+  });
+
+  // Sync GitHub token from frontend session (consolidated OAuth flow)
+  router.post('/github/sync', async (req: Request, res: Response) => {
+    try {
+      const { userId, accessToken, login } = req.body;
+
+      if (!userId || !accessToken) {
+        return res.status(400).json({ error: 'Missing userId or accessToken' });
+      }
+
+      // Validate the token works
+      const validation = await githubAppService.validatePat(accessToken);
+
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: 'Invalid token',
+          details: validation.error
+        });
+      }
+
+      // Store as OAuth token (not PAT) with long expiration
+      // GitHub OAuth tokens from NextAuth don't expire unless revoked
+      const connection = {
+        installationId: 0,
+        accessToken,
+        accessTokenExpiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+        scope: validation.scopes?.join(' ') || 'repo',
+        connectedAt: new Date(),
+        login: validation.login || login || 'unknown',
+        avatarUrl: '',
+      };
+
+      await userConfigManager.setGitHubConnection(userId, connection);
+
+      logger.info('Synced GitHub token from session', {
+        userId,
+        login: validation.login,
+      });
+
+      res.json({
+        success: true,
+        login: validation.login,
+        scopes: validation.scopes,
+        method: 'app'
+      });
+    } catch (error) {
+      logger.error('API: Failed to sync GitHub token', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to sync GitHub token' });
+    }
+  });
+
+  // Validate a GitHub PAT without saving
+  router.post('/github/pat/validate', async (req: Request, res: Response) => {
+    try {
+      const { pat } = req.body;
+
+      if (!pat) {
+        return res.status(400).json({ error: 'Missing pat' });
+      }
+
+      const validation = await githubAppService.validatePat(pat);
+
+      res.json(validation);
+    } catch (error) {
+      logger.error('API: Failed to validate GitHub PAT', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to validate GitHub PAT' });
     }
   });
 
