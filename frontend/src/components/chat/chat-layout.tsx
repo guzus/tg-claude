@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext, useCallback } from "react";
+import { useState, useEffect, createContext, useContext, useCallback, useRef } from "react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServerBar } from "./server-bar";
 import { ChatSidebar } from "./chat-sidebar";
 import { api, type Repository } from "@/lib/api";
 import { type DraftSession, type SessionId, isDraftSessionId } from "@/lib/types";
+import { type Session } from "./sidebar";
 
 export type { DraftSession };
 
@@ -61,6 +62,19 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [sessionOrder, setSessionOrderState] = useState<string[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<Set<string>>(new Set());
   const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const shouldAutoSelectRef = useRef(false);
+
+  // Handle sessions loaded - auto-select first non-archived session if none selected
+  const handleSessionsLoaded = useCallback((sessions: Session[]) => {
+    if (shouldAutoSelectRef.current && sessions.length > 0) {
+      // Find first non-archived session
+      const firstSession = sessions.find(s => !archivedSessions.has(s.id));
+      if (firstSession) {
+        setActiveSession(firstSession.id);
+      }
+      shouldAutoSelectRef.current = false;
+    }
+  }, [archivedSessions]);
 
   // Close mobile sidebar
   const closeMobileSidebar = useCallback(() => {
@@ -165,10 +179,11 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       return;
     }
 
-    // Reset active session when switching workspaces
+    // Reset active session when switching workspaces and flag for auto-selection
     setActiveSession("");
     setSelectedFile(null);
     setShowSettings(false);
+    shouldAutoSelectRef.current = true;
 
     const fetchRepository = async () => {
       try {
@@ -273,6 +288,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 setSelectedFile(null);
                 closeMobileSidebar();
               }}
+              onSessionsLoaded={handleSessionsLoaded}
             />
           </div>
 
@@ -327,6 +343,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
                 setSelectedFile(null);
                 closeMobileSidebar();
               }}
+              onSessionsLoaded={handleSessionsLoaded}
             />
           </div>
 

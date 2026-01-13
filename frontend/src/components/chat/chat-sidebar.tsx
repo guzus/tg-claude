@@ -57,6 +57,7 @@ interface ChatSidebarProps {
   onFileSelect?: (filePath: string) => void;
   onNewSession?: () => void;
   onShowSettings?: () => void;
+  onSessionsLoaded?: (sessions: Session[]) => void;
 }
 
 
@@ -78,6 +79,7 @@ export function ChatSidebar({
   onFileSelect,
   onNewSession,
   onShowSettings,
+  onSessionsLoaded,
 }: ChatSidebarProps) {
   const [activeTab, setActiveTab] = useState<"chat" | "folders" | "history">("chat");
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -194,6 +196,7 @@ export function ChatSidebar({
         }
 
         setSessions(allSessions);
+        onSessionsLoaded?.(allSessions);
       } catch {
         // Convert draft sessions to Session format even on error (filtered by current repository)
         const draftSessionsList: Session[] = draftSessions
@@ -205,13 +208,14 @@ export function ChatSidebar({
             timestamp: ds.createdAt,
           }));
         setSessions(draftSessionsList);
+        onSessionsLoaded?.(draftSessionsList);
       }
     };
 
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions, customSessionNames, sessionOrder, repositoryId, repositoryPath]);
+  }, [draftSessions, customSessionNames, sessionOrder, repositoryId, repositoryPath, onSessionsLoaded]);
 
   // Fetch file tree when repository changes (with auto-refresh)
   useEffect(() => {
