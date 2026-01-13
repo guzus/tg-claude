@@ -242,7 +242,7 @@ export function ChatTab({ sessions, activeSession, archivedSessions = new Set(),
   return (
     <div className="px-2 py-3">
       {/* Section Header */}
-      <div className="flex items-center justify-between px-2 mb-2">
+      <div className="flex items-center gap-1 px-2 mb-2">
         <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
           Sessions
         </span>
