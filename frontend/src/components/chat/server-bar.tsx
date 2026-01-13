@@ -8,6 +8,7 @@ import { AddWorkspaceModal } from "./add-workspace-modal";
 import { api, type Repository } from "@/lib/api";
 
 interface ServerBarProps {
+  userId: number;
   activeWorkspace?: string;
   onWorkspaceSelect?: (id: string) => void;
 }
@@ -21,15 +22,15 @@ function getRepoIcon(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-export function ServerBar({ activeWorkspace, onWorkspaceSelect }: ServerBarProps) {
+export function ServerBar({ userId, activeWorkspace, onWorkspaceSelect }: ServerBarProps) {
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [repositories, setRepositories] = useState<Repository[]>([]);
 
-  // Fetch repositories
+  // Fetch repositories for current user
   useEffect(() => {
     const fetchRepositories = async () => {
       try {
-        const repos = await api.getRepositories(1);
+        const repos = await api.getRepositories(userId);
         setRepositories(repos);
 
         // Auto-select first repository if none selected and repos exist
@@ -45,12 +46,12 @@ export function ServerBar({ activeWorkspace, onWorkspaceSelect }: ServerBarProps
     fetchRepositories();
     const interval = setInterval(fetchRepositories, 10000);
     return () => clearInterval(interval);
-  }, [activeWorkspace, onWorkspaceSelect]);
+  }, [userId, activeWorkspace, onWorkspaceSelect]);
 
   const handleWorkspaceCreated = (workspaceId: string) => {
     onWorkspaceSelect?.(workspaceId);
     // Refresh repositories list
-    api.getRepositories(1).then(setRepositories).catch(() => {});
+    api.getRepositories(userId).then(setRepositories).catch(() => {});
   };
 
   return (
@@ -59,6 +60,7 @@ export function ServerBar({ activeWorkspace, onWorkspaceSelect }: ServerBarProps
         open={addModalOpen}
         onOpenChange={setAddModalOpen}
         onWorkspaceCreated={handleWorkspaceCreated}
+        userId={userId}
       />
       <div className="w-[68px] bg-secondary/50 flex flex-col items-center py-3 gap-2 border-r border-border">
         {/* Repositories */}

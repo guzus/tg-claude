@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Header } from "@/components/layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,12 @@ import {
 import { api, type Repository } from "@/lib/api";
 import { formatDate, cn, truncate } from "@/lib/utils";
 
+// Default user ID for guests (not logged in)
+const GUEST_USER_ID = 1;
+
 export default function ReposPage() {
+  const { data: session } = useSession();
+  const userId = (session?.user as { numericId?: number })?.numericId ?? GUEST_USER_ID;
   const [repos, setRepos] = useState<Repository[]>([]);
   const [selectedRepo, setSelectedRepo] = useState<Repository | null>(null);
   const [showCloneModal, setShowCloneModal] = useState(false);
@@ -35,7 +41,7 @@ export default function ReposPage() {
   useEffect(() => {
     const fetchRepos = async () => {
       try {
-        const data = await api.getRepositories(1);
+        const data = await api.getRepositories(userId);
         setRepos(data);
       } catch (error) {
         console.error("Failed to fetch repos:", error);
@@ -45,7 +51,7 @@ export default function ReposPage() {
     };
 
     fetchRepos();
-  }, []);
+  }, [userId]);
 
   const filteredRepos = repos.filter(
     (r) =>
@@ -146,7 +152,7 @@ export default function ReposPage() {
         {/* Repo Detail */}
         <div className="flex-1 overflow-hidden">
           {selectedRepo ? (
-            <RepoDetail repo={selectedRepo} />
+            <RepoDetail userId={userId} repo={selectedRepo} />
           ) : (
             <div className="h-full flex items-center justify-center text-muted-foreground">
               <div className="text-center">
@@ -159,8 +165,8 @@ export default function ReposPage() {
         </div>
 
         {/* Modals */}
-        {showCloneModal && <CloneModal onClose={() => setShowCloneModal(false)} />}
-        {showNewModal && <NewRepoModal onClose={() => setShowNewModal(false)} />}
+        {showCloneModal && <CloneModal userId={userId} onClose={() => setShowCloneModal(false)} />}
+        {showNewModal && <NewRepoModal userId={userId} onClose={() => setShowNewModal(false)} />}
       </div>
     </>
   );
@@ -207,10 +213,10 @@ function RepoListItem({
   );
 }
 
-function RepoDetail({ repo }: { repo: Repository }) {
+function RepoDetail({ userId, repo }: { userId: number; repo: Repository }) {
   const handleSwitch = async () => {
     try {
-      await api.switchRepository(1, repo.id);
+      await api.switchRepository(userId, repo.id);
     } catch (error) {
       console.error("Failed to switch repo:", error);
     }
@@ -307,7 +313,7 @@ function InfoRow({
   );
 }
 
-function CloneModal({ onClose }: { onClose: () => void }) {
+function CloneModal({ userId, onClose }: { userId: number; onClose: () => void }) {
   const [gitUrl, setGitUrl] = useState("");
   const [name, setName] = useState("");
   const [branch, setBranch] = useState("");
@@ -319,7 +325,7 @@ function CloneModal({ onClose }: { onClose: () => void }) {
 
     setLoading(true);
     try {
-      await api.cloneRepository(1, gitUrl, name || undefined, branch || undefined);
+      await api.cloneRepository(userId, gitUrl, name || undefined, branch || undefined);
       onClose();
     } catch (error) {
       console.error("Failed to clone:", error);
@@ -383,7 +389,7 @@ function CloneModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function NewRepoModal({ onClose }: { onClose: () => void }) {
+function NewRepoModal({ userId, onClose }: { userId: number; onClose: () => void }) {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -393,7 +399,7 @@ function NewRepoModal({ onClose }: { onClose: () => void }) {
 
     setLoading(true);
     try {
-      await api.createRepository(1, name);
+      await api.createRepository(userId, name);
       onClose();
     } catch (error) {
       console.error("Failed to create:", error);

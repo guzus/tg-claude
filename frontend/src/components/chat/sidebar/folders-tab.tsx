@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { api, type FileNode } from "@/lib/api";
 import { FilePlus, Plus, X, Loader2 } from "lucide-react";
 import { FileTreeNode } from "./file-tree-node";
+import { useChatContext } from "../chat-layout";
 
 interface FoldersTabProps {
   fileTree: FileNode[];
@@ -17,6 +18,7 @@ interface FoldersTabProps {
 }
 
 export function FoldersTab({ fileTree, expandedFolders, onToggleFolder, onFileSelect, repositoryId, onFileCreated }: FoldersTabProps) {
+  const { userId } = useChatContext();
   const [isCreating, setIsCreating] = useState(false);
   const [newFilePath, setNewFilePath] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -29,7 +31,7 @@ export function FoldersTab({ fileTree, expandedFolders, onToggleFolder, onFileSe
     setError(null);
 
     try {
-      await api.saveFileContent(1, repositoryId, newFilePath.trim(), "");
+      await api.saveFileContent(userId, repositoryId, newFilePath.trim(), "");
       onFileCreated?.();
       onFileSelect?.(newFilePath.trim());
       setNewFilePath("");
