@@ -8,6 +8,7 @@ import { gitService } from '../services/GitService';
 import { logger } from '../utils/logger';
 import { getErrorMessage } from '../utils/errors';
 import { parseSlashCommand } from './slashCommands';
+import { listMarketplacePlugins, listInstalledPlugins, ensurePluginInstalled } from '../services/ClaudePluginMarketplace';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { exec } from 'child_process';
@@ -710,6 +711,53 @@ export function createApiRoutes(
     } catch (error) {
       logger.error('API: Failed to update config', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to update config' });
+    }
+  });
+
+  // ============ PLUGINS ============
+
+  // Get marketplace plugins
+  router.get('/plugins/marketplace', (_req: Request, res: Response) => {
+    try {
+      const plugins = listMarketplacePlugins();
+      res.json(plugins);
+    } catch (error) {
+      logger.error('API: Failed to get marketplace plugins', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get marketplace plugins' });
+    }
+  });
+
+  // Get installed plugins
+  router.get('/plugins/installed', (_req: Request, res: Response) => {
+    try {
+      const plugins = listInstalledPlugins();
+      res.json(plugins);
+    } catch (error) {
+      logger.error('API: Failed to get installed plugins', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get installed plugins' });
+    }
+  });
+
+  // Install a plugin
+  router.post('/plugins/install', async (req: Request, res: Response) => {
+    try {
+      const { pluginId, registry } = req.body;
+
+      if (!pluginId) {
+        return res.status(400).json({ error: 'Missing pluginId' });
+      }
+
+      const pluginSpec = registry ? `${pluginId}@${registry}` : pluginId;
+      const success = ensurePluginInstalled(pluginSpec);
+
+      if (success) {
+        res.json({ success: true, pluginId, pluginSpec });
+      } else {
+        res.status(500).json({ error: 'Failed to install plugin' });
+      }
+    } catch (error) {
+      logger.error('API: Failed to install plugin', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to install plugin' });
     }
   });
 

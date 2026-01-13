@@ -74,6 +74,21 @@ export interface McpConfig {
   mcpServers: Record<string, McpServer>;
 }
 
+export interface MarketplacePlugin {
+  id: string;
+  name: string;
+  description: string;
+  registry: string;
+}
+
+export interface InstalledPlugin {
+  id: string;
+  scope?: string;
+  version?: string;
+  installedAt?: string;
+  installPath?: string;
+}
+
 export interface McpServer {
   command: string;
   args?: string[];
@@ -307,6 +322,22 @@ class ApiClient {
     return this.request<UserConfig>("/api/config", {
       method: "PUT",
       body: JSON.stringify({ userId, ...config }),
+    });
+  }
+
+  // Plugins
+  async getMarketplacePlugins(): Promise<MarketplacePlugin[]> {
+    return this.request<MarketplacePlugin[]>("/api/plugins/marketplace");
+  }
+
+  async getInstalledPlugins(): Promise<InstalledPlugin[]> {
+    return this.request<InstalledPlugin[]>("/api/plugins/installed");
+  }
+
+  async installPlugin(pluginId: string, registry?: string): Promise<{ success: boolean; pluginId: string; pluginSpec: string }> {
+    return this.request<{ success: boolean; pluginId: string; pluginSpec: string }>("/api/plugins/install", {
+      method: "POST",
+      body: JSON.stringify({ pluginId, registry }),
     });
   }
 }
