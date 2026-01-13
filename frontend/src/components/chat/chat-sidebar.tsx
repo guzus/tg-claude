@@ -13,9 +13,36 @@ const MIN_WIDTH = 200;
 const MAX_WIDTH = 400;
 const DEFAULT_WIDTH = 256;
 
+/**
+ * Convert a git URL to a clean web URL for browser display
+ * Handles: HTTPS, SSH, and URLs with embedded tokens
+ */
+function gitUrlToWebUrl(gitUrl: string): string | null {
+  if (!gitUrl) return null;
+
+  let url = gitUrl.trim();
+
+  // Handle HTTPS URLs (including those with embedded tokens)
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    // Remove any embedded credentials (e.g., x-access-token:TOKEN@)
+    url = url.replace(/https?:\/\/[^@]+@/i, 'https://');
+    // Remove .git suffix
+    return url.replace(/\.git$/, '');
+  }
+
+  // Handle SSH URLs (git@github.com:user/repo.git)
+  const sshMatch = url.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+  if (sshMatch) {
+    return `https://${sshMatch[1]}/${sshMatch[2]}`;
+  }
+
+  return null;
+}
+
 interface ChatSidebarProps {
   workspaceName?: string;
   repositoryId?: string;
+  repositoryPath?: string;
   gitUrl?: string;
   activeSession?: string;
   draftSessions?: DraftSession[];
@@ -36,6 +63,7 @@ interface ChatSidebarProps {
 export function ChatSidebar({
   workspaceName = "tg-claude",
   repositoryId,
+  repositoryPath,
   gitUrl,
   activeSession,
   draftSessions = [],
@@ -99,9 +127,14 @@ export function ChatSidebar({
       try {
         const tasks = await api.getTasks(1);
 
+        // Filter tasks by repository path (only show tasks for current workspace)
+        const filteredTasks = repositoryPath
+          ? tasks.filter((task) => task.workingDir === repositoryPath)
+          : tasks;
+
         // Group tasks by sessionId - tasks with same sessionId are one conversation
         const sessionGroups = new Map<string, Task[]>();
-        for (const task of tasks) {
+        for (const task of filteredTasks) {
           const key = task.sessionId || task.id; // Use sessionId if available, else task id
           const existing = sessionGroups.get(key) || [];
           existing.push(task);
@@ -178,7 +211,7 @@ export function ChatSidebar({
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions, customSessionNames, sessionOrder, repositoryId]);
+  }, [draftSessions, customSessionNames, sessionOrder, repositoryId, repositoryPath]);
 
   // Fetch file tree when repository changes (with auto-refresh)
   useEffect(() => {
@@ -228,23 +261,26 @@ export function ChatSidebar({
       <div className="h-14 px-4 flex items-center justify-between border-b border-border bg-card shadow-subtle">
         <h2 className="font-semibold text-[15px] truncate flex-1">{workspaceName}</h2>
         <div className="flex items-center gap-1">
-          {gitUrl && (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <a
-                  href={gitUrl.replace(/\.git$/, "")}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
-                >
-                  <Github className="w-4 h-4" />
-                </a>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="text-xs">
-                Open on GitHub
-              </TooltipContent>
-            </Tooltip>
-          )}
+          {(() => {
+            const webUrl = gitUrl ? gitUrlToWebUrl(gitUrl) : null;
+            return webUrl && (
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger asChild>
+                  <a
+                    href={webUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary"
+                  >
+                    <Github className="w-4 h-4" />
+                  </a>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  Open on GitHub
+                </TooltipContent>
+              </Tooltip>
+            );
+          })()}
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
               <button

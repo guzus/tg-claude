@@ -237,6 +237,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <ChatSidebar
               workspaceName={currentRepository?.name || "Claude Hub"}
               repositoryId={activeWorkspace || undefined}
+              repositoryPath={currentRepository?.path}
               gitUrl={currentRepository?.gitUrl}
               activeSession={activeSession}
               draftSessions={draftSessions}
@@ -290,6 +291,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <ChatSidebar
               workspaceName={currentRepository?.name || "Claude Hub"}
               repositoryId={activeWorkspace || undefined}
+              repositoryPath={currentRepository?.path}
               gitUrl={currentRepository?.gitUrl}
               activeSession={activeSession}
               draftSessions={draftSessions}
