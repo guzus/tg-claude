@@ -83,9 +83,13 @@ function LoginContent() {
         </CardHeader>
         <CardContent className="space-y-4">
           {errorInfo && (
-            <div className="p-3 text-sm bg-destructive/10 rounded-md border border-destructive/20">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="p-3 text-sm bg-destructive/10 rounded-md border border-destructive/20"
+            >
               <div className="flex items-start gap-2 text-destructive">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
                   <span className="font-medium">{errorInfo.message}</span>
                   {errorInfo.suggestion && (
