@@ -214,18 +214,69 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       <TooltipProvider>
         <div className="flex h-screen bg-background overflow-hidden">
           {/* Mobile Sidebar Overlay */}
-          {isMobileSidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black/50 z-40 md:hidden"
-              onClick={closeMobileSidebar}
-            />
-          )}
+          <div
+            className={`
+              fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-200
+              ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+            `}
+            onClick={closeMobileSidebar}
+          />
 
-          {/* Server Bar - hidden on mobile, shown in overlay when open */}
+          {/* Mobile Sidebar Container - slides in from left */}
           <div className={`
-            hidden md:block
-            ${isMobileSidebarOpen ? '!block fixed left-0 top-0 bottom-0 z-50' : ''}
+            fixed left-0 top-0 bottom-0 z-50 flex md:hidden
+            transition-transform duration-200 ease-out
+            ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}>
+            <ServerBar
+              activeWorkspace={activeWorkspace}
+              onWorkspaceSelect={(id) => {
+                setActiveWorkspace(id);
+              }}
+            />
+            <ChatSidebar
+              workspaceName={currentRepository?.name || "Claude Hub"}
+              repositoryId={activeWorkspace || undefined}
+              gitUrl={currentRepository?.gitUrl}
+              activeSession={activeSession}
+              draftSessions={draftSessions}
+              customSessionNames={customSessionNames}
+              sessionOrder={sessionOrder}
+              archivedSessions={archivedSessions}
+              onSessionSelect={(sessionId) => {
+                setActiveSession(sessionId);
+                setSelectedFile(null);
+                setShowSettings(false);
+                closeMobileSidebar();
+              }}
+              onSessionRename={(sessionId, name) => {
+                if (isDraftSessionId(sessionId)) {
+                  renameDraftSession(sessionId, name);
+                } else {
+                  setCustomSessionName(sessionId, name);
+                }
+              }}
+              onSessionReorder={setSessionOrder}
+              onSessionArchive={archiveSession}
+              onSessionUnarchive={unarchiveSession}
+              onFileSelect={(path) => {
+                setSelectedFile(path);
+                closeMobileSidebar();
+              }}
+              onNewSession={() => {
+                createNewSession();
+                closeMobileSidebar();
+              }}
+              onShowSettings={() => {
+                setShowSettings(true);
+                setSelectedFile(null);
+                closeMobileSidebar();
+              }}
+            />
+          </div>
+
+          {/* Desktop Server Bar */}
+          <div className="hidden md:block">
             <ServerBar
               activeWorkspace={activeWorkspace}
               onWorkspaceSelect={(id) => {
@@ -234,11 +285,8 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             />
           </div>
 
-          {/* Chat Sidebar - hidden on mobile, shown in overlay when open */}
-          <div className={`
-            hidden md:block
-            ${isMobileSidebarOpen ? '!block fixed left-[68px] top-0 bottom-0 z-50' : ''}
-          `}>
+          {/* Desktop Chat Sidebar */}
+          <div className="hidden md:block">
             <ChatSidebar
               workspaceName={currentRepository?.name || "Claude Hub"}
               repositoryId={activeWorkspace || undefined}

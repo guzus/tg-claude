@@ -218,7 +218,7 @@ export function ChatSidebar({
     <div
       ref={sidebarRef}
       className={cn(
-        "bg-secondary/30 flex flex-col border-r border-border relative h-full",
+        "bg-card flex flex-col border-r border-border relative h-full transition-transform duration-200 ease-out",
         // On mobile when sidebar is open, use fixed width
         isMobileSidebarOpen ? "w-[280px] md:w-auto" : ""
       )}
