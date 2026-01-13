@@ -39,6 +39,8 @@ function gitUrlToWebUrl(gitUrl: string): string | null {
   return null;
 }
 
+type SidebarTab = "chat" | "folders" | "history";
+
 interface ChatSidebarProps {
   workspaceName?: string;
   repositoryId?: string;
@@ -49,6 +51,8 @@ interface ChatSidebarProps {
   customSessionNames?: Record<string, string>;
   sessionOrder?: string[];
   archivedSessions?: Set<string>;
+  activeTab?: SidebarTab;
+  onTabChange?: (tab: SidebarTab) => void;
   onSessionSelect?: (sessionId: string) => void;
   onSessionRename?: (sessionId: string, name: string) => void;
   onSessionReorder?: (sessionIds: string[]) => void;
@@ -71,6 +75,8 @@ export function ChatSidebar({
   customSessionNames = {},
   sessionOrder = [],
   archivedSessions = new Set(),
+  activeTab: controlledActiveTab,
+  onTabChange,
   onSessionSelect,
   onSessionRename,
   onSessionReorder,
@@ -81,7 +87,13 @@ export function ChatSidebar({
   onShowSettings,
   onSessionsLoaded,
 }: ChatSidebarProps) {
-  const [activeTab, setActiveTab] = useState<"chat" | "folders" | "history">("chat");
+  // Support both controlled and uncontrolled modes
+  const [internalTab, setInternalTab] = useState<SidebarTab>("chat");
+  const activeTab = controlledActiveTab ?? internalTab;
+  const setActiveTab = (tab: SidebarTab) => {
+    setInternalTab(tab);
+    onTabChange?.(tab);
+  };
   const [sessions, setSessions] = useState<Session[]>([]);
   const [fileTree, setFileTree] = useState<FileNode[]>([]);
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
