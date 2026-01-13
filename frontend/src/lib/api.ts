@@ -202,7 +202,20 @@ class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      // Try to extract error message from response body
+      let errorMessage = `API error: ${response.status} ${response.statusText}`;
+      try {
+        const errorBody = await response.json();
+        if (errorBody.error) {
+          errorMessage = errorBody.error;
+          if (errorBody.details) {
+            errorMessage += `: ${errorBody.details}`;
+          }
+        }
+      } catch {
+        // Response body wasn't JSON, use default message
+      }
+      throw new Error(errorMessage);
     }
 
     return response.json();
