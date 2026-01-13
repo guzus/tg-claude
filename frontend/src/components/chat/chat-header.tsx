@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, MoreHorizontal, Loader2, Hash, X, Menu } from "lucide-react";
+import { Search, MoreHorizontal, Loader2, Hash, X, Menu, ChevronRight } from "lucide-react";
 import { useChatContext } from "./chat-layout";
 
 interface ChatHeaderProps {
   isRunning: boolean;
   sessionName: string;
+  repositoryName?: string;
   onSearch?: (query: string) => void;
 }
 
-export function ChatHeader({ isRunning, sessionName, onSearch }: ChatHeaderProps) {
+export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch }: ChatHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const { setMobileSidebarOpen } = useChatContext();
@@ -39,8 +40,14 @@ export function ChatHeader({ isRunning, sessionName, onSearch }: ChatHeaderProps
           <Menu className="w-5 h-5" />
         </Button>
 
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <Hash className="w-5 h-5 text-muted-foreground shrink-0" />
+          {repositoryName && (
+            <>
+              <span className="text-[15px] text-muted-foreground truncate max-w-[120px] md:max-w-none">{repositoryName}</span>
+              <ChevronRight className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+            </>
+          )}
           <span className="font-semibold text-[15px] truncate">{sessionName}</span>
         </div>
         {isRunning && (

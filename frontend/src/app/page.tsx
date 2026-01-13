@@ -274,7 +274,7 @@ export default function HomePage() {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
-      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} onSearch={setSearchQuery} />
+      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} repositoryName={currentRepository?.name} onSearch={setSearchQuery} />
 
       {/* Messages */}
       <ScrollArea className="flex-1">
