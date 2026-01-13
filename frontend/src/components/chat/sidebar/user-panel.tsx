@@ -1,15 +1,26 @@
 "use client";
 
+import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { LogIn, LogOut } from "lucide-react";
+import { LogIn, LogOut, Loader2 } from "lucide-react";
 
 export function UserPanel() {
   const { data: session, status } = useSession();
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated" && session?.user;
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    await signOut({ callbackUrl: "/" });
+  };
+
+  const handleSignIn = () => {
+    signIn(undefined, { callbackUrl: "/" });
+  };
 
   // Get user initials for avatar
   const getInitials = (name?: string | null) => {
@@ -62,13 +73,20 @@ export function UserPanel() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => signOut()}
+                onClick={handleSignOut}
+                disabled={isSigningOut}
                 className="w-8 h-8 text-muted-foreground hover:text-foreground hover:bg-secondary"
               >
-                <LogOut className="w-4 h-4" />
+                {isSigningOut ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <LogOut className="w-4 h-4" />
+                )}
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="top" className="text-xs">Sign Out</TooltipContent>
+            <TooltipContent side="top" className="text-xs">
+              {isSigningOut ? "Signing out..." : "Sign Out"}
+            </TooltipContent>
           </Tooltip>
         </>
       ) : (
@@ -93,7 +111,7 @@ export function UserPanel() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => signIn()}
+                onClick={handleSignIn}
                 className="w-8 h-8 text-muted-foreground hover:text-primary hover:bg-secondary"
               >
                 <LogIn className="w-4 h-4" />
