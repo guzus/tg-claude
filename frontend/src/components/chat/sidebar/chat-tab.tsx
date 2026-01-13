@@ -24,6 +24,24 @@ interface ChatTabProps {
   onNewSession?: () => void;
 }
 
+function formatTimestamp(timestamp?: string): string {
+  if (!timestamp) return "";
+
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
 export function ChatTab({ sessions, activeSession, archivedSessions = new Set(), onSessionSelect, onSessionRename, onSessionReorder, onSessionArchive, onSessionUnarchive, onNewSession }: ChatTabProps) {
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -178,16 +196,21 @@ export function ChatTab({ sessions, activeSession, archivedSessions = new Set(),
           />
         ) : (
           <>
-            <span
-              className="flex-1 text-sm truncate"
+            <div
+              className="flex-1 min-w-0"
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 startEditing(session);
               }}
             >
-              {session.name}
-            </span>
-            <div className="flex items-center gap-0.5">
+              <span className="text-sm truncate block">{session.name}</span>
+              {session.timestamp && (
+                <span className="text-[10px] text-muted-foreground/60 block">
+                  {formatTimestamp(session.timestamp)}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-0.5 self-start mt-0.5">
               {isRenamable && (
                 <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
