@@ -2,7 +2,6 @@
 
 import { GitCommit, Plus, Minus, ExternalLink, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 
 export interface CommitInfo {
   sha: string;
