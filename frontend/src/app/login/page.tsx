@@ -6,7 +6,7 @@ import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Github, Sparkles, AlertCircle, Loader2, Shield } from "lucide-react";
+import { Github, Sparkles, AlertCircle, Loader2, Shield, GitBranch } from "lucide-react";
 
 const ERROR_MESSAGES: Record<string, { message: string; suggestion?: string }> = {
   Configuration: {
@@ -123,12 +123,19 @@ function LoginContent() {
           </Button>
 
           {/* Benefits of signing in */}
-          <div className="pt-2 border-t">
+          <div className="pt-2 border-t space-y-3">
             <div className="flex items-start gap-2 text-xs text-muted-foreground">
               <Shield className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
               <div>
                 <span className="font-medium text-foreground">Your data stays private</span>
                 <p className="mt-0.5">Sign in to isolate your workspaces and settings from other users.</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <GitBranch className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
+              <div>
+                <span className="font-medium text-foreground">Access private repositories</span>
+                <p className="mt-0.5">GitHub sign-in automatically grants access to your private repos.</p>
               </div>
             </div>
           </div>
