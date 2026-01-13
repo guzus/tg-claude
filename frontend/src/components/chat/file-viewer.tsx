@@ -5,6 +5,7 @@ import { X, FileCode, Copy, Check, Pencil, Save, Undo2, Loader2, Image, FileText
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { api } from "@/lib/api";
+import { useChatContext } from "./chat-layout";
 
 interface FileViewerProps {
   repositoryId: string;
@@ -47,6 +48,7 @@ function getFileIcon(fileType: FileType) {
 }
 
 export function FileViewer({ repositoryId, filePath, onClose }: FileViewerProps) {
+  const { userId } = useChatContext();
   const [content, setContent] = useState<string>("");
   const [originalContent, setOriginalContent] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -64,7 +66,7 @@ export function FileViewer({ repositoryId, filePath, onClose }: FileViewerProps)
 
   // Build raw file URL for binary files
   const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5555";
-  const rawFileUrl = `${apiBase}/api/repositories/${repositoryId}/file/raw?userId=1&path=${encodeURIComponent(filePath)}`;
+  const rawFileUrl = `${apiBase}/api/repositories/${repositoryId}/file/raw?userId=${userId}&path=${encodeURIComponent(filePath)}`;
 
   useEffect(() => {
     // Only fetch content for text files
@@ -77,7 +79,7 @@ export function FileViewer({ repositoryId, filePath, onClose }: FileViewerProps)
       setLoading(true);
       setError(null);
       try {
-        const result = await api.getFileContent(1, repositoryId, filePath);
+        const result = await api.getFileContent(userId, repositoryId, filePath);
         setContent(result.content);
         setOriginalContent(result.content);
       } catch (err) {
@@ -88,7 +90,7 @@ export function FileViewer({ repositoryId, filePath, onClose }: FileViewerProps)
     };
 
     fetchContent();
-  }, [repositoryId, filePath, fileType]);
+  }, [userId, repositoryId, filePath, fileType]);
 
   // Focus textarea when entering edit mode
   useEffect(() => {
@@ -107,7 +109,7 @@ export function FileViewer({ repositoryId, filePath, onClose }: FileViewerProps)
     setSaving(true);
     setError(null);
     try {
-      await api.saveFileContent(1, repositoryId, filePath, content);
+      await api.saveFileContent(userId, repositoryId, filePath, content);
       setOriginalContent(content);
       setIsEditing(false);
     } catch (err) {

@@ -19,12 +19,14 @@ interface AddWorkspaceModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onWorkspaceCreated?: (workspaceId: string) => void;
+  userId: number;
 }
 
 export function AddWorkspaceModal({
   open,
   onOpenChange,
   onWorkspaceCreated,
+  userId,
 }: AddWorkspaceModalProps) {
   const [mode, setMode] = useState<Mode>("select");
   const [gitUrl, setGitUrl] = useState("");
@@ -73,7 +75,7 @@ export function AddWorkspaceModal({
     try {
       const normalizedUrl = normalizeGitUrl(gitUrl);
       const repo = await api.cloneRepository(
-        1,
+        userId,
         normalizedUrl,
         repoName.trim() || undefined,
         branch.trim() || undefined
@@ -97,7 +99,7 @@ export function AddWorkspaceModal({
     setError(null);
 
     try {
-      const repo = await api.createRepository(1, repoName.trim(), {
+      const repo = await api.createRepository(userId, repoName.trim(), {
         createGithub: true,
         isPrivate,
       });

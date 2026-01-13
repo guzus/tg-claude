@@ -2,6 +2,7 @@
 
 import { useState, useEffect, createContext, useContext, useCallback, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ServerBar } from "./server-bar";
 import { ChatSidebar } from "./chat-sidebar";
@@ -13,7 +14,13 @@ export type { DraftSession };
 
 type SidebarTab = "chat" | "folders" | "history";
 
+// Default user ID for guests (not logged in)
+const GUEST_USER_ID = 1;
+
 interface ChatContextType {
+  // User ID for API calls (from auth or guest)
+  userId: number;
+  isAuthenticated: boolean;
   activeWorkspace: string;
   setActiveWorkspace: (id: string) => void;
   activeSession: SessionId;
@@ -61,7 +68,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const { data: session, status: authStatus } = useSession();
   const isInitializedRef = useRef(false);
+
+  // Get user ID from session or use guest ID
+  const userId = (session?.user as { numericId?: number })?.numericId ?? GUEST_USER_ID;
+  const isAuthenticated = authStatus === "authenticated";
 
   const [activeWorkspace, setActiveWorkspaceState] = useState<string>("");
   const [activeSession, setActiveSessionState] = useState<SessionId>("");
@@ -281,7 +293,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
 
     const fetchRepository = async () => {
       try {
-        const repos = await api.getRepositories(1);
+        const repos = await api.getRepositories(userId);
         const repo = repos.find((r) => r.id === activeWorkspace);
         setCurrentRepository(repo || null);
       } catch {
@@ -290,11 +302,13 @@ export function ChatLayout({ children }: ChatLayoutProps) {
     };
 
     fetchRepository();
-  }, [activeWorkspace]);
+  }, [userId, activeWorkspace]);
 
   return (
     <ChatContext.Provider
       value={{
+        userId,
+        isAuthenticated,
         activeWorkspace,
         setActiveWorkspace,
         activeSession,
@@ -340,6 +354,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}>
             <ServerBar
+              userId={userId}
               activeWorkspace={activeWorkspace}
               onWorkspaceSelect={(id) => {
                 setActiveWorkspace(id);
@@ -390,6 +405,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
           {/* Desktop Server Bar */}
           <div className="hidden md:block">
             <ServerBar
+              userId={userId}
               activeWorkspace={activeWorkspace}
               onWorkspaceSelect={(id) => {
                 setActiveWorkspace(id);

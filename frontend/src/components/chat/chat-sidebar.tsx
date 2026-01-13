@@ -101,7 +101,7 @@ export function ChatSidebar({
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const { isMobileSidebarOpen, closeMobileSidebar } = useChatContext();
+  const { userId, isMobileSidebarOpen, closeMobileSidebar } = useChatContext();
 
   // Handle resize drag
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -139,7 +139,7 @@ export function ChatSidebar({
   useEffect(() => {
     const fetchSessions = async () => {
       try {
-        const tasks = await api.getTasks(1);
+        const tasks = await api.getTasks(userId);
 
         // Filter tasks by repository path (only show tasks for current workspace)
         const filteredTasks = repositoryPath
@@ -227,7 +227,7 @@ export function ChatSidebar({
     fetchSessions();
     const interval = setInterval(fetchSessions, 5000);
     return () => clearInterval(interval);
-  }, [draftSessions, customSessionNames, sessionOrder, repositoryId, repositoryPath, onSessionsLoaded]);
+  }, [userId, draftSessions, customSessionNames, sessionOrder, repositoryId, repositoryPath, onSessionsLoaded]);
 
   // Fetch file tree when repository changes (with auto-refresh)
   useEffect(() => {
@@ -238,7 +238,7 @@ export function ChatSidebar({
 
     const fetchFileTree = async () => {
       try {
-        const tree = await api.getFileTree(1, repositoryId);
+        const tree = await api.getFileTree(userId, repositoryId);
         setFileTree(tree);
       } catch {
         // Repository may not exist yet - show empty tree
@@ -249,7 +249,7 @@ export function ChatSidebar({
     fetchFileTree();
     const interval = setInterval(fetchFileTree, 10000); // Refresh every 10s
     return () => clearInterval(interval);
-  }, [repositoryId, fileTreeVersion]);
+  }, [userId, repositoryId, fileTreeVersion]);
 
   const toggleFolder = (path: string) => {
     setExpandedFolders((prev) => {
