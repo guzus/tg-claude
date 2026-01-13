@@ -205,6 +205,8 @@ export function AddWorkspaceModal({
                 onChange={(e) => setGitUrl(e.target.value)}
                 disabled={isLoading}
                 aria-describedby="clone-repo-hint"
+                autoComplete="off"
+                spellCheck={false}
               />
               <p id="clone-repo-hint" className="text-xs text-muted-foreground">
                 Enter <code className="px-1 py-0.5 rounded bg-secondary">user/repo</code> or full URL

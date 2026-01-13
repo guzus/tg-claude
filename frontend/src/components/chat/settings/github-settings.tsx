@@ -299,6 +299,8 @@ export function GitHubSettings() {
                         placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                         className="font-mono"
                         aria-describedby="github-pat-hint"
+                        autoComplete="off"
+                        spellCheck={false}
                       />
                       <p id="github-pat-hint" className="text-xs text-muted-foreground mt-1.5">
                         Requires <code className="bg-secondary px-1 rounded">repo</code> scope.{" "}
