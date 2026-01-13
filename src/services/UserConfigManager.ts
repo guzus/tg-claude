@@ -1,6 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
-import { UserConfig } from '../types';
+import { UserConfig, GitHubAppConnection } from '../types';
 import { logger } from '../utils/logger';
 import { CONFIG_PATH } from '../config';
 import { getErrorMessage } from '../utils/errors';
@@ -86,6 +86,12 @@ export class UserConfigManager {
       // Convert date strings back to Date objects
       config.createdAt = new Date(config.createdAt);
       config.updatedAt = new Date(config.updatedAt);
+
+      // Convert GitHubAppConnection date fields
+      if (config.github) {
+        config.github.accessTokenExpiresAt = new Date(config.github.accessTokenExpiresAt);
+        config.github.connectedAt = new Date(config.github.connectedAt);
+      }
 
       this.configs.set(userId, config);
 
@@ -184,6 +190,12 @@ export class UserConfigManager {
     if (updates.enabledPlugins !== undefined) {
       config.enabledPlugins = updates.enabledPlugins;
     }
+    if (updates.githubPat !== undefined) {
+      config.githubPat = updates.githubPat;
+    }
+    if (updates.github !== undefined) {
+      config.github = updates.github;
+    }
 
     config.updatedAt = new Date();
 
@@ -258,5 +270,133 @@ export class UserConfigManager {
    */
   hasConfig(userId: number): boolean {
     return this.configs.has(userId);
+  }
+
+  // ==================== GitHub Credential Methods ====================
+
+  /**
+   * Set GitHub Personal Access Token for a user
+   */
+  async setGitHubPat(userId: number, pat: string): Promise<void> {
+    await this.updateConfig(userId, { githubPat: pat });
+    logger.info('Set GitHub PAT for user', { userId });
+  }
+
+  /**
+   * Clear GitHub Personal Access Token for a user
+   */
+  async clearGitHubPat(userId: number): Promise<void> {
+    const config = await this.getConfig(userId);
+    delete config.githubPat;
+    config.updatedAt = new Date();
+    await this.saveConfig(config);
+    logger.info('Cleared GitHub PAT for user', { userId });
+  }
+
+  /**
+   * Set GitHub App connection for a user
+   */
+  async setGitHubConnection(userId: number, connection: GitHubAppConnection): Promise<void> {
+    await this.updateConfig(userId, { github: connection });
+    logger.info('Set GitHub App connection for user', { userId, login: connection.login });
+  }
+
+  /**
+   * Update GitHub App access token (for token refresh)
+   */
+  async updateGitHubAccessToken(
+    userId: number,
+    accessToken: string,
+    expiresAt: Date
+  ): Promise<void> {
+    const config = await this.getConfig(userId);
+    if (config.github) {
+      config.github.accessToken = accessToken;
+      config.github.accessTokenExpiresAt = expiresAt;
+      config.updatedAt = new Date();
+      await this.saveConfig(config);
+      logger.info('Updated GitHub access token for user', { userId });
+    }
+  }
+
+  /**
+   * Clear GitHub App connection for a user
+   */
+  async clearGitHubConnection(userId: number): Promise<void> {
+    const config = await this.getConfig(userId);
+    delete config.github;
+    config.updatedAt = new Date();
+    await this.saveConfig(config);
+    logger.info('Cleared GitHub App connection for user', { userId });
+  }
+
+  /**
+   * Get the best available GitHub token for a user
+   * Priority: GitHub App token (if valid) > PAT
+   * Returns null if no token available
+   */
+  async getGitHubToken(userId: number): Promise<string | null> {
+    const config = await this.getConfig(userId);
+
+    // Check GitHub App connection first (preferred)
+    if (config.github?.accessToken) {
+      // Check if token is still valid (with 5 min buffer)
+      const bufferMs = 5 * 60 * 1000;
+      const isExpired = new Date(config.github.accessTokenExpiresAt).getTime() < Date.now() + bufferMs;
+
+      if (!isExpired) {
+        return config.github.accessToken;
+      }
+      // Token expired - will need refresh (handled by GitHubAppService)
+      logger.debug('GitHub App token expired, falling back to PAT', { userId });
+    }
+
+    // Fall back to PAT
+    if (config.githubPat) {
+      return config.githubPat;
+    }
+
+    return null;
+  }
+
+  /**
+   * Check if user has any GitHub authentication configured
+   */
+  async hasGitHubAuth(userId: number): Promise<boolean> {
+    const config = await this.getConfig(userId);
+    return !!(config.github?.accessToken || config.githubPat);
+  }
+
+  /**
+   * Get GitHub authentication status for a user
+   */
+  async getGitHubAuthStatus(userId: number): Promise<{
+    hasAuth: boolean;
+    method: 'app' | 'pat' | 'none';
+    login?: string;
+    expiresAt?: Date;
+  }> {
+    const config = await this.getConfig(userId);
+
+    if (config.github?.accessToken) {
+      return {
+        hasAuth: true,
+        method: 'app',
+        login: config.github.login,
+        expiresAt: config.github.accessTokenExpiresAt
+      };
+    }
+
+    if (config.githubPat) {
+      return {
+        hasAuth: true,
+        method: 'pat'
+      };
+    }
+
+    return {
+      hasAuth: false,
+      method: 'none'
+    };
   }
 }

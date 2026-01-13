@@ -27,17 +27,27 @@ interface PushResult {
 }
 
 class GitService {
-  private githubToken: string | undefined;
+  private defaultGithubToken: string | undefined;
 
   constructor() {
-    this.githubToken = process.env.GITHUB_PAT;
+    this.defaultGithubToken = process.env.GITHUB_PAT;
+  }
+
+  /**
+   * Get the effective token to use (provided token or default)
+   */
+  private getEffectiveToken(token?: string): string | undefined {
+    return token || this.defaultGithubToken;
   }
 
   /**
    * Inject GitHub token into git URL for authentication
+   * @param gitUrl - The git URL to inject token into
+   * @param token - Optional per-user token (falls back to environment variable)
    */
-  injectTokenIntoUrl(gitUrl: string): string {
-    if (!this.githubToken || !gitUrl.includes('github.com')) {
+  injectTokenIntoUrl(gitUrl: string, token?: string): string {
+    const effectiveToken = this.getEffectiveToken(token);
+    if (!effectiveToken || !gitUrl.includes('github.com')) {
       return gitUrl;
     }
 
@@ -57,7 +67,7 @@ class GitService {
     if (url.startsWith('https://github.com/') || url.startsWith('https://www.github.com/')) {
       return url.replace(
         /^https:\/\/(www\.)?github\.com\//,
-        `https://x-access-token:${this.githubToken}@github.com/`
+        `https://x-access-token:${effectiveToken}@github.com/`
       );
     }
 
@@ -203,16 +213,19 @@ class GitService {
 
   /**
    * Ensure GitHub remote uses token auth for non-interactive pushes
+   * @param workingDir - Working directory
+   * @param token - Optional per-user token (falls back to environment variable)
    */
-  async ensureAuthRemote(workingDir: string): Promise<boolean> {
-    if (!this.githubToken) return false;
+  async ensureAuthRemote(workingDir: string, token?: string): Promise<boolean> {
+    const effectiveToken = this.getEffectiveToken(token);
+    if (!effectiveToken) return false;
 
     try {
       const remoteUrl = await this.getRemoteUrl(workingDir);
       if (!remoteUrl || !remoteUrl.includes('github.com')) return false;
       if (remoteUrl.includes('x-access-token:') || remoteUrl.includes('oauth2:')) return false;
 
-      const authUrl = this.injectTokenIntoUrl(remoteUrl);
+      const authUrl = this.injectTokenIntoUrl(remoteUrl, effectiveToken);
       if (authUrl === remoteUrl) return false;
 
       await execAsync(`git remote set-url origin "${authUrl}"`, {
@@ -303,17 +316,20 @@ class GitService {
 
   /**
    * Push to remote
+   * @param workingDir - Working directory
+   * @param token - Optional per-user token (falls back to environment variable)
    */
-  async push(workingDir: string): Promise<PushResult> {
+  async push(workingDir: string, token?: string): Promise<PushResult> {
     try {
       const hasRemote = await this.hasRemote(workingDir);
       if (!hasRemote) {
         return { status: 'no_remote' };
       }
 
+      const effectiveToken = this.getEffectiveToken(token);
       const remoteUrl = await this.getRemoteUrl(workingDir);
-      if (remoteUrl && this.githubToken && remoteUrl.includes('github.com') && !remoteUrl.includes('@github.com')) {
-        const authUrl = this.injectTokenIntoUrl(remoteUrl);
+      if (remoteUrl && effectiveToken && remoteUrl.includes('github.com') && !remoteUrl.includes('@github.com')) {
+        const authUrl = this.injectTokenIntoUrl(remoteUrl, effectiveToken);
         await execAsync(`git remote set-url origin "${authUrl}"`, { cwd: workingDir, timeout: 5000 });
       }
 
@@ -443,9 +459,13 @@ class GitService {
 
   /**
    * Clone repository
+   * @param gitUrl - Git URL to clone
+   * @param targetPath - Target path to clone to
+   * @param branch - Optional branch to checkout
+   * @param token - Optional per-user token (falls back to environment variable)
    */
-  async clone(gitUrl: string, targetPath: string, branch?: string): Promise<void> {
-    const authUrl = this.injectTokenIntoUrl(gitUrl);
+  async clone(gitUrl: string, targetPath: string, branch?: string, token?: string): Promise<void> {
+    const authUrl = this.injectTokenIntoUrl(gitUrl, token);
     const args = ['clone', authUrl, ...(branch ? ['-b', branch] : []), targetPath];
 
     await this.execGit(args);
