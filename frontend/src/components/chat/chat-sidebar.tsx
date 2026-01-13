@@ -10,8 +10,8 @@ import { ChatTab, FoldersTab, HistoryTab, UserPanel, type Session } from "./side
 import { type DraftSession, useChatContext } from "./chat-layout";
 
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 400;
-const DEFAULT_WIDTH = 256;
+const MAX_WIDTH = 600;
+const DEFAULT_WIDTH = 384;
 
 /**
  * Convert a git URL to a clean web URL for browser display

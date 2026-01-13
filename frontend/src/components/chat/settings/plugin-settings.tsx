@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Puzzle, Loader2 } from "lucide-react";
+import { Puzzle, Loader2, Download, Check, Store } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api } from "@/lib/api";
+import { api, type MarketplacePlugin, type InstalledPlugin } from "@/lib/api";
 
 interface Plugin {
   id: string;
@@ -21,19 +21,27 @@ const AVAILABLE_PLUGINS = [
   { id: "frontend-design", name: "Frontend Design", description: "UI/UX generation" },
 ];
 
-// Default enabled plugins (when user has no config yet)
 const DEFAULT_ENABLED = ["commit-commands", "github", "frontend-design"];
 
 export function PluginSettings() {
   const [plugins, setPlugins] = useState<Plugin[]>([]);
+  const [marketplacePlugins, setMarketplacePlugins] = useState<MarketplacePlugin[]>([]);
+  const [installedPlugins, setInstalledPlugins] = useState<InstalledPlugin[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
+  const [installing, setInstalling] = useState<string | null>(null);
+  const [showMarketplace, setShowMarketplace] = useState(false);
 
   // Load plugin settings from API
   useEffect(() => {
     const loadSettings = async () => {
       try {
-        const config = await api.getConfig(1);
+        const [config, marketplace, installed] = await Promise.all([
+          api.getConfig(1),
+          api.getMarketplacePlugins(),
+          api.getInstalledPlugins(),
+        ]);
+
         const enabledPlugins = config.enabledPlugins ?? DEFAULT_ENABLED;
 
         setPlugins(
@@ -42,9 +50,10 @@ export function PluginSettings() {
             enabled: enabledPlugins.includes(p.id),
           }))
         );
+        setMarketplacePlugins(marketplace);
+        setInstalledPlugins(installed);
       } catch (error) {
         console.error("Failed to load plugin settings:", error);
-        // Use defaults on error
         setPlugins(
           AVAILABLE_PLUGINS.map((p) => ({
             ...p,
@@ -65,30 +74,57 @@ export function PluginSettings() {
 
     const newEnabled = !plugin.enabled;
 
-    // Optimistically update UI
     setPlugins((prev) =>
       prev.map((p) => (p.id === id ? { ...p, enabled: newEnabled } : p))
     );
     setSaving(id);
 
     try {
-      // Calculate new enabled plugins list
       const enabledPlugins = plugins
         .map((p) => (p.id === id ? { ...p, enabled: newEnabled } : p))
         .filter((p) => p.enabled)
         .map((p) => p.id);
 
-      // Save to API
       await api.updateConfig(1, { enabledPlugins });
     } catch (error) {
       console.error("Failed to save plugin settings:", error);
-      // Revert on error
       setPlugins((prev) =>
         prev.map((p) => (p.id === id ? { ...p, enabled: !newEnabled } : p))
       );
     } finally {
       setSaving(null);
     }
+  };
+
+  const installPlugin = async (plugin: MarketplacePlugin) => {
+    setInstalling(plugin.id);
+
+    try {
+      await api.installPlugin(plugin.id, plugin.registry);
+
+      // Refresh installed plugins list
+      const installed = await api.getInstalledPlugins();
+      setInstalledPlugins(installed);
+
+      // Add to available plugins if not already there
+      if (!plugins.find((p) => p.id === plugin.id)) {
+        const newPlugin = {
+          id: plugin.id,
+          name: plugin.name,
+          description: plugin.description,
+          enabled: false,
+        };
+        setPlugins((prev) => [...prev, newPlugin]);
+      }
+    } catch (error) {
+      console.error("Failed to install plugin:", error);
+    } finally {
+      setInstalling(null);
+    }
+  };
+
+  const isPluginInstalled = (pluginId: string) => {
+    return installedPlugins.some((p) => p.id.includes(pluginId));
   };
 
   if (loading) {
@@ -110,8 +146,20 @@ export function PluginSettings() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Available Plugins</CardTitle>
-          <CardDescription>Extend Claude Code functionality</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-base">Available Plugins</CardTitle>
+              <CardDescription>Extend Claude Code functionality</CardDescription>
+            </div>
+            <Button
+              variant={showMarketplace ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowMarketplace(!showMarketplace)}
+            >
+              <Store className="w-4 h-4 mr-1.5" />
+              {showMarketplace ? "Hide Marketplace" : "Browse Marketplace"}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
           {plugins.map((plugin) => (
@@ -154,6 +202,74 @@ export function PluginSettings() {
           ))}
         </CardContent>
       </Card>
+
+      {showMarketplace && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Store className="w-4 h-4" />
+              Plugin Marketplace
+            </CardTitle>
+            <CardDescription>
+              Browse and install plugins from the official marketplace
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {marketplacePlugins.map((plugin) => {
+              const installed = isPluginInstalled(plugin.id);
+              const isInstalling = installing === plugin.id;
+
+              return (
+                <div
+                  key={plugin.id}
+                  className={cn(
+                    "flex items-center justify-between p-4 rounded-lg border transition-colors",
+                    installed ? "border-emerald-500/50 bg-emerald-500/5" : "border-border"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={cn(
+                        "p-2 rounded-lg",
+                        installed ? "bg-emerald-500 text-white" : "bg-muted"
+                      )}
+                    >
+                      <Puzzle className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-sm">{plugin.name}</p>
+                      <p className="text-xs text-muted-foreground">{plugin.description}</p>
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        {plugin.registry}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant={installed ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => !installed && installPlugin(plugin)}
+                    disabled={installed || isInstalling}
+                  >
+                    {isInstalling ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : installed ? (
+                      <>
+                        <Check className="w-4 h-4 mr-1" />
+                        Installed
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-4 h-4 mr-1" />
+                        Install
+                      </>
+                    )}
+                  </Button>
+                </div>
+              );
+            })}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

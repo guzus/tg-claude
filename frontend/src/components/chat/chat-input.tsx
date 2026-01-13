@@ -3,7 +3,8 @@
 import { useRef, useEffect, useState, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Send, X, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Send, X, Image as ImageIcon, Wrench } from "lucide-react";
+import { ToolUsePopup } from "./tool-use-popup";
 import { type ImageContent, type ImageMediaType } from "@/lib/api";
 import { filterCommands, isTypingSlashCommand } from "@/lib/slash-commands";
 
@@ -49,6 +50,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showCommands, setShowCommands] = useState(false);
+  const [showToolPopup, setShowToolPopup] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const commandMenuRef = useRef<HTMLDivElement>(null);
 
@@ -218,8 +220,14 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
           className="hidden"
         />
 
-        {/* Attach Button */}
-        <div className="absolute left-2 md:left-3 bottom-2 md:bottom-3">
+        {/* Tool Use Popup */}
+        <ToolUsePopup
+          isOpen={showToolPopup}
+          onClose={() => setShowToolPopup(false)}
+        />
+
+        {/* Left buttons: Attach & Tools */}
+        <div className="absolute left-2 md:left-3 bottom-2 md:bottom-3 flex items-center gap-0.5">
           <Button
             type="button"
             variant="ghost"
@@ -233,6 +241,18 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
               <PlusCircle className="w-5 h-5" />
             )}
           </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowToolPopup(!showToolPopup)}
+            className={cn(
+              "w-8 h-8 hover:bg-secondary",
+              showToolPopup ? "text-primary" : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Wrench className="w-4 h-4" />
+          </Button>
         </div>
 
         {/* Input */}
@@ -243,7 +263,7 @@ export function ChatInput({ value, onChange, onSubmit, onKeyDown, images, onImag
           onKeyDown={handleKeyDownInternal}
           placeholder={images.length > 0 ? "Add a message..." : "Message Claude..."}
           rows={1}
-          className="w-full bg-transparent text-[15px] py-3 md:py-3.5 px-12 md:px-14 resize-none focus:outline-none placeholder:text-muted-foreground"
+          className="w-full bg-transparent text-[15px] py-3 md:py-3.5 pl-20 md:pl-24 pr-12 md:pr-14 resize-none focus:outline-none placeholder:text-muted-foreground"
           style={{ minHeight: "48px", maxHeight: "200px" }}
         />
 

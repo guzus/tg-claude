@@ -147,6 +147,26 @@ export function ensureRequiredPlugins(cwd?: string): void {
   ensurePluginInstalled('frontend-design@claude-plugins-official', cwd);
 }
 
+export interface MarketplacePlugin {
+  id: string;
+  name: string;
+  description: string;
+  registry: string;
+}
+
+// Known plugins from the official marketplace
+export const MARKETPLACE_PLUGINS: MarketplacePlugin[] = [
+  { id: 'ralph-loop', name: 'Ralph Loop', description: 'Autonomous iterative development loops', registry: 'claude-plugins-official' },
+  { id: 'commit-commands', name: 'Commit Commands', description: 'Git commit and branch management', registry: 'claude-plugins-official' },
+  { id: 'github', name: 'GitHub', description: 'PR creation, review, and GitHub integration', registry: 'claude-plugins-official' },
+  { id: 'frontend-design', name: 'Frontend Design', description: 'Production-grade UI/UX generation', registry: 'claude-plugins-official' },
+  { id: 'code-review', name: 'Code Review', description: 'Automated code review and suggestions', registry: 'claude-plugins-official' },
+];
+
+export function listMarketplacePlugins(): MarketplacePlugin[] {
+  return MARKETPLACE_PLUGINS;
+}
+
 export function listInstalledPlugins(homeDir: string = process.env.HOME || ''): InstalledPluginEntry[] {
   if (!homeDir) return [];
   const indexPath = path.join(homeDir, '.claude', 'plugins', 'installed_plugins.json');
