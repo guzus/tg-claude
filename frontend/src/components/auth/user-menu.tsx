@@ -40,7 +40,11 @@ export function UserMenu() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <Button
+          variant="ghost"
+          className="relative h-8 w-8 rounded-full"
+          aria-label={`User menu for ${session.user?.name || "user"}`}
+        >
           <Avatar className="h-8 w-8">
             <AvatarImage src={session.user?.image || ""} alt={session.user?.name || ""} />
             <AvatarFallback>{initials}</AvatarFallback>
