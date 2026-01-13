@@ -48,6 +48,19 @@ export function AddWorkspaceModal({
     onOpenChange(false);
   };
 
+  const normalizeGitUrl = (input: string): string => {
+    const trimmed = input.trim();
+    // If it's already a full URL, return as-is
+    if (trimmed.startsWith("http://") || trimmed.startsWith("https://") || trimmed.startsWith("git@")) {
+      return trimmed;
+    }
+    // If it matches user/repo pattern, convert to GitHub URL
+    if (/^[\w.-]+\/[\w.-]+$/.test(trimmed)) {
+      return `https://github.com/${trimmed}.git`;
+    }
+    return trimmed;
+  };
+
   const handleClone = async () => {
     if (!gitUrl.trim()) {
       setError("Repository URL is required");
@@ -58,9 +71,10 @@ export function AddWorkspaceModal({
     setError(null);
 
     try {
+      const normalizedUrl = normalizeGitUrl(gitUrl);
       const repo = await api.cloneRepository(
         1,
-        gitUrl.trim(),
+        normalizedUrl,
         repoName.trim() || undefined,
         branch.trim() || undefined
       );
@@ -107,7 +121,7 @@ export function AddWorkspaceModal({
           </DialogTitle>
           <DialogDescription>
             {mode === "select" && "Choose how you want to add a new workspace"}
-            {mode === "clone" && "Enter the Git URL to clone"}
+            {mode === "clone" && "Enter user/repo or a Git URL to clone"}
             {mode === "create" && "Create a new repository with GitHub integration"}
           </DialogDescription>
         </DialogHeader>
@@ -157,13 +171,16 @@ export function AddWorkspaceModal({
             </button>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repository URL *</label>
+              <label className="text-sm font-medium">Repository *</label>
               <Input
-                placeholder="https://github.com/user/repo.git"
+                placeholder="user/repo"
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 disabled={isLoading}
               />
+              <p className="text-xs text-muted-foreground">
+                Enter <code className="px-1 py-0.5 rounded bg-secondary">user/repo</code> or full URL
+              </p>
             </div>
 
             <div className="space-y-2">
