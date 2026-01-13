@@ -319,6 +319,7 @@ export default function HomePage() {
                       300000
                   }
                   highlightText={searchQuery.trim() || undefined}
+                  repoUrl={currentRepository?.gitUrl?.replace(/\.git$/, "").replace(/^git@github\.com:/, "https://github.com/")}
                 />
               ))
             )}
