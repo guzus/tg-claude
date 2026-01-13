@@ -405,7 +405,7 @@ export function createApiRoutes(
     }
   });
 
-  // Get file content
+  // Get file content (text)
   router.get('/repositories/:repoId/file', async (req: Request, res: Response) => {
     try {
       const { repoId } = req.params;
@@ -439,6 +439,66 @@ export function createApiRoutes(
     } catch (error) {
       logger.error('API: Failed to get file content', { error: getErrorMessage(error) });
       res.status(500).json({ error: 'Failed to get file content' });
+    }
+  });
+
+  // Get raw file (binary support for images, PDFs, etc.)
+  router.get('/repositories/:repoId/file/raw', async (req: Request, res: Response) => {
+    try {
+      const { repoId } = req.params;
+      const userId = parseInt(req.query.userId as string, 10);
+      const filePath = req.query.path as string;
+
+      if (!userId) {
+        return res.status(400).json({ error: 'Missing userId query parameter' });
+      }
+
+      if (!filePath) {
+        return res.status(400).json({ error: 'Missing path query parameter' });
+      }
+
+      const repos = await repositoryManager.listRepositories(userId);
+      const repo = repos.find(r => r.id === repoId);
+
+      if (!repo) {
+        return res.status(404).json({ error: 'Repository not found' });
+      }
+
+      const fullPath = path.join(repo.path, filePath);
+
+      // Security check: ensure path is within repo
+      const normalizedRepoPath = path.normalize(repo.path);
+      const normalizedFullPath = path.normalize(fullPath);
+      if (!normalizedFullPath.startsWith(normalizedRepoPath)) {
+        return res.status(403).json({ error: 'Access denied' });
+      }
+
+      // Determine content type from extension
+      const ext = path.extname(filePath).toLowerCase();
+      const mimeTypes: Record<string, string> = {
+        '.png': 'image/png',
+        '.jpg': 'image/jpeg',
+        '.jpeg': 'image/jpeg',
+        '.gif': 'image/gif',
+        '.webp': 'image/webp',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.pdf': 'application/pdf',
+        '.mp4': 'video/mp4',
+        '.webm': 'video/webm',
+        '.mp3': 'audio/mpeg',
+        '.wav': 'audio/wav',
+      };
+
+      const contentType = mimeTypes[ext] || 'application/octet-stream';
+      const fileBuffer = await fs.readFile(fullPath);
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Length', fileBuffer.length);
+      res.send(fileBuffer);
+    } catch (error) {
+      logger.error('API: Failed to get raw file', { error: getErrorMessage(error) });
+      res.status(500).json({ error: 'Failed to get file' });
     }
   });
 

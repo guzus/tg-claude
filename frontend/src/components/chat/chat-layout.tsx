@@ -30,6 +30,10 @@ interface ChatContextType {
   archivedSessions: Set<string>;
   archiveSession: (sessionId: string) => void;
   unarchiveSession: (sessionId: string) => void;
+  // Mobile navigation
+  isMobileSidebarOpen: boolean;
+  setMobileSidebarOpen: (open: boolean) => void;
+  closeMobileSidebar: () => void;
 }
 
 const ChatContext = createContext<ChatContextType | null>(null);
@@ -56,6 +60,12 @@ export function ChatLayout({ children }: ChatLayoutProps) {
   const [customSessionNames, setCustomSessionNames] = useState<Record<string, string>>({});
   const [sessionOrder, setSessionOrderState] = useState<string[]>([]);
   const [archivedSessions, setArchivedSessions] = useState<Set<string>>(new Set());
+  const [isMobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  // Close mobile sidebar
+  const closeMobileSidebar = useCallback(() => {
+    setMobileSidebarOpen(false);
+  }, []);
 
   // Load custom session names, order, and archived from localStorage on mount
   useEffect(() => {
@@ -196,53 +206,132 @@ export function ChatLayout({ children }: ChatLayoutProps) {
         archivedSessions,
         archiveSession,
         unarchiveSession,
+        isMobileSidebarOpen,
+        setMobileSidebarOpen,
+        closeMobileSidebar,
       }}
     >
       <TooltipProvider>
         <div className="flex h-screen bg-background overflow-hidden">
-          {/* Server Bar */}
-          <ServerBar
-            activeWorkspace={activeWorkspace}
-            onWorkspaceSelect={setActiveWorkspace}
+          {/* Mobile Sidebar Overlay */}
+          <div
+            className={`
+              fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-200
+              ${isMobileSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+            `}
+            onClick={closeMobileSidebar}
           />
 
-          {/* Chat Sidebar */}
-          <ChatSidebar
-            workspaceName={currentRepository?.name || "Claude Hub"}
-            repositoryId={activeWorkspace || undefined}
-            gitUrl={currentRepository?.gitUrl}
-            activeSession={activeSession}
-            draftSessions={draftSessions}
-            customSessionNames={customSessionNames}
-            sessionOrder={sessionOrder}
-            archivedSessions={archivedSessions}
-            onSessionSelect={(sessionId) => {
-              setActiveSession(sessionId);
-              setSelectedFile(null);
-              setShowSettings(false);
-            }}
-            onSessionRename={(sessionId, name) => {
-              if (isDraftSessionId(sessionId)) {
-                renameDraftSession(sessionId, name);
-              } else {
-                setCustomSessionName(sessionId, name);
-              }
-            }}
-            onSessionReorder={setSessionOrder}
-            onSessionArchive={archiveSession}
-            onSessionUnarchive={unarchiveSession}
-            onFileSelect={setSelectedFile}
-            onNewSession={() => {
-              createNewSession();
-            }}
-            onShowSettings={() => {
-              setShowSettings(true);
-              setSelectedFile(null);
-            }}
-          />
+          {/* Mobile Sidebar Container - slides in from left */}
+          <div className={`
+            fixed left-0 top-0 bottom-0 z-50 flex md:hidden
+            transition-transform duration-200 ease-out
+            ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+          `}>
+            <ServerBar
+              activeWorkspace={activeWorkspace}
+              onWorkspaceSelect={(id) => {
+                setActiveWorkspace(id);
+              }}
+            />
+            <ChatSidebar
+              workspaceName={currentRepository?.name || "Claude Hub"}
+              repositoryId={activeWorkspace || undefined}
+              repositoryPath={currentRepository?.path}
+              gitUrl={currentRepository?.gitUrl}
+              activeSession={activeSession}
+              draftSessions={draftSessions}
+              customSessionNames={customSessionNames}
+              sessionOrder={sessionOrder}
+              archivedSessions={archivedSessions}
+              onSessionSelect={(sessionId) => {
+                setActiveSession(sessionId);
+                setSelectedFile(null);
+                setShowSettings(false);
+                closeMobileSidebar();
+              }}
+              onSessionRename={(sessionId, name) => {
+                if (isDraftSessionId(sessionId)) {
+                  renameDraftSession(sessionId, name);
+                } else {
+                  setCustomSessionName(sessionId, name);
+                }
+              }}
+              onSessionReorder={setSessionOrder}
+              onSessionArchive={archiveSession}
+              onSessionUnarchive={unarchiveSession}
+              onFileSelect={(path) => {
+                setSelectedFile(path);
+                closeMobileSidebar();
+              }}
+              onNewSession={() => {
+                createNewSession();
+                closeMobileSidebar();
+              }}
+              onShowSettings={() => {
+                setShowSettings(true);
+                setSelectedFile(null);
+                closeMobileSidebar();
+              }}
+            />
+          </div>
+
+          {/* Desktop Server Bar */}
+          <div className="hidden md:block">
+            <ServerBar
+              activeWorkspace={activeWorkspace}
+              onWorkspaceSelect={(id) => {
+                setActiveWorkspace(id);
+              }}
+            />
+          </div>
+
+          {/* Desktop Chat Sidebar */}
+          <div className="hidden md:block">
+            <ChatSidebar
+              workspaceName={currentRepository?.name || "Claude Hub"}
+              repositoryId={activeWorkspace || undefined}
+              repositoryPath={currentRepository?.path}
+              gitUrl={currentRepository?.gitUrl}
+              activeSession={activeSession}
+              draftSessions={draftSessions}
+              customSessionNames={customSessionNames}
+              sessionOrder={sessionOrder}
+              archivedSessions={archivedSessions}
+              onSessionSelect={(sessionId) => {
+                setActiveSession(sessionId);
+                setSelectedFile(null);
+                setShowSettings(false);
+                closeMobileSidebar();
+              }}
+              onSessionRename={(sessionId, name) => {
+                if (isDraftSessionId(sessionId)) {
+                  renameDraftSession(sessionId, name);
+                } else {
+                  setCustomSessionName(sessionId, name);
+                }
+              }}
+              onSessionReorder={setSessionOrder}
+              onSessionArchive={archiveSession}
+              onSessionUnarchive={unarchiveSession}
+              onFileSelect={(path) => {
+                setSelectedFile(path);
+                closeMobileSidebar();
+              }}
+              onNewSession={() => {
+                createNewSession();
+                closeMobileSidebar();
+              }}
+              onShowSettings={() => {
+                setShowSettings(true);
+                setSelectedFile(null);
+                closeMobileSidebar();
+              }}
+            />
+          </div>
 
           {/* Main Content */}
-          <main className="flex-1 flex flex-col overflow-hidden">
+          <main className="flex-1 flex flex-col overflow-hidden w-full">
             {children}
           </main>
         </div>
