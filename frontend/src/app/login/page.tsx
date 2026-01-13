@@ -1,9 +1,9 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
 import Link from "next/link";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Github, Sparkles, AlertCircle, Loader2, Shield, GitBranch } from "lucide-react";
@@ -55,10 +55,28 @@ const ERROR_MESSAGES: Record<string, { message: string; suggestion?: string }> =
 };
 
 function LoginContent() {
+  const router = useRouter();
+  const { status } = useSession();
   const searchParams = useSearchParams();
   const error = searchParams.get("error");
   const errorInfo = error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default : null;
   const [isLoading, setIsLoading] = useState(false);
+
+  // Redirect authenticated users to home
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.replace("/");
+    }
+  }, [status, router]);
+
+  // Show loading while checking auth or redirecting
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   const handleGitHubSignIn = async () => {
     setIsLoading(true);
