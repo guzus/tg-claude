@@ -197,14 +197,16 @@ export function AddWorkspaceModal({
             </button>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repository *</label>
+              <label htmlFor="clone-repo-url" className="text-sm font-medium">Repository *</label>
               <Input
+                id="clone-repo-url"
                 placeholder="user/repo"
                 value={gitUrl}
                 onChange={(e) => setGitUrl(e.target.value)}
                 disabled={isLoading}
+                aria-describedby="clone-repo-hint"
               />
-              <p className="text-xs text-muted-foreground">
+              <p id="clone-repo-hint" className="text-xs text-muted-foreground">
                 Enter <code className="px-1 py-0.5 rounded bg-secondary">user/repo</code> or full URL
               </p>
             </div>
@@ -221,10 +223,11 @@ export function AddWorkspaceModal({
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label htmlFor="clone-repo-name" className="text-sm font-medium">
                 Name <span className="text-muted-foreground">(optional)</span>
               </label>
               <Input
+                id="clone-repo-name"
                 placeholder="Custom folder name"
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
@@ -233,10 +236,11 @@ export function AddWorkspaceModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">
+              <label htmlFor="clone-repo-branch" className="text-sm font-medium">
                 Branch <span className="text-muted-foreground">(optional)</span>
               </label>
               <Input
+                id="clone-repo-branch"
                 placeholder="main"
                 value={branch}
                 onChange={(e) => setBranch(e.target.value)}
@@ -245,7 +249,7 @@ export function AddWorkspaceModal({
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p role="alert" aria-live="polite" className="text-sm text-destructive">{error}</p>
             )}
 
             <Button
@@ -276,8 +280,9 @@ export function AddWorkspaceModal({
             </button>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Repository Name *</label>
+              <label htmlFor="create-repo-name" className="text-sm font-medium">Repository Name *</label>
               <Input
+                id="create-repo-name"
                 placeholder="my-new-project"
                 value={repoName}
                 onChange={(e) => setRepoName(e.target.value)}
@@ -339,7 +344,7 @@ export function AddWorkspaceModal({
             </div>
 
             {error && (
-              <p className="text-sm text-destructive">{error}</p>
+              <p role="alert" aria-live="polite" className="text-sm text-destructive">{error}</p>
             )}
 
             <Button
