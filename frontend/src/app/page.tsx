@@ -244,6 +244,27 @@ export default function HomePage() {
     ? "New Session"
     : tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
 
+  // Handle session deletion
+  const handleDeleteSession = async () => {
+    if (!activeSession) return;
+
+    if (isDraftSessionId(activeSession)) {
+      // Remove draft session
+      removeDraftSession(activeSession);
+    } else {
+      // Cancel real task
+      try {
+        await api.cancelTask(activeSession);
+        await fetchTasks();
+      } catch (error) {
+        console.error("Failed to delete session:", error);
+      }
+    }
+    // Reset to empty session
+    setActiveSession("");
+    setMessages([]);
+  };
+
   // Filter messages based on search query
   const filteredMessages = searchQuery.trim()
     ? messages.filter((msg) =>
@@ -274,7 +295,7 @@ export default function HomePage() {
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       {/* Header */}
-      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} repositoryName={currentRepository?.name} onSearch={setSearchQuery} />
+      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} repositoryName={currentRepository?.name} onSearch={setSearchQuery} onDeleteSession={handleDeleteSession} />
 
       {/* Messages */}
       <ScrollArea className="flex-1">

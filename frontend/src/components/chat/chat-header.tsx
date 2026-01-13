@@ -2,7 +2,13 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Search, MoreHorizontal, Loader2, Hash, X, Menu, ChevronRight } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Search, MoreHorizontal, Loader2, Hash, X, Menu, ChevronRight, Trash2 } from "lucide-react";
 import { useChatContext } from "./chat-layout";
 
 interface ChatHeaderProps {
@@ -10,9 +16,10 @@ interface ChatHeaderProps {
   sessionName: string;
   repositoryName?: string;
   onSearch?: (query: string) => void;
+  onDeleteSession?: () => void;
 }
 
-export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch }: ChatHeaderProps) {
+export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch, onDeleteSession }: ChatHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const { setMobileSidebarOpen } = useChatContext();
@@ -93,9 +100,22 @@ export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch }:
             </button>
           )}
         </div>
-        <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-foreground">
-          <MoreHorizontal className="w-4 h-4" />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="w-8 h-8 text-muted-foreground hover:text-foreground">
+              <MoreHorizontal className="w-4 h-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={onDeleteSession}
+              className="text-destructive focus:text-destructive cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Session
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Mobile search bar - slides down */}
