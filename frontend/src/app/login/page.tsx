@@ -1,12 +1,32 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import Link from "next/link";
 import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Github, Sparkles } from "lucide-react";
+import { Github, Sparkles, AlertCircle } from "lucide-react";
 
-export default function LoginPage() {
+const ERROR_MESSAGES: Record<string, string> = {
+  Configuration: "There is a problem with the server configuration.",
+  AccessDenied: "Access was denied. You may not have permission to sign in.",
+  Verification: "The verification token has expired or has already been used.",
+  OAuthSignin: "Error starting the OAuth sign-in flow.",
+  OAuthCallback: "Error handling the OAuth callback.",
+  OAuthCreateAccount: "Could not create OAuth account.",
+  EmailCreateAccount: "Could not create email account.",
+  Callback: "Error in the OAuth callback handler.",
+  OAuthAccountNotLinked: "This email is already linked to another account.",
+  SessionRequired: "Please sign in to access this page.",
+  Default: "An error occurred during sign in.",
+};
+
+function LoginContent() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get("error");
+  const errorMessage = error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default : null;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -22,6 +42,12 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {errorMessage && (
+            <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-md">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
           <Button
             variant="outline"
             className="w-full"
@@ -44,5 +70,17 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="animate-pulse text-muted-foreground">Loading...</div>
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   );
 }

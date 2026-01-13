@@ -6,19 +6,15 @@
   NODE_VERSION = "20"
 
 # Next.js on Netlify requires the Next.js Runtime
+# This plugin automatically handles API routes - no manual redirects needed
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Redirects for SPA routing
-[[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/___netlify-handler"
-  status = 200
-
 # Environment variables (set in Netlify dashboard)
 # AUTH_SECRET - Required for NextAuth.js
+# AUTH_URL - Must be set to https://claudehub.netlify.app
 # AUTH_GITHUB_ID - GitHub OAuth App ID
 # AUTH_GITHUB_SECRET - GitHub OAuth App Secret
-# AUTH_GOOGLE_ID - Google OAuth Client ID
-# AUTH_GOOGLE_SECRET - Google OAuth Client Secret
+# AUTH_GOOGLE_ID - Google OAuth Client ID (optional)
+# AUTH_GOOGLE_SECRET - Google OAuth Client Secret (optional)
 # NEXT_PUBLIC_API_URL - Backend API URL
