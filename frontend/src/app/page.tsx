@@ -21,7 +21,9 @@ export default function HomePage() {
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
-  const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession } = useChatContext();
+  const { selectedFile, setSelectedFile, activeWorkspace, activeSession, setActiveSession, showSettings, setShowSettings, currentRepository, removeDraftSession, archivedSessions, archiveSession, unarchiveSession, setCustomSessionName, renameDraftSession, customSessionNames } = useChatContext();
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   // Fetch all tasks
   const fetchTasks = useCallback(async () => {
@@ -242,7 +244,42 @@ export default function HomePage() {
     ? "New Chat"
     : isDraftSessionId(activeSession)
     ? "New Session"
-    : tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
+    : customSessionNames[activeSession] || tasks.find((t) => t.id === activeSession)?.prompt.slice(0, 30) || "Session";
+
+  // Check if current session is archived
+  const isCurrentSessionArchived = activeSession ? archivedSessions.has(activeSession) : false;
+
+  // Check if current session can be edited (not a draft placeholder)
+  const canEditCurrentSession = !!activeSession && !isDraftSessionId(activeSession);
+
+  // Handle session rename
+  const handleRenameSession = () => {
+    if (!activeSession) return;
+    setRenameValue(currentSessionName);
+    setIsRenaming(true);
+  };
+
+  const handleRenameSubmit = (newName: string) => {
+    if (!activeSession || !newName.trim()) return;
+    if (isDraftSessionId(activeSession)) {
+      renameDraftSession(activeSession, newName.trim());
+    } else {
+      setCustomSessionName(activeSession, newName.trim());
+    }
+    setIsRenaming(false);
+    setRenameValue("");
+  };
+
+  // Handle session archive/unarchive
+  const handleArchiveSession = () => {
+    if (!activeSession) return;
+    archiveSession(activeSession);
+  };
+
+  const handleUnarchiveSession = () => {
+    if (!activeSession) return;
+    unarchiveSession(activeSession);
+  };
 
   // Handle session deletion
   const handleDeleteSession = async () => {
@@ -294,8 +331,53 @@ export default function HomePage() {
 
   return (
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {/* Rename Dialog */}
+      {isRenaming && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsRenaming(false)}>
+          <div className="bg-card border border-border rounded-lg p-4 w-full max-w-sm shadow-lg" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold text-sm mb-3">Rename Session</h3>
+            <input
+              type="text"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameSubmit(renameValue);
+                if (e.key === "Escape") setIsRenaming(false);
+              }}
+              autoFocus
+              className="w-full h-9 px-3 rounded-md bg-secondary border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/50"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                onClick={() => setIsRenaming(false)}
+                className="px-3 py-1.5 text-sm rounded-md hover:bg-secondary"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleRenameSubmit(renameValue)}
+                className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
-      <ChatHeader isRunning={!!runningTask} sessionName={currentSessionName} repositoryName={currentRepository?.name} onSearch={setSearchQuery} onDeleteSession={handleDeleteSession} />
+      <ChatHeader
+        isRunning={!!runningTask}
+        sessionName={currentSessionName}
+        repositoryName={currentRepository?.name}
+        isArchived={isCurrentSessionArchived}
+        canEdit={canEditCurrentSession}
+        onSearch={setSearchQuery}
+        onDeleteSession={handleDeleteSession}
+        onRenameSession={handleRenameSession}
+        onArchiveSession={handleArchiveSession}
+        onUnarchiveSession={handleUnarchiveSession}
+      />
 
       {/* Messages */}
       <ScrollArea className="flex-1">

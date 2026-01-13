@@ -8,18 +8,23 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Search, MoreHorizontal, Loader2, Hash, X, Menu, ChevronRight, Trash2 } from "lucide-react";
+import { Search, MoreHorizontal, Loader2, Hash, X, Menu, ChevronRight, Trash2, Pencil, Archive, ArchiveRestore } from "lucide-react";
 import { useChatContext } from "./chat-layout";
 
 interface ChatHeaderProps {
   isRunning: boolean;
   sessionName: string;
   repositoryName?: string;
+  isArchived?: boolean;
+  canEdit?: boolean;
   onSearch?: (query: string) => void;
   onDeleteSession?: () => void;
+  onRenameSession?: () => void;
+  onArchiveSession?: () => void;
+  onUnarchiveSession?: () => void;
 }
 
-export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch, onDeleteSession }: ChatHeaderProps) {
+export function ChatHeader({ isRunning, sessionName, repositoryName, isArchived, canEdit = true, onSearch, onDeleteSession, onRenameSession, onArchiveSession, onUnarchiveSession }: ChatHeaderProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const { setMobileSidebarOpen } = useChatContext();
@@ -107,6 +112,34 @@ export function ChatHeader({ isRunning, sessionName, repositoryName, onSearch, o
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {canEdit && (
+              <DropdownMenuItem
+                onClick={onRenameSession}
+                className="cursor-pointer"
+              >
+                <Pencil className="w-4 h-4 mr-2" />
+                Rename
+              </DropdownMenuItem>
+            )}
+            {canEdit && (
+              isArchived ? (
+                <DropdownMenuItem
+                  onClick={onUnarchiveSession}
+                  className="cursor-pointer"
+                >
+                  <ArchiveRestore className="w-4 h-4 mr-2" />
+                  Unarchive
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={onArchiveSession}
+                  className="cursor-pointer"
+                >
+                  <Archive className="w-4 h-4 mr-2" />
+                  Archive
+                </DropdownMenuItem>
+              )
+            )}
             <DropdownMenuItem
               onClick={onDeleteSession}
               className="text-destructive focus:text-destructive cursor-pointer"
