@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useSession, signIn, signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { LogIn, LogOut, Loader2 } from "lucide-react";
+import { LogIn, LogOut, Loader2, Github } from "lucide-react";
 
 export function UserPanel() {
   const { data: session, status } = useSession();
@@ -12,6 +12,7 @@ export function UserPanel() {
 
   const isLoading = status === "loading";
   const isAuthenticated = status === "authenticated" && session?.user;
+  const provider = (session?.user as { provider?: string })?.provider;
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -63,7 +64,19 @@ export function UserPanel() {
 
           {/* User Info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{session.user.name || "User"}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-medium truncate">{session.user.name || "User"}</p>
+              {provider === "github" && (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Github className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="text-xs">
+                    Signed in with GitHub (repos connected)
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             <p className="text-[11px] text-muted-foreground truncate">{session.user.email}</p>
           </div>
 
