@@ -61,6 +61,7 @@ function LoginContent() {
   const error = searchParams.get("error");
   const errorInfo = error ? ERROR_MESSAGES[error] || ERROR_MESSAGES.Default : null;
   const [isLoading, setIsLoading] = useState(false);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   // Redirect authenticated users to home
   useEffect(() => {
@@ -80,12 +81,17 @@ function LoginContent() {
 
   const handleGitHubSignIn = async () => {
     setIsLoading(true);
+    setSignInError(null);
     try {
       await signIn("github", { callbackUrl: "/" });
     } catch {
+      setSignInError("Unable to connect. Please check your internet connection and try again.");
       setIsLoading(false);
     }
   };
+
+  // Combined error display - URL error takes precedence
+  const displayError = errorInfo || (signInError ? { message: signInError } : null);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -100,7 +106,7 @@ function LoginContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {errorInfo && (
+          {displayError && (
             <div
               role="alert"
               aria-live="polite"
@@ -109,9 +115,9 @@ function LoginContent() {
               <div className="flex items-start gap-2 text-destructive">
                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                 <div>
-                  <span className="font-medium">{errorInfo.message}</span>
-                  {errorInfo.suggestion && (
-                    <p className="text-muted-foreground mt-1 text-xs">{errorInfo.suggestion}</p>
+                  <span className="font-medium">{displayError.message}</span>
+                  {displayError.suggestion && (
+                    <p className="text-muted-foreground mt-1 text-xs">{displayError.suggestion}</p>
                   )}
                 </div>
               </div>
