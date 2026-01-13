@@ -40,8 +40,9 @@ export function SettingsView({ onClose }: SettingsViewProps) {
           size="icon"
           onClick={onClose}
           className="w-8 h-8 text-muted-foreground hover:text-foreground"
+          aria-label="Close settings"
         >
-          <X className="w-4 h-4" />
+          <X className="w-4 h-4" aria-hidden="true" />
         </Button>
       </div>
 

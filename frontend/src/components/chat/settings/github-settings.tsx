@@ -163,8 +163,12 @@ export function GitHubSettings() {
         <CardContent className="space-y-4">
           {/* Success message */}
           {successMessage && (
-            <div className="flex items-center gap-2 p-3 text-sm bg-green-500/10 rounded-lg border border-green-500/20 animate-in fade-in duration-200">
-              <Check className="w-4 h-4 text-green-500 shrink-0" />
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-2 p-3 text-sm bg-green-500/10 rounded-lg border border-green-500/20 animate-in fade-in duration-200"
+            >
+              <Check className="w-4 h-4 text-green-500 shrink-0" aria-hidden="true" />
               <span className="text-green-600 dark:text-green-400">{successMessage}</span>
             </div>
           )}
@@ -256,8 +260,12 @@ export function GitHubSettings() {
 
               {/* Error display */}
               {patError && !showPatInput && (
-                <div className="flex items-start gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div
+                  role="alert"
+                  aria-live="polite"
+                  className="flex items-start gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20"
+                >
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{patError}</span>
                 </div>
               )}
@@ -277,10 +285,11 @@ export function GitHubSettings() {
                   ) : (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-sm font-medium mb-1.5 block">
+                      <label htmlFor="github-pat-input" className="text-sm font-medium mb-1.5 block">
                         Personal Access Token
                       </label>
                       <Input
+                        id="github-pat-input"
                         type="password"
                         value={patInput}
                         onChange={(e) => {
@@ -289,8 +298,9 @@ export function GitHubSettings() {
                         }}
                         placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
                         className="font-mono"
+                        aria-describedby="github-pat-hint"
                       />
-                      <p className="text-xs text-muted-foreground mt-1.5">
+                      <p id="github-pat-hint" className="text-xs text-muted-foreground mt-1.5">
                         Requires <code className="bg-secondary px-1 rounded">repo</code> scope.{" "}
                         <a
                           href="https://github.com/settings/tokens/new?scopes=repo&description=tg-claude"
@@ -304,8 +314,8 @@ export function GitHubSettings() {
                     </div>
 
                     {patError && (
-                      <div className="flex items-center gap-2 text-sm text-destructive">
-                        <AlertCircle className="w-4 h-4" />
+                      <div role="alert" aria-live="polite" className="flex items-center gap-2 text-sm text-destructive">
+                        <AlertCircle className="w-4 h-4" aria-hidden="true" />
                         {patError}
                       </div>
                     )}
