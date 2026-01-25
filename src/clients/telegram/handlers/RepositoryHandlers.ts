@@ -853,7 +853,7 @@ export class RepositoryHandlers extends BaseHandler {
       // Create GitHub repository
       const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
-      if (result === 'success') {
+      if (result.status === 'success') {
         await this.repositoryManager.refreshRepository(userId, repo.id);
         await this.updatePinnedRepositoryInfo(chatId, userId);
 
@@ -874,14 +874,21 @@ export class RepositoryHandlers extends BaseHandler {
             }
           }
         );
-      } else if (result === 'already_exists') {
+      } else if (result.status === 'not_authenticated') {
+        await this.bot.editMessageText(
+          `⚠️ *GitHub not configured*\n\n` +
+          `Set \`GITHUB_PAT\` in Railway environment variables.\n\n` +
+          `Local repo created at \`${repo.path}\``,
+          { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
+        );
+      } else if (result.status === 'already_exists') {
         await this.bot.editMessageText(
           `Repository \`${name}\` already exists on GitHub.\n\nTry a different name with /new_repo`,
           { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
         );
       } else {
         await this.bot.editMessageText(
-          `Failed to create GitHub repository.\n\nLocal repo created at \`${repo.path}\``,
+          `❌ GitHub creation failed: ${result.error || 'Unknown error'}\n\nLocal repo at \`${repo.path}\``,
           { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
         );
       }

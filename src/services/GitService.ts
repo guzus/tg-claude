@@ -345,13 +345,36 @@ class GitService {
   }
 
   /**
+   * Check if GitHub CLI is authenticated
+   */
+  async isGhAuthenticated(): Promise<boolean> {
+    try {
+      await execAsync('gh auth status', { timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Create GitHub repository using gh CLI
+   * Returns detailed result with error information
    */
   async createGitHubRepository(
     workingDir: string,
     isPrivate = false,
     customRepoName?: string
-  ): Promise<'success' | 'already_exists' | 'error'> {
+  ): Promise<{ status: 'success' | 'already_exists' | 'not_authenticated' | 'error'; error?: string }> {
+    // Check authentication first
+    const isAuth = await this.isGhAuthenticated();
+    if (!isAuth) {
+      logger.warn('GitHub CLI not authenticated - cannot create repository');
+      return {
+        status: 'not_authenticated',
+        error: 'GitHub CLI not authenticated. Set GITHUB_PAT environment variable.'
+      };
+    }
+
     try {
       const repoName = customRepoName || path.basename(workingDir);
       const visibility = isPrivate ? '--private' : '--public';
@@ -360,12 +383,18 @@ class GitService {
         timeout: 30000,
       });
       logger.info('Created GitHub repository', { repoName, visibility });
-      return 'success';
+      return { status: 'success' };
     } catch (error) {
       const errMsg = getErrorMessage(error);
-      if (errMsg.includes('Name already exists')) return 'already_exists';
+      if (errMsg.includes('Name already exists')) {
+        return { status: 'already_exists', error: 'Repository name already exists on GitHub' };
+      }
       logger.error('Failed to create GitHub repository', { error: errMsg });
-      return 'error';
+      // Sanitize error message (remove tokens if any)
+      const sanitizedError = errMsg
+        .replace(/gh[opsr]_[a-zA-Z0-9]+/g, '[REDACTED]')
+        .replace(/x-access-token:[^@]+@/gi, 'x-access-token:***@');
+      return { status: 'error', error: sanitizedError };
     }
   }
 
