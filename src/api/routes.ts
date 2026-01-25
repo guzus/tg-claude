@@ -363,14 +363,14 @@ export function createApiRoutes(
             // Create GitHub repository
             const result = await gitService.createGitHubRepository(repo.path, isPrivate === true);
 
-            if (result === 'success') {
+            if (result.status === 'success') {
               // Refresh repository info to get the new gitUrl
               repo = await repositoryManager.refreshRepository(userId, repo.id);
               logger.info('Created GitHub repository', { repoId: repo.id, name: repo.name });
-            } else if (result === 'already_exists') {
+            } else if (result.status === 'already_exists') {
               logger.warn('GitHub repository already exists', { name: repo.name });
             } else {
-              logger.error('Failed to create GitHub repository', { name: repo.name });
+              logger.warn('Failed to create GitHub repository', { name: repo.name, error: result.error });
             }
           } catch (ghError) {
             // Don't fail the whole operation if GitHub creation fails

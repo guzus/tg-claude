@@ -28,9 +28,75 @@ interface PushResult {
 
 class GitService {
   private githubToken: string | undefined;
+  private tokenValidationResult: { valid: boolean; reason?: string } | null = null;
 
   constructor() {
-    this.githubToken = process.env.GITHUB_PAT;
+    const rawToken = process.env.GITHUB_PAT;
+
+    // Trim whitespace (common copy-paste issue)
+    this.githubToken = rawToken?.trim();
+
+    // Validate and log token status on startup
+    this.validateTokenFormat();
+  }
+
+  /**
+   * Validate GitHub token format and log status
+   * Valid formats: ghp_*, gho_*, ghs_*, ghr_*, github_pat_*
+   */
+  private validateTokenFormat(): void {
+    if (!this.githubToken) {
+      this.tokenValidationResult = { valid: false, reason: 'not_set' };
+      logger.info('GitHub: GITHUB_PAT not configured - repo creation disabled');
+      return;
+    }
+
+    // Check for common issues
+    if (this.githubToken.includes(' ') || this.githubToken.includes('\n')) {
+      this.tokenValidationResult = { valid: false, reason: 'contains_whitespace' };
+      logger.error('GitHub: GITHUB_PAT contains whitespace - please check the value');
+      return;
+    }
+
+    // Validate token format - be permissive but catch obvious errors
+    // Classic PAT: ghp_, gho_, ghs_, ghr_ (40+ chars total)
+    // Fine-grained: github_pat_ (80+ chars total)
+    const isClassicPAT = /^gh[pors]_[a-zA-Z0-9_]+$/.test(this.githubToken) && this.githubToken.length >= 40;
+    const isFineGrained = this.githubToken.startsWith('github_pat_') && this.githubToken.length >= 80;
+    const looksLikeToken = isClassicPAT || isFineGrained || this.githubToken.length >= 30;
+
+    if (!looksLikeToken) {
+      this.tokenValidationResult = { valid: false, reason: 'invalid_format' };
+      logger.warn('GitHub: GITHUB_PAT appears invalid (too short or wrong format)', {
+        length: this.githubToken.length
+      });
+    } else if (!isClassicPAT && !isFineGrained) {
+      // Unknown format but reasonable length - try it anyway
+      this.tokenValidationResult = { valid: true, reason: 'unknown_format' };
+      logger.info('GitHub: GITHUB_PAT configured (unknown format, will attempt)');
+    } else {
+      this.tokenValidationResult = { valid: true };
+      const tokenType = isClassicPAT ? 'classic' : 'fine-grained';
+      logger.info(`GitHub: GITHUB_PAT configured (${tokenType} token)`);
+    }
+  }
+
+  /**
+   * Check if GitHub token is configured and valid
+   */
+  hasValidToken(): boolean {
+    return !!this.githubToken && this.tokenValidationResult?.valid !== false;
+  }
+
+  /**
+   * Get token validation status for diagnostics
+   */
+  getTokenStatus(): { configured: boolean; valid: boolean; reason?: string } {
+    return {
+      configured: !!this.githubToken,
+      valid: this.tokenValidationResult?.valid ?? false,
+      reason: this.tokenValidationResult?.reason
+    };
   }
 
   /**
@@ -345,27 +411,116 @@ class GitService {
   }
 
   /**
+   * Check if gh CLI is installed (works on Alpine Linux and other systems)
+   */
+  async isGhInstalled(): Promise<boolean> {
+    try {
+      // Use 'gh --version' instead of 'which' for better cross-platform compatibility
+      await execAsync('gh --version', { timeout: 5000 });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if GitHub CLI is authenticated
+   * gh CLI uses GH_TOKEN env var, so we pass GITHUB_PAT as GH_TOKEN
+   */
+  async isGhAuthenticated(): Promise<boolean> {
+    // If no token is set, we can't authenticate
+    if (!this.githubToken) {
+      return false;
+    }
+
+    try {
+      await execAsync('gh auth status', {
+        timeout: 5000,
+        env: { ...process.env, GH_TOKEN: this.githubToken }
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * Create GitHub repository using gh CLI
+   * Returns detailed result with error information
    */
   async createGitHubRepository(
     workingDir: string,
     isPrivate = false,
     customRepoName?: string
-  ): Promise<'success' | 'already_exists' | 'error'> {
+  ): Promise<{ status: 'success' | 'already_exists' | 'not_authenticated' | 'error'; error?: string }> {
+    // Check if gh CLI is installed
+    const ghInstalled = await this.isGhInstalled();
+    if (!ghInstalled) {
+      logger.warn('gh CLI not installed - cannot create repository');
+      return {
+        status: 'error',
+        error: 'GitHub CLI (gh) not installed in container.'
+      };
+    }
+
+    // Check token configuration with specific error messages
+    const tokenStatus = this.getTokenStatus();
+    if (!tokenStatus.configured) {
+      return {
+        status: 'not_authenticated',
+        error: 'Set GITHUB_PAT in Railway environment variables.'
+      };
+    }
+
+    if (tokenStatus.reason === 'contains_whitespace') {
+      return {
+        status: 'not_authenticated',
+        error: 'GITHUB_PAT contains spaces or newlines. Remove extra whitespace.'
+      };
+    }
+
+    if (tokenStatus.reason === 'invalid_format') {
+      logger.warn('GitHub token format unrecognized, attempting anyway');
+    }
+
+    // Verify token works with gh CLI
+    const isAuth = await this.isGhAuthenticated();
+    if (!isAuth) {
+      // Provide specific guidance based on what we know
+      let errorMsg = 'GitHub authentication failed.';
+      if (tokenStatus.reason === 'invalid_format') {
+        errorMsg = 'GITHUB_PAT format invalid. Use a GitHub Personal Access Token (classic or fine-grained).';
+      } else {
+        errorMsg = 'GITHUB_PAT rejected by GitHub. Check token is valid and has "repo" scope.';
+      }
+      return {
+        status: 'not_authenticated',
+        error: errorMsg
+      };
+    }
+
     try {
       const repoName = customRepoName || path.basename(workingDir);
       const visibility = isPrivate ? '--private' : '--public';
       await execAsync(`gh repo create ${repoName} ${visibility} --source=. --remote=origin --push`, {
         cwd: workingDir,
         timeout: 30000,
+        env: { ...process.env, GH_TOKEN: this.githubToken }
       });
       logger.info('Created GitHub repository', { repoName, visibility });
-      return 'success';
+      return { status: 'success' };
     } catch (error) {
       const errMsg = getErrorMessage(error);
-      if (errMsg.includes('Name already exists')) return 'already_exists';
+      if (errMsg.includes('Name already exists')) {
+        return { status: 'already_exists', error: 'Repository name already exists on GitHub' };
+      }
       logger.error('Failed to create GitHub repository', { error: errMsg });
-      return 'error';
+      // Sanitize error message (remove tokens if any)
+      const sanitizedError = errMsg
+        .replace(/gh[opsr]_[a-zA-Z0-9_]+/g, '[REDACTED]')
+        .replace(/github_pat_[a-zA-Z0-9_]+/g, '[REDACTED]')
+        .replace(/x-access-token:[^@]+@/gi, 'x-access-token:***@');
+      return { status: 'error', error: sanitizedError };
     }
   }
 

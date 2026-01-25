@@ -141,7 +141,7 @@ export class ConfigHandlers extends BaseHandler {
         name
       );
 
-      if (result === 'success') {
+      if (result.status === 'success') {
         await interaction.reply({
           content: `Created GitHub repo \`${name}\` (${visibility}).`,
           flags: this.ephemeralFlags()
@@ -149,9 +149,14 @@ export class ConfigHandlers extends BaseHandler {
         return;
       }
 
-      const message = result === 'already_exists'
-        ? `Repo \`${name}\` already exists on GitHub.`
-        : `Failed to create GitHub repo \`${name}\`.`;
+      let message: string;
+      if (result.status === 'not_authenticated') {
+        message = result.error || 'GitHub not configured. Set GITHUB_PAT environment variable.';
+      } else if (result.status === 'already_exists') {
+        message = `Repo \`${name}\` already exists on GitHub.`;
+      } else {
+        message = result.error || `Failed to create GitHub repo \`${name}\`.`;
+      }
 
       await interaction.reply({ content: message, flags: this.ephemeralFlags() });
     } catch (error) {

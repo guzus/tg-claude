@@ -436,7 +436,7 @@ export class CallbackQueryHandler extends BaseHandler {
       const originalName = path.basename(workingDir);
       const result = await gitService.createGitHubRepository(workingDir, isPrivate);
 
-      if (result === 'success') {
+      if (result.status === 'success') {
         const currentRepo = this.repositoryManager.getCurrentRepository(userId);
         if (currentRepo) await this.repositoryManager.refreshRepository(userId, currentRepo.id);
 
@@ -444,13 +444,17 @@ export class CallbackQueryHandler extends BaseHandler {
           `*GitHub Repository Created!*\n\nVisibility: ${isPrivate ? 'Private' : 'Public'}`,
           { inline_keyboard: [[{ text: 'View Repository', callback_data: 'repo_current' }]] }
         );
-      } else if (result === 'already_exists') {
+      } else if (result.status === 'already_exists') {
         stateManager.setPendingRepoCreation(userId, { workingDir, isPrivate, userId, chatId, originalName });
         await this.editMessage(chatId, messageId,
           `*Repository Name Exists*\n\n\`${originalName}\` already exists. Reply with a different name:`
         );
+      } else if (result.status === 'not_authenticated') {
+        await this.editMessage(chatId, messageId,
+          `⚠️ *GitHub Auth Error*\n\n${result.error || 'Set GITHUB_PAT in Railway environment variables.'}`
+        );
       } else {
-        await this.editMessage(chatId, messageId, '*Failed*\n\nCheck gh CLI and GitHub authentication.');
+        await this.editMessage(chatId, messageId, `❌ *Failed*\n\n${result.error || 'Unknown error'}`);
       }
     } catch (error) {
       await this.editMessage(chatId, messageId, `*Error*\n\n${getErrorMessage(error)}`);
@@ -498,14 +502,20 @@ export class CallbackQueryHandler extends BaseHandler {
 
         const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
-        if (result === 'success') {
+        if (result.status === 'success') {
           await this.repositoryManager.refreshRepository(userId, repo.id);
           await this.editMessage(chatId, messageId,
             `*GitHub Repository Created!*\n\n\`${repo.name}\` - ${isPrivate ? 'Private' : 'Public'}`,
             { inline_keyboard: [[{ text: 'View Repository', callback_data: 'repo_current' }]] }
           );
+        } else if (result.status === 'not_authenticated') {
+          await this.editMessage(chatId, messageId,
+            `⚠️ *GitHub Auth Error*\n\n${result.error || 'Set GITHUB_PAT in Railway environment variables.'}`
+          );
+        } else if (result.status === 'already_exists') {
+          await this.editMessage(chatId, messageId, `Repository \`${repo.name}\` already exists on GitHub.`);
         } else {
-          await this.editMessage(chatId, messageId, `Repository \`${repo.name}\` ${result === 'already_exists' ? 'already exists' : 'creation failed'}`);
+          await this.editMessage(chatId, messageId, `❌ Creation failed: ${result.error || 'Unknown error'}`);
         }
       } catch (error) {
         await this.editMessage(chatId, messageId, `Error: ${getErrorMessage(error)}`);
@@ -529,7 +539,7 @@ export class CallbackQueryHandler extends BaseHandler {
     try {
       const result = await gitService.createGitHubRepository(pending.workingDir, pending.isPrivate, newRepoName);
 
-      if (result === 'success') {
+      if (result.status === 'success') {
         const currentRepo = this.repositoryManager.getCurrentRepository(userId);
         if (currentRepo) await this.repositoryManager.refreshRepository(userId, currentRepo.id);
 
@@ -540,8 +550,16 @@ export class CallbackQueryHandler extends BaseHandler {
             reply_markup: { inline_keyboard: [[{ text: 'View Repository', callback_data: 'repo_current' }]] }
           }
         );
+      } else if (result.status === 'not_authenticated') {
+        await this.bot.editMessageText(
+          `⚠️ *GitHub Auth Error*\n\n${result.error || 'Set GITHUB_PAT in Railway environment variables.'}`,
+          { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' }
+        );
+      } else if (result.status === 'already_exists') {
+        await this.bot.editMessageText(`\`${newRepoName}\` already exists. Try /repo again.`,
+          { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
       } else {
-        await this.bot.editMessageText(`\`${newRepoName}\` also exists. Try /repo again.`,
+        await this.bot.editMessageText(`❌ Failed: ${result.error || 'Unknown error'}`,
           { chat_id: chatId, message_id: statusMsg.message_id, parse_mode: 'Markdown' });
       }
     } catch (error) {
@@ -1322,7 +1340,7 @@ export class CallbackQueryHandler extends BaseHandler {
       // Create GitHub repository
       const result = await gitService.createGitHubRepository(repo.path, isPrivate);
 
-      if (result === 'success') {
+      if (result.status === 'success') {
         await this.repositoryManager.refreshRepository(userId, repo.id);
         await this.updatePinnedRepositoryInfo(chatId, userId);
 
@@ -1336,13 +1354,19 @@ export class CallbackQueryHandler extends BaseHandler {
           `📂 \`${escapedPath}\``,
           { inline_keyboard: [[{ text: '📂 View', callback_data: 'repo_current' }]] }
         );
-      } else if (result === 'already_exists') {
+      } else if (result.status === 'not_authenticated') {
+        await this.editMessage(chatId, messageId,
+          `⚠️ *GitHub Auth Error*\n\n` +
+          `${result.error || 'Set GITHUB_PAT in Railway environment variables.'}\n\n` +
+          `Local repo created at \`${repo.path}\``
+        );
+      } else if (result.status === 'already_exists') {
         await this.editMessage(chatId, messageId,
           `Repository \`${name}\` already exists on GitHub.\n\nTry a different name with /new_repo`
         );
       } else {
         await this.editMessage(chatId, messageId,
-          `Failed to create GitHub repository.\n\nLocal repo created at \`${repo.path}\``
+          `❌ ${result.error || 'Failed to create GitHub repository.'}\n\nLocal repo created at \`${repo.path}\``
         );
       }
     } catch (error) {
