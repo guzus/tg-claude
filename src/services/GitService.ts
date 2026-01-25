@@ -517,7 +517,8 @@ class GitService {
       logger.error('Failed to create GitHub repository', { error: errMsg });
       // Sanitize error message (remove tokens if any)
       const sanitizedError = errMsg
-        .replace(/gh[opsr]_[a-zA-Z0-9]+/g, '[REDACTED]')
+        .replace(/gh[opsr]_[a-zA-Z0-9_]+/g, '[REDACTED]')
+        .replace(/github_pat_[a-zA-Z0-9_]+/g, '[REDACTED]')
         .replace(/x-access-token:[^@]+@/gi, 'x-access-token:***@');
       return { status: 'error', error: sanitizedError };
     }

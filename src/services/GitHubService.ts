@@ -10,8 +10,10 @@ const execAsync = promisify(exec);
  */
 function sanitizeError(error: unknown): string {
   const msg = getErrorMessage(error);
-  // Redact GitHub PAT tokens (ghp_..., gho_..., ghs_..., ghr_...)
-  return msg.replace(/gh[opsr]_[a-zA-Z0-9]+/g, '[REDACTED]');
+  // Redact GitHub PAT tokens (classic and fine-grained)
+  return msg
+    .replace(/gh[opsr]_[a-zA-Z0-9_]+/g, '[REDACTED]')
+    .replace(/github_pat_[a-zA-Z0-9_]+/g, '[REDACTED]');
 }
 
 /**
