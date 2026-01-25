@@ -319,6 +319,12 @@ if (ENABLE_TELEGRAM && bot && handlers && chamberHandlers) {
       handler: (msg: TelegramBot.Message) => handlers.handleStatus(msg)
     },
     {
+      command: 'system',
+      description: 'Check system configuration (GitHub, etc.)',
+      pattern: /\/system/,
+      handler: (msg: TelegramBot.Message) => handlers.handleSystem(msg)
+    },
+    {
       command: 'cancel',
       description: 'Cancel an active task by ID',
       pattern: /\/cancel(.*)/,

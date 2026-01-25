@@ -876,8 +876,8 @@ export class RepositoryHandlers extends BaseHandler {
         );
       } else if (result.status === 'not_authenticated') {
         await this.bot.editMessageText(
-          `⚠️ *GitHub not configured*\n\n` +
-          `Set \`GITHUB_PAT\` in Railway environment variables.\n\n` +
+          `⚠️ *GitHub Auth Error*\n\n` +
+          `${result.error || 'Set GITHUB_PAT in Railway environment variables.'}\n\n` +
           `Local repo created at \`${repo.path}\``,
           { chat_id: chatId, message_id: messageId, parse_mode: 'Markdown' }
         );

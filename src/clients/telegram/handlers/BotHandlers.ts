@@ -109,6 +109,10 @@ export class BotHandlers {
     return this.statusHandlers.handleStatus(msg);
   }
 
+  async handleSystem(msg: Message): Promise<void> {
+    return this.statusHandlers.handleSystem(msg);
+  }
+
   async handleConfig(msg: Message, match: RegExpExecArray | null): Promise<void> {
     return this.configHandlers.handleConfig(msg, match);
   }

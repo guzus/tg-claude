@@ -71,10 +71,14 @@ export class ClaudeExecutor extends EventEmitter {
         proc.stdin.write(githubToken);
         proc.stdin.end();
       });
-      await execAsync('gh auth setup-git', { timeout: 10000 });
+      await execAsync('gh auth setup-git', {
+        timeout: 10000,
+        env: { ...process.env, GH_TOKEN: githubToken }
+      });
       logger.info('Authenticated with GitHub CLI');
-    } catch {
-      // GitHub auth is optional
+    } catch (error) {
+      // GitHub auth is optional - log but don't fail
+      logger.debug('GitHub CLI auth setup skipped', { error: getErrorMessage(error) });
     }
   }
 

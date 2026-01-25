@@ -53,7 +53,8 @@ export class GitHubService {
   private isAuthenticated: boolean = false;
 
   constructor(token: string) {
-    this.token = token;
+    // Trim whitespace (common copy-paste issue)
+    this.token = token?.trim() || '';
   }
 
   /**
@@ -84,7 +85,9 @@ export class GitHubService {
       }
 
       // Verify authentication
-      const { stdout: statusOutput } = await execAsync('gh auth status');
+      const { stdout: statusOutput } = await execAsync('gh auth status', {
+        env: { ...process.env, GH_TOKEN: this.token }
+      });
       logger.info('GitHub authentication successful', {
         status: statusOutput.split('\n')[0]
       });
@@ -103,10 +106,13 @@ export class GitHubService {
 
   /**
    * Check if GitHub CLI is authenticated
+   * Pass GH_TOKEN env var so gh CLI can use it
    */
   async checkAuthStatus(): Promise<boolean> {
     try {
-      await execAsync('gh auth status');
+      await execAsync('gh auth status', {
+        env: { ...process.env, GH_TOKEN: this.token }
+      });
       this.isAuthenticated = true;
       return true;
     } catch {
@@ -124,6 +130,7 @@ export class GitHubService {
 
   /**
    * Execute a GitHub CLI command
+   * Pass GH_TOKEN env var so gh CLI can use it
    */
   async executeCommand(command: string): Promise<{ stdout: string; stderr: string }> {
     if (!this.isAuthenticated) {
@@ -131,7 +138,9 @@ export class GitHubService {
     }
 
     try {
-      const result = await execAsync(command);
+      const result = await execAsync(command, {
+        env: { ...process.env, GH_TOKEN: this.token }
+      });
       return result;
     } catch (error) {
       logger.error('GitHub CLI command failed', {
