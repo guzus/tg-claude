@@ -38,7 +38,7 @@ export interface PendingModelEntry {
   chatId: number;
   messageId: number;
   provider: 'openrouter';
-  slot: 'haiku' | 'sonnet' | 'opus';
+  slot: 'haiku' | 'sonnet' | 'opus' | 'all';
 }
 
 /**

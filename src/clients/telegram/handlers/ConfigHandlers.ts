@@ -68,8 +68,8 @@ export class ConfigHandlers extends BaseHandler {
     ].join('\n');
 
     const keyStatus = (() => {
-      if (provider === 'glm') return config.aiProvider?.glmApiKey ? '✓' : '–';
-      if (provider === 'openrouter') return config.aiProvider?.openrouterApiKey ? '✓' : '–';
+      if (provider === 'glm') return (config.aiProvider?.glmApiKey || process.env.GLM_API_KEY) ? '✓' : '–';
+      if (provider === 'openrouter') return (config.aiProvider?.openrouterApiKey || process.env.OPENROUTER_API_KEY) ? '✓' : '–';
       return '–';
     })();
 
@@ -90,11 +90,7 @@ export class ConfigHandlers extends BaseHandler {
       keyboardRows.push([{ text: config.aiProvider?.glmApiKey ? '🔑 Update GLM Key' : '🔑 Set GLM Key', callback_data: 'apikey_set_glm' }]);
     } else if (provider === 'openrouter') {
       keyboardRows.push([{ text: config.aiProvider?.openrouterApiKey ? '🔑 Update OpenRouter Key' : '🔑 Set OpenRouter Key', callback_data: 'apikey_set_openrouter' }]);
-      keyboardRows.push([
-        { text: 'H Model', callback_data: 'model_menu_openrouter_haiku' },
-        { text: 'S Model', callback_data: 'model_menu_openrouter_sonnet' },
-        { text: 'O Model', callback_data: 'model_menu_openrouter_opus' }
-      ]);
+      keyboardRows.push([{ text: '🎛️ Switch Model', callback_data: 'model_presets_openrouter' }]);
       keyboardRows.push([{ text: '↩︎ Reset Models to Defaults', callback_data: 'model_reset_openrouter' }]);
     }
 
@@ -217,29 +213,31 @@ export class ConfigHandlers extends BaseHandler {
 
     const current = await this.userConfigManager.getConfig(userId);
     const aiProvider = current.aiProvider || { provider: 'openrouter' as AIProvider };
-    const field = pending.slot === 'haiku' ? 'haikuModel' : pending.slot === 'sonnet' ? 'sonnetModel' : 'opusModel';
-    const updatedAiProvider = { ...aiProvider, [field]: model } as typeof aiProvider;
+
+    let updatedAiProvider: typeof aiProvider;
+    if (pending.slot === 'all') {
+      updatedAiProvider = { ...aiProvider, haikuModel: model, sonnetModel: model, opusModel: model };
+    } else {
+      const field = pending.slot === 'haiku' ? 'haikuModel' : pending.slot === 'sonnet' ? 'sonnetModel' : 'opusModel';
+      updatedAiProvider = { ...aiProvider, [field]: model } as typeof aiProvider;
+    }
 
     await this.userConfigManager.updateConfig(userId, { aiProvider: updatedAiProvider });
     stateManager.clearPendingModelEntry(userId);
 
+    const slotLabel = pending.slot === 'all' ? 'ALL SLOTS' : pending.slot.toUpperCase();
     await this.bot.editMessageText(
       `✅ *OpenRouter model saved*\n\n` +
-      `Slot: *${pending.slot.toUpperCase()}*\n` +
+      `Applies to: *${slotLabel}*\n` +
       `Model: \`${UIHelpers.escapeMarkdown(model)}\`\n\n` +
-      `Configure another slot below, or run /ai to verify.`,
+      `Run /ai to verify.`,
       {
         chat_id: pending.chatId,
         message_id: pending.messageId,
         parse_mode: 'Markdown',
         reply_markup: {
           inline_keyboard: [
-            [
-              { text: 'H Model', callback_data: 'model_menu_openrouter_haiku' },
-              { text: 'S Model', callback_data: 'model_menu_openrouter_sonnet' },
-              { text: 'O Model', callback_data: 'model_menu_openrouter_opus' }
-            ],
-            [{ text: '↩︎ Reset Defaults', callback_data: 'model_reset_openrouter' }],
+            [{ text: '🎛️ Switch Model', callback_data: 'model_presets_openrouter' }],
             [{ text: '🏠 Main Menu', callback_data: 'main_menu' }]
           ]
         }
@@ -340,8 +338,10 @@ export class ConfigHandlers extends BaseHandler {
 
     const models = this.getProviderModelMap(provider, config);
 
-    const glmKeyMasked = config.aiProvider?.glmApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.glmApiKey))}\`)` : '–';
-    const openRouterKeyMasked = config.aiProvider?.openrouterApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.openrouterApiKey))}\`)` : '–';
+    const glmKey = config.aiProvider?.glmApiKey || process.env.GLM_API_KEY;
+    const glmKeyMasked = glmKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(glmKey))}\`)` : '–';
+    const orKey = config.aiProvider?.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+    const openRouterKeyMasked = orKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(orKey))}\`)` : '–';
 
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
     const repoId = currentRepo?.id || config.currentRepositoryId;
