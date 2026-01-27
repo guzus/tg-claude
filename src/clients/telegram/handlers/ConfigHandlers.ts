@@ -68,8 +68,8 @@ export class ConfigHandlers extends BaseHandler {
     ].join('\n');
 
     const keyStatus = (() => {
-      if (provider === 'glm') return config.aiProvider?.glmApiKey ? '✓' : '–';
-      if (provider === 'openrouter') return config.aiProvider?.openrouterApiKey ? '✓' : '–';
+      if (provider === 'glm') return (config.aiProvider?.glmApiKey || process.env.GLM_API_KEY) ? '✓' : '–';
+      if (provider === 'openrouter') return (config.aiProvider?.openrouterApiKey || process.env.OPENROUTER_API_KEY) ? '✓' : '–';
       return '–';
     })();
 
@@ -338,8 +338,10 @@ export class ConfigHandlers extends BaseHandler {
 
     const models = this.getProviderModelMap(provider, config);
 
-    const glmKeyMasked = config.aiProvider?.glmApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.glmApiKey))}\`)` : '–';
-    const openRouterKeyMasked = config.aiProvider?.openrouterApiKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(config.aiProvider.openrouterApiKey))}\`)` : '–';
+    const glmKey = config.aiProvider?.glmApiKey || process.env.GLM_API_KEY;
+    const glmKeyMasked = glmKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(glmKey))}\`)` : '–';
+    const orKey = config.aiProvider?.openrouterApiKey || process.env.OPENROUTER_API_KEY;
+    const openRouterKeyMasked = orKey ? `set (\`${UIHelpers.escapeMarkdown(this.maskSecret(orKey))}\`)` : '–';
 
     const currentRepo = this.repositoryManager.getCurrentRepository(userId);
     const repoId = currentRepo?.id || config.currentRepositoryId;
