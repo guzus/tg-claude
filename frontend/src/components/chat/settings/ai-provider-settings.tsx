@@ -23,6 +23,13 @@ const PROVIDERS: AIProvider[] = [
   { id: "glm", name: "GLM", icon: Zap },
 ];
 
+const OPENROUTER_PRESET_MODELS = [
+  "minimax/minimax-m2.1",
+  "moonshotai/kimi-k2.5",
+  "openai/gpt-5.2",
+  "anthropic/claude-sonnet-4.5",
+];
+
 export function AIProviderSettings() {
   const [activeProvider, setActiveProvider] = useState<ProviderType>("anthropic");
   const [apiKey, setApiKey] = useState("");
@@ -302,6 +309,34 @@ export function AIProviderSettings() {
           <CardDescription>Override default model slots</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {activeProvider === "openrouter" && (
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Quick Select</label>
+              <div className="flex flex-wrap gap-2">
+                {OPENROUTER_PRESET_MODELS.map((model) => (
+                  <button
+                    key={model}
+                    onClick={() => {
+                      setHaikuModel(model);
+                      setSonnetModel(model);
+                      setOpusModel(model);
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 text-xs font-mono rounded-md border transition-colors",
+                      sonnetModel === model
+                        ? "border-primary bg-primary/10 text-primary"
+                        : "border-border hover:border-primary/50"
+                    )}
+                  >
+                    {model}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Sets all slots to the selected model. Click Save Changes to apply.
+              </p>
+            </div>
+          )}
           <div>
             <label className="text-sm font-medium mb-1.5 block">Haiku Model</label>
             <Input
