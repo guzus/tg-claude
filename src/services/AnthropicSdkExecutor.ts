@@ -460,6 +460,9 @@ export class AnthropicSdkExecutor extends EventEmitter {
       resumeSessionId,
     });
 
+    // Declared at outer scope so the catch block can access stderr output
+    const stderrChunks: string[] = [];
+
     try {
       logger.debug('Task setup: checking working directory', { taskId: task.id, workingDir });
       if (!fs.existsSync(workingDir)) {
@@ -631,7 +634,6 @@ Start working on the task now.`;
         }
 
         // Capture stderr from the Claude Code process for debugging
-        const stderrChunks: string[] = [];
         const stderrCallback = (data: string) => {
           stderrChunks.push(data);
           logStream.write(`[stderr] ${data}`);
