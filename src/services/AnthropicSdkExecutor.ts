@@ -824,6 +824,23 @@ Start working on the task now.`;
       const errorMsg = getErrorMessage(error);
       const durationMs = Date.now() - startTime;
 
+      // Detect stale session and retry without resume
+      if (resumeSessionId && stderrOutput.includes('No conversation found')) {
+        logger.warn('Stale session detected, clearing and retrying without resume', {
+          taskId: task.id,
+          staleSessionId: resumeSessionId,
+        });
+        this.sessionStore.clearSession(task.chatId);
+        task.sessionId = undefined;
+        // Reset task state for retry
+        task.output = '';
+        task.errorOutput = '';
+        task.actions = [];
+        task.events = [];
+        task.status = TaskStatus.PENDING;
+        return this.runTask(task, { ...options, resumeSessionId: undefined });
+      }
+
       // Build detailed error output: include stderr if available
       const errorParts = [errorMsg];
       if (stderrOutput) {
