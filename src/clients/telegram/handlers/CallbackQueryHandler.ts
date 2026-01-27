@@ -147,6 +147,79 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
+    // presets_openrouter – pick a model for all slots at once
+    if (subAction === 'presets_openrouter') {
+      const current = await this.userConfigManager.getConfig(userId);
+      const currentModel = current.aiProvider?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
+
+      const presets = [
+        { label: 'minimax/minimax-m2.1', id: 'minimax/minimax-m2.1' },
+        { label: 'moonshotai/kimi-k2.5', id: 'moonshotai/kimi-k2.5' },
+        { label: 'openai/gpt-5.2', id: 'openai/gpt-5.2' },
+        { label: 'anthropic/claude-sonnet-4.5', id: 'anthropic/claude-sonnet-4.5' },
+      ];
+
+      const presetButtons: InlineKeyboardButton[][] = presets.map(p => [{
+        text: currentModel === p.id ? `${p.label} ✓` : p.label,
+        callback_data: `model_allin_openrouter_${p.id}`
+      }]);
+
+      presetButtons.push([{ text: 'Custom…', callback_data: 'model_custom_openrouter_all' }]);
+      presetButtons.push([
+        { text: 'Per-slot ▸', callback_data: 'model_perslot_openrouter' },
+        { text: 'Back', callback_data: 'main_menu' }
+      ]);
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🎛️ *Switch OpenRouter Model*\n\nPick a model (applies to all slots):`,
+        { inline_keyboard: presetButtons }
+      );
+      return;
+    }
+
+    // allin_openrouter_<model> – set all 3 slots at once
+    if (subAction.startsWith('allin_openrouter_')) {
+      const model = subAction.replace('allin_openrouter_', '');
+      if (!model) return;
+
+      const current = await this.userConfigManager.getConfig(userId);
+      const aiProvider = current.aiProvider || { provider: 'openrouter' };
+      await this.userConfigManager.updateConfig(userId, {
+        aiProvider: { ...aiProvider, haikuModel: model, sonnetModel: model, opusModel: model }
+      });
+
+      await this.editMessage(
+        chatId,
+        messageId,
+        `✅ *Model switched*\n\nAll slots → \`${UIHelpers.escapeMarkdown(model)}\`\n\nRun /ai to verify.`,
+        { inline_keyboard: [
+          [{ text: '🎛️ Switch Model', callback_data: 'model_presets_openrouter' }],
+          [{ text: 'Back', callback_data: 'main_menu' }]
+        ]}
+      );
+      return;
+    }
+
+    // perslot_openrouter – show per-slot menu
+    if (subAction === 'perslot_openrouter') {
+      await this.editMessage(
+        chatId,
+        messageId,
+        `🎛️ *Per-Slot Model Override*\n\nChoose a slot to configure individually:`,
+        { inline_keyboard: [
+          [
+            { text: 'H Model', callback_data: 'model_menu_openrouter_haiku' },
+            { text: 'S Model', callback_data: 'model_menu_openrouter_sonnet' },
+            { text: 'O Model', callback_data: 'model_menu_openrouter_opus' }
+          ],
+          [{ text: 'Back', callback_data: 'model_presets_openrouter' }]
+        ]}
+      );
+      return;
+    }
+
     // menu_openrouter_<slot>
     if (subAction.startsWith('menu_openrouter_')) {
       const slot = subAction.replace('menu_openrouter_', '') as 'haiku' | 'sonnet' | 'opus';
@@ -158,7 +231,7 @@ export class CallbackQueryHandler extends BaseHandler {
         [{ text: 'openai/gpt-5.2', callback_data: `model_pick_openrouter_${slot}_openai/gpt-5.2` }],
         [{ text: 'anthropic/claude-sonnet-4.5', callback_data: `model_pick_openrouter_${slot}_anthropic/claude-sonnet-4.5` }],
         [{ text: 'Custom…', callback_data: `model_custom_openrouter_${slot}` }],
-        [{ text: 'Back', callback_data: 'main_menu' }]
+        [{ text: 'Back', callback_data: 'model_perslot_openrouter' }]
       ];
 
       await this.editMessage(
@@ -170,19 +243,20 @@ export class CallbackQueryHandler extends BaseHandler {
       return;
     }
 
-    // custom_openrouter_<slot>
+    // custom_openrouter_<slot|all>
     if (subAction.startsWith('custom_openrouter_')) {
-      const slot = subAction.replace('custom_openrouter_', '') as 'haiku' | 'sonnet' | 'opus';
-      if (slot !== 'haiku' && slot !== 'sonnet' && slot !== 'opus') return;
+      const slot = subAction.replace('custom_openrouter_', '') as 'haiku' | 'sonnet' | 'opus' | 'all';
+      if (slot !== 'haiku' && slot !== 'sonnet' && slot !== 'opus' && slot !== 'all') return;
 
       stateManager.setPendingModelEntry(userId, { userId, chatId, messageId, provider: 'openrouter', slot });
 
+      const slotLabel = slot === 'all' ? 'ALL SLOTS' : slot.toUpperCase();
       await this.editMessage(
         chatId,
         messageId,
-        `✍️ *Custom OpenRouter Model*\n\nSlot: *${slot.toUpperCase()}*\n\nPaste a model id like:\n` +
-        `\`openai/gpt-5.2\`\n` +
-        `\`anthropic/claude-sonnet-4.5\`\n\n` +
+        `✍️ *Custom OpenRouter Model*\n\nApplies to: *${slotLabel}*\n\nPaste a model id like:\n` +
+        `\`moonshotai/kimi-k2.5\`\n` +
+        `\`openai/gpt-5.2\`\n\n` +
         `Type \`cancel\` to abort.`,
         { inline_keyboard: [[{ text: 'Cancel', callback_data: 'main_menu' }]] }
       );
