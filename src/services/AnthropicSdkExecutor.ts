@@ -462,6 +462,7 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
     // Declared at outer scope so the catch block can access stderr output
     const stderrChunks: string[] = [];
+    const startTime = Date.now();
 
     try {
       logger.debug('Task setup: checking working directory', { taskId: task.id, workingDir });
@@ -504,7 +505,6 @@ export class AnthropicSdkExecutor extends EventEmitter {
 
       let finalAnswer = '';
       let totalCost = 0;
-      const startTime = Date.now();
 
       // Set up timeout
       const timeoutId = setTimeout(() => {
