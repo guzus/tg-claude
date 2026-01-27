@@ -460,9 +460,11 @@ export class AnthropicSdkExecutor extends EventEmitter {
       resumeSessionId,
     });
 
-    // Declared at outer scope so the catch block can access stderr output
+    // Declared at outer scope so the catch block can access them
     const stderrChunks: string[] = [];
     const startTime = Date.now();
+    let provider: string | undefined;
+    let model: string | undefined;
 
     try {
       logger.debug('Task setup: checking working directory', { taskId: task.id, workingDir });
@@ -478,8 +480,8 @@ export class AnthropicSdkExecutor extends EventEmitter {
         // Not a git repo - ignore
       }
 
-      const provider = aiProvider?.provider || 'anthropic';
-      const model = this.getModel(aiProvider);
+      provider = aiProvider?.provider || 'anthropic';
+      model = this.getModel(aiProvider);
       logger.debug('Task setup: provider and model ready', { taskId: task.id, provider, model });
       const abortController = new AbortController();
       this.activeTasks.set(task.id, abortController);
