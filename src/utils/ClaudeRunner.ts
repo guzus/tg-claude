@@ -85,8 +85,9 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProvi
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || GLM_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || GLM_MODEL_MAPPINGS.sonnet;
     env.ANTHROPIC_DEFAULT_OPUS_MODEL = aiProviderConfig?.opusModel || GLM_MODEL_MAPPINGS.opus;
-    // Unset ANTHROPIC_API_KEY to prevent conflicts
-    delete env.ANTHROPIC_API_KEY;
+    // Explicitly blank ANTHROPIC_API_KEY to prevent Claude Code OAuth fallback
+    // and to avoid conflicts with ANTHROPIC_AUTH_TOKEN.
+    env.ANTHROPIC_API_KEY = '';
   } else if (provider === 'openrouter') {
     // OpenRouter uses ANTHROPIC_AUTH_TOKEN
     // Per docs: https://openrouter.ai/docs/guides/guides/claude-code-integration
@@ -99,8 +100,9 @@ export function configureProviderEnv(provider: AIProvider = 'anthropic', aiProvi
     env.ANTHROPIC_AUTH_TOKEN = orKey;
     // Ensure Claude Code OAuth does not override the external provider token.
     delete env.CLAUDE_CODE_OAUTH_TOKEN;
-    // Unset ANTHROPIC_API_KEY to prevent conflicts with AUTH_TOKEN
-    delete env.ANTHROPIC_API_KEY;
+    // Explicitly blank ANTHROPIC_API_KEY to prevent Claude Code OAuth fallback
+    // and to avoid conflicts with ANTHROPIC_AUTH_TOKEN.
+    env.ANTHROPIC_API_KEY = '';
     // Use custom models if configured, else defaults
     env.ANTHROPIC_DEFAULT_HAIKU_MODEL = aiProviderConfig?.haikuModel || OPENROUTER_MODEL_MAPPINGS.haiku;
     env.ANTHROPIC_DEFAULT_SONNET_MODEL = aiProviderConfig?.sonnetModel || OPENROUTER_MODEL_MAPPINGS.sonnet;
