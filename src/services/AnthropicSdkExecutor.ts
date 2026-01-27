@@ -630,14 +630,31 @@ Start working on the task now.`;
           logger.info('Task includes images', { taskId: task.id, imageCount: images.length });
         }
 
+        // Capture stderr from the Claude Code process for debugging
+        const stderrChunks: string[] = [];
+        const stderrCallback = (data: string) => {
+          stderrChunks.push(data);
+          logStream.write(`[stderr] ${data}`);
+          logger.debug('Claude Code stderr', { taskId: task.id, data: data.trimEnd() });
+        };
+
         // Use the v1 query API which supports cwd and bypassPermissions
+        const queryEnv = configureProviderEnv(provider, aiProvider);
         logger.debug('Task setup: calling query()', {
           taskId: task.id,
           model,
           workingDir,
+          claudeCodePath: this.claudeCodePath,
           hasPlugins: plugins.length > 0,
+          pluginCount: plugins.length,
           hasStopHook: !!stopHook,
-          hasResume: !!resumeSessionId
+          hasResume: !!resumeSessionId,
+          hasMcpServers: !!mcpServers,
+          provider,
+          hasOAuthToken: !!queryEnv.CLAUDE_CODE_OAUTH_TOKEN,
+          hasAuthToken: !!queryEnv.ANTHROPIC_AUTH_TOKEN,
+          hasApiKey: !!queryEnv.ANTHROPIC_API_KEY,
+          baseUrl: queryEnv.ANTHROPIC_BASE_URL || '(default)',
         });
         const q = query({
           prompt: promptInput,
@@ -647,12 +664,13 @@ Start working on the task now.`;
             permissionMode: 'bypassPermissions',
             abortController,
             pathToClaudeCodeExecutable: this.claudeCodePath,
-            env: configureProviderEnv(provider, aiProvider),
+            env: queryEnv,
             // Use bun as the runtime since we're in a bun environment
             executable: 'bun',
             // Load local project settings
             settingSources: ['local'],
             persistSession: true,
+            stderr: stderrCallback,
             ...(mcpServers && { mcpServers }),
             // Add plugins and Stop hook for ralph loop if enabled
             ...(plugins.length > 0 && { plugins }),
@@ -802,9 +820,37 @@ Start working on the task now.`;
       });
 
     } catch (error) {
+      const stderrOutput = stderrChunks.join('').trim();
+      const errorMsg = getErrorMessage(error);
+      const durationMs = Date.now() - startTime;
+
+      // Build detailed error output: include stderr if available
+      const errorParts = [errorMsg];
+      if (stderrOutput) {
+        errorParts.push(`\nProcess stderr:\n${stderrOutput}`);
+      }
+
       task.status = TaskStatus.FAILED;
-      task.errorOutput = getErrorMessage(error);
+      task.errorOutput = errorParts.join('');
       task.endTime = new Date();
+
+      logger.error('Agent SDK task failed', {
+        taskId: task.id,
+        error: errorMsg,
+        stderr: stderrOutput || '(empty)',
+        durationMs,
+        model,
+        provider,
+        workingDir,
+        claudeCodePath: this.claudeCodePath,
+        resumeSessionId,
+        sessionId: task.sessionId,
+        actionsCount: task.actions.length,
+        outputLength: task.output.length,
+        // Include extra error properties if available (e.g. error.code)
+        errorCode: (error as { code?: string }).code,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
 
       // Store session even on failure - context is valuable for follow-up
       if (task.sessionId) {
